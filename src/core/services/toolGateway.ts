@@ -9,7 +9,7 @@ import {
   ToolInvocationResult,
   AuditEvent,
 } from '../../types';
-import { PermissionEngine } from '../policies/permissionEngine';
+import { DemoPolicySimulator } from '../../demo/policies/demoPolicySimulator';
 import { mockAuditEvents } from '../../demo/mockData';
 
 export class ToolGatewayService {
@@ -32,7 +32,7 @@ export class ToolGatewayService {
     const timestamp = new Date().toISOString();
 
     // Evaluate permissions
-    const decision = PermissionEngine.evaluateToolPermission(
+    const decision = DemoPolicySimulator.evaluateToolPermission(
       context,
       tool,
       targetOrganizationId
@@ -46,7 +46,7 @@ export class ToolGatewayService {
         id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
         requestId,
         correlationId,
-        actor: `${context.user.name} (${context.user.email})`,
+        actor: `${context.user.name} (${context.user.email || 'no-email'})`,
         organizationId: context.activeOrganization.id,
         channel,
         conversationId,
@@ -67,12 +67,49 @@ export class ToolGatewayService {
       return {
         decision,
         result: {
-          success: false,
-          error: decision.reason,
-          executionTimeMs: 45,
+          status: 'denied',
+          humanSummary: decision.reason,
+          auditId: auditEvent.id,
         },
         auditEvent,
       };
+    }
+
+    // Evaluate confirmation policy
+    if (
+       (tool.riskLevel === 'R2_REVERSIBLE_WRITE' && tool.confirmationPolicy === 'none') ||
+       (tool.riskLevel === 'R3_PRIVILEGED' && tool.confirmationPolicy !== 'explicit' && tool.confirmationPolicy !== 'human_approval' && tool.confirmationPolicy !== 'strong') ||
+       tool.riskLevel === 'R4_CRITICAL'
+    ) {
+        const auditEvent: AuditEvent = {
+          id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+          requestId,
+          correlationId,
+          actor: `${context.user.name} (${context.user.email || 'no-email'})`,
+          organizationId: context.activeOrganization.id,
+          channel,
+          conversationId,
+          toolId: tool.id,
+          toolName: tool.name,
+          riskLevel: tool.riskLevel,
+          requiredPermission: tool.requiredPermissions.join(', ') || 'N/A',
+          confirmationState: 'blocked', // Actually needs confirmation, but simulating block in gateway if not provided.
+          result: 'pendente',
+          details: 'Execução retida aguardando confirmação explícita no DEMO_MODE.',
+          timestamp,
+        };
+
+        this.auditLogs.unshift(auditEvent);
+
+        return {
+          decision,
+          result: {
+            status: 'needs_confirmation',
+            humanSummary: 'A ação requer confirmação explícita para prosseguir.',
+            auditId: auditEvent.id,
+          },
+          auditEvent,
+        };
     }
 
     // Simulated execution payload for mock tools
@@ -130,7 +167,7 @@ export class ToolGatewayService {
       id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
       requestId,
       correlationId,
-      actor: `${context.user.name} (${context.user.email})`,
+      actor: `${context.user.name} (${context.user.email || 'no-email'})`,
       organizationId: context.activeOrganization.id,
       channel,
       conversationId,
@@ -138,7 +175,7 @@ export class ToolGatewayService {
       toolName: tool.name,
       riskLevel: tool.riskLevel,
       requiredPermission: tool.requiredPermissions.join(', ') || 'N/A',
-      confirmationState: tool.confirmationPolicy === 'automatic' ? 'auto' : 'user_confirmed',
+      confirmationState: tool.confirmationPolicy === 'none' ? 'auto' : 'user_confirmed',
       result: 'sucesso',
       details: `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`,
       timestamp,
@@ -149,9 +186,10 @@ export class ToolGatewayService {
     return {
       decision,
       result: {
-        success: true,
+        status: 'success',
         data: simulatedData,
-        executionTimeMs: Math.floor(60 + Math.random() * 120),
+        humanSummary: `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`,
+        auditId: auditEvent.id,
       },
       auditEvent,
     };

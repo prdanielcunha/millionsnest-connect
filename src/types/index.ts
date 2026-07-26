@@ -7,12 +7,16 @@ export type EnvironmentMode = 'DEMO_MODE' | 'PRODUCTION_STUB';
 
 export type LanguageCode = 'pt-BR' | 'en-US' | 'es-ES';
 
+export type GlobalGovernanceRole = 'ceo' | 'global_admin' | 'ecosystem_owner' | 'founder';
+export type OperationalSystemRole = 'support';
+export type CanonicalSystemRole = GlobalGovernanceRole | OperationalSystemRole;
+
 export interface EcosystemUser {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   avatarUrl?: string;
-  globalRole: 'super_admin' | 'ecosystem_admin' | 'user';
+  systemRole?: CanonicalSystemRole | null;
   globalCapabilities: string[]; // e.g. 'livingLibrary.manage'
 }
 
@@ -193,41 +197,64 @@ export interface AutomationDefinition {
   blocks: AutomationBlock[];
 }
 
+type JsonSchema = Record<string, unknown>;
+
 export interface ToolDefinition {
   id: string;
-  appId: 'musicscale' | 'nestfinance' | 'connect_core';
+  appId: 'musicscale' | 'nestfinance' | 'connect_core' | string;
   name: string;
   version: string;
   title: string;
   description: string;
-  inputSchema: string;
-  outputSchema: string;
+  inputSchema: JsonSchema;
+  outputSchema: JsonSchema;
   requiredPermissions: string[];
   organizationScoped: boolean;
   riskLevel: RiskLevel;
-  confirmationPolicy: 'automatic' | 'user_confirmation' | 'admin_approval';
+  confirmationPolicy: 'none' | 'simple' | 'explicit' | 'strong' | 'human_approval';
   readOnly: boolean;
-  idempotencyPolicy: string;
+  idempotencyPolicy: 'not_required' | 'recommended' | 'required';
   supportsPreview: boolean;
   supportsUndo: boolean;
   timeoutMs: number;
   auditEventType: string;
+  deprecatedAt?: string;
 }
 
 export interface ToolInvocationContext {
   requestId: string;
   correlationId: string;
-  actorId: string;
-  organizationId: string;
-  channel: string;
-  conversationId: string;
+  idempotencyKey?: string;
+  actor: {
+    uid: string;
+    systemRole?: CanonicalSystemRole | null;
+  };
+  organization: {
+    id: string;
+    role?: string | null;
+  };
+  appAccess: {
+    appId: string;
+    capabilities: string[];
+  };
+  channel: {
+    type: string;
+    conversationId: string;
+  };
+  locale: string;
+  reason?: string;
+  confirmedAt?: string;
 }
 
-export interface ToolInvocationResult {
-  success: boolean;
-  data?: any;
-  error?: string;
-  executionTimeMs: number;
+export interface ToolInvocationResult<T = unknown> {
+  status: 'success' | 'denied' | 'needs_confirmation' | 'conflict' | 'failed';
+  data?: T;
+  humanSummary: string;
+  deepLink?: string;
+  warnings?: string[];
+  auditId: string;
+  retryable?: boolean;
+  undoToken?: string;
 }
 
 export interface PermissionDecision {

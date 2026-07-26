@@ -135,12 +135,12 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
         toolName: tool.name,
         appId: tool.appId,
         args: { organizationId: context.activeOrganization.id },
-        status: gatewayResult.result?.success ? 'executed' : 'failed',
+        status: gatewayResult.result?.status === 'success' ? 'executed' : (gatewayResult.result?.status === 'needs_confirmation' ? 'requested' : 'failed'),
         riskLevel: tool.riskLevel,
-        requiresApproval: tool.confirmationPolicy === 'admin_approval',
+        requiresApproval: tool.confirmationPolicy === 'human_approval' || tool.confirmationPolicy === 'strong',
         executedAt: new Date().toISOString(),
-        result: gatewayResult.result?.data || gatewayResult.result?.error,
-        error: gatewayResult.result?.error,
+        result: gatewayResult.result?.data || gatewayResult.result?.humanSummary,
+        error: gatewayResult.result?.status !== 'success' ? gatewayResult.result?.humanSummary : undefined,
       },
     };
 
