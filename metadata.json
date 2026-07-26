@@ -1,0 +1,6 @@
+{
+  "name": "MillionsNest Connect",
+  "description": "Plataforma omnichannel de atendimento, relacionamento, agentes de IA e execução segura de ações no ecossistema MillionsNest.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
