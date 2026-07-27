@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Menu, X, Search, Bell, Building2, Globe, ChevronDown,
+  Menu, X, Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
   LayoutDashboard, MessageSquare, Wrench, Users, BrainCircuit,
   Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { DemoBanner } from '../common/DemoBanner';
 import { CommandPalette } from './CommandPalette';
 import { MobileAppHeader } from './MobileAppHeader';
 import { MobileNavigationDrawer } from './MobileNavigationDrawer';
+import { getUxText } from '../../i18n/mobileUx';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -30,26 +31,27 @@ export const Shell: React.FC<ShellProps> = ({
   onNavigate,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isOrgMenuOpen, setIsOrgMenuOpen] = useState(false);
+  const [isDesktopOrgMenuOpen, setIsDesktopOrgMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const t = getUxText(currentLang);
 
   const navItems = [
-    { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'inbox', label: 'Caixa de Entrada', icon: MessageSquare },
-    { id: 'tools', label: 'Tool Gateway', icon: Wrench },
-    { id: 'contacts', label: 'Contatos', icon: Users },
-    { id: 'agents', label: 'Agentes IA', icon: BrainCircuit },
-    { id: 'knowledge', label: 'Conhecimento', icon: BookOpen },
-    { id: 'automations', label: 'Automações', icon: Workflow },
-    { id: 'channels', label: 'Canais', icon: Radio },
-    { id: 'analytics', label: 'Métricas', icon: LineChart },
-    { id: 'audit', label: 'Auditoria', icon: ShieldCheck },
-    { id: 'settings', label: 'Configurações', icon: Settings },
+    { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },
+    { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },
+    { id: 'tools', label: t.navigation.tools, icon: Wrench },
+    { id: 'contacts', label: t.navigation.contacts, icon: Users },
+    { id: 'agents', label: t.navigation.agents, icon: BrainCircuit },
+    { id: 'knowledge', label: t.navigation.knowledge, icon: BookOpen },
+    { id: 'automations', label: t.navigation.automations, icon: Workflow },
+    { id: 'channels', label: t.navigation.channels, icon: Radio },
+    { id: 'analytics', label: t.navigation.analytics, icon: LineChart },
+    { id: 'audit', label: t.navigation.audit, icon: ShieldCheck },
+    { id: 'settings', label: t.navigation.settings, icon: Settings },
   ];
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#0B0E14] overflow-x-hidden">
-      <DemoBanner />
+      <DemoBanner currentLang={currentLang} />
 
       <div className="flex-1 min-h-0 flex flex-col">
         {/* Mobile Header (Hidden on lg) */}
@@ -58,9 +60,9 @@ export const Shell: React.FC<ShellProps> = ({
           context={context}
           isMobileMenuOpen={isMobileMenuOpen}
           setIsMobileMenuOpen={setIsMobileMenuOpen}
-          isOrgMenuOpen={isOrgMenuOpen}
-          setIsOrgMenuOpen={setIsOrgMenuOpen}
           setIsCommandPaletteOpen={setIsCommandPaletteOpen}
+          currentLang={currentLang}
+          onSelectOrg={onSelectOrg}
         />
 
         <MobileNavigationDrawer
@@ -73,34 +75,6 @@ export const Shell: React.FC<ShellProps> = ({
           currentLang={currentLang}
           onChangeLang={onChangeLang}
         />
-
-        {/* Mobile Org Menu Dropdown overlay (only below header if open) */}
-        {isOrgMenuOpen && (
-          <div className="lg:hidden absolute top-[104px] inset-x-0 mx-4 z-40">
-             <div className="bg-[#121824] border border-white/10 rounded-xl shadow-2xl py-2 animate-in fade-in zoom-in-95 duration-100">
-               <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                 Organizações (Simuladas)
-               </div>
-               {context.availableOrganizations.map((org) => (
-                 <button
-                   key={org.id}
-                   onClick={() => {
-                     onSelectOrg(org.id);
-                     setIsOrgMenuOpen(false);
-                   }}
-                   className={`w-full text-left px-3 py-3 text-xs flex items-center justify-between hover:bg-white/5 transition ${
-                     org.id === context.activeOrganization.id ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'
-                   }`}
-                 >
-                   <span className="font-medium truncate">{org.name}</span>
-                   {org.id === context.activeOrganization.id && (
-                     <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
-                   )}
-                 </button>
-               ))}
-             </div>
-          </div>
-        )}
 
         <div className="flex-1 min-h-0 flex">
           {/* Desktop Sidebar (Hidden on mobile/tablet) */}
@@ -136,7 +110,12 @@ export const Shell: React.FC<ShellProps> = ({
             </div>
             
             <div className="p-4 border-t border-white/10 text-[10px] text-gray-500 text-center">
-              Contexto demonstrativo<br />Autoridade: MillionsNest
+              {t.header.brandAuth.split('|').map((part, i) => (
+                <React.Fragment key={i}>
+                  {part.trim()}
+                  {i === 0 && <br />}
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
@@ -147,8 +126,10 @@ export const Shell: React.FC<ShellProps> = ({
               <div className="relative flex items-center gap-3 min-w-0">
                 <div className="relative">
                   <button
-                    onClick={() => setIsOrgMenuOpen(!isOrgMenuOpen)}
+                    onClick={() => setIsDesktopOrgMenuOpen(!isDesktopOrgMenuOpen)}
                     className="flex items-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-200 transition"
+                    aria-expanded={isDesktopOrgMenuOpen}
+                    aria-label={t.header.activeOrganization}
                   >
                     <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span className="font-semibold text-white max-w-[160px] truncate">
@@ -157,30 +138,37 @@ export const Shell: React.FC<ShellProps> = ({
                     <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase font-mono">
                       {context.activeOrganization.plan}
                     </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    {isDesktopOrgMenuOpen ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    )}
                   </button>
-                  {isOrgMenuOpen && (
+                  {isDesktopOrgMenuOpen && (
                     <div className="absolute left-0 mt-2 w-64 bg-[#121824] border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                       <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                        Organizações (Simuladas)
+                        {t.header.organizations}
                       </div>
-                      {context.availableOrganizations.map((org) => (
-                        <button
-                          key={org.id}
-                          onClick={() => {
-                            onSelectOrg(org.id);
-                            setIsOrgMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-white/5 transition ${
-                            org.id === context.activeOrganization.id ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'
-                          }`}
-                        >
-                          <span className="font-medium truncate">{org.name}</span>
-                          {org.id === context.activeOrganization.id && (
-                            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
-                          )}
-                        </button>
-                      ))}
+                      {context.availableOrganizations.map((org) => {
+                        const isActive = org.id === context.activeOrganization.id;
+                        return (
+                          <button
+                            key={org.id}
+                            onClick={() => {
+                              onSelectOrg(org.id);
+                              setIsDesktopOrgMenuOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-white/5 transition ${
+                              isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'
+                            }`}
+                          >
+                            <span className="font-medium truncate pr-2">{org.name}</span>
+                            {isActive && (
+                              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -191,10 +179,11 @@ export const Shell: React.FC<ShellProps> = ({
                 <button
                   onClick={() => setIsCommandPaletteOpen(true)}
                   className="w-full bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-gray-400 px-3 py-1.5 rounded-lg text-xs flex items-center justify-between transition group"
+                  aria-label={t.header.openSearch}
                 >
                   <span className="flex items-center gap-2 group-hover:text-gray-200">
                     <Search className="w-3.5 h-3.5 text-gray-400" />
-                    <span>Buscar páginas, ferramentas, contatos (Cmd+K)...</span>
+                    <span>{t.header.openSearch}</span>
                   </span>
                   <kbd className="bg-[#0B0E14] border border-white/10 text-[10px] px-1.5 py-0.5 rounded font-mono text-gray-400">
                     ⌘K
@@ -215,14 +204,19 @@ export const Shell: React.FC<ShellProps> = ({
                           ? 'bg-indigo-600 text-white shadow'
                           : 'text-gray-400 hover:text-gray-200'
                       }`}
+                      aria-pressed={currentLang === lang}
                     >
                       {lang.split('-')[0].toUpperCase()}
                     </button>
                   ))}
                 </div>
-                <button className="p-2 rounded-lg bg-[#1A2234] border border-white/10 text-gray-400 hover:text-white transition relative">
+                <button 
+                  className="p-2 rounded-lg bg-[#1A2234] border border-white/10 text-gray-600 cursor-not-allowed transition relative"
+                  aria-label={t.header.notificationsPlanned}
+                  title={t.header.notificationsPlanned}
+                  aria-disabled="true"
+                >
                   <Bell className="w-4 h-4" />
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400"></span>
                 </button>
                 <div className="flex items-center gap-2.5 pl-2 border-l border-white/10">
                   <img
@@ -235,7 +229,7 @@ export const Shell: React.FC<ShellProps> = ({
                       {context.user.name}
                     </span>
                     <span className="text-[10px] text-indigo-400 font-mono">
-                      {context.user.systemRole}
+                      {context.user.systemRole || t.drawer.noSystemRole}
                     </span>
                   </div>
                 </div>
