@@ -1,4 +1,7 @@
-import React from 'react';
+const fs = require('fs');
+
+// 5. OverviewPage.tsx
+fs.writeFileSync('src/features/overview/OverviewPage.tsx', `import React from 'react';
 import {
   MessageSquare,
   Clock,
@@ -195,7 +198,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
                 <div key={i} className="flex-1 flex flex-col justify-end items-center gap-2">
                   <div
                     className="w-full bg-indigo-500/20 hover:bg-indigo-500/40 transition rounded-t-sm border-t border-indigo-500/50 relative group"
-                    style={{ height: `${height}%` }}
+                    style={{ height: \`\${height}%\` }}
                   >
                     <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-[#222C42] border border-white/10 text-white text-[10px] px-2 py-1 rounded transition-opacity shadow-lg">
                       {height * 12}
@@ -264,7 +267,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
                     <div className="text-[10px] text-gray-500 shrink-0">{item.time}</div>
                   </div>
                   <div className="mt-2 flex flex-col gap-1.5">
-                    <div className={`inline-flex items-center self-start gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${item.color} ${item.bg} border max-w-full`}>
+                    <div className={\`inline-flex items-center self-start gap-1 px-2 py-0.5 rounded text-[10px] font-medium \${item.color} \${item.bg} border max-w-full\`}>
                       <span className="whitespace-normal">{item.status}</span>
                     </div>
                     {item.detail && (
@@ -347,3 +350,4 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
     </div>
   );
 };
+`);

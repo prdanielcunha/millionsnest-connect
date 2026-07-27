@@ -43,3 +43,16 @@
 .font-numeric {
   font-variant-numeric: tabular-nums;
 }
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow-x: hidden;
+}
