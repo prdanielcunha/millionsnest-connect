@@ -20,19 +20,19 @@ import {
 export const mockEcosystemContext: EffectiveEcosystemContext = {
   mode: 'DEMO_MODE',
   user: {
-    id: 'usr_daniel_01',
-    name: 'Pr. Daniel Cunha',
-    email: 'pastordanielpcunha@gmail.com',
+    uid: 'demo-user-001',
+    name: 'Usuário de Demonstração',
+    email: 'demo.user@example.invalid',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    systemRole: 'ecosystem_owner',
-    globalCapabilities: ['livingLibrary.manage', 'analytics.view_global', 'audit.view_all'],
+    systemRole: null,
+    capabilities: [],
   },
   activeOrganization: {
     id: 'org_londrina_01',
     name: 'Igreja Central Londrina',
     slug: 'igreja-central-londrina',
     plan: 'enterprise',
-    isCanonical: true,
+    isDemo: true,
   },
   availableOrganizations: [
     {
@@ -40,42 +40,48 @@ export const mockEcosystemContext: EffectiveEcosystemContext = {
       name: 'Igreja Central Londrina',
       slug: 'igreja-central-londrina',
       plan: 'enterprise',
-      isCanonical: true,
+      isDemo: true,
     },
     {
       id: 'org_curitiba_02',
       name: 'Comunidade Graça Curitiba',
       slug: 'comunidade-graca-curitiba',
       plan: 'pro',
-      isCanonical: true,
+      isDemo: true,
     },
     {
       id: 'org_maringa_03',
       name: 'Igreja Esperança Maringá',
       slug: 'igreja-esperanca-maringa',
       plan: 'starter',
-      isCanonical: true,
+      isDemo: true,
     },
   ],
   memberships: [
     {
       id: 'mem_01',
-      userId: 'usr_daniel_01',
+      uid: 'demo-user-001',
       organizationId: 'org_londrina_01',
       organizationName: 'Igreja Central Londrina',
-      role: 'owner',
+      organizationRole: 'owner',
+      status: 'active',
       permissions: ['musicscale.schedules.manage', 'musicscale.repertoire.manage', 'connect.agent.admin'],
     },
     {
       id: 'mem_02',
-      userId: 'usr_daniel_01',
+      uid: 'demo-user-001',
       organizationId: 'org_curitiba_02',
       organizationName: 'Comunidade Graça Curitiba',
-      role: 'admin',
+      organizationRole: 'admin',
+      status: 'active',
       permissions: ['musicscale.schedules.view', 'connect.agent.view'],
     },
   ],
-  effectiveCapabilities: ['livingLibrary.manage', 'analytics.view_global', 'audit.view_all'],
+  appAccess: [
+    { appId: 'musicscale', access: true, capabilities: [] },
+    { appId: 'connect_core', access: true, capabilities: [] },
+    { appId: 'nestfinance', access: false, capabilities: [] }
+  ],
 };
 
 export const mockContacts: Contact[] = [
@@ -754,10 +760,11 @@ export const mockAuditEvents: AuditEvent[] = [
     toolName: 'listSchedules',
     riskLevel: 'R1_AUTH_READ',
     requiredPermission: 'musicscale.schedules.view',
-    confirmationState: 'auto',
+    confirmationState: 'not_required',
     result: 'sucesso',
     details: 'Consulta de escala para Gabriel Santos (+5543998124455). Tenant validado no servidor.',
     timestamp: '2026-07-26T13:42:32Z',
+    isDemoMode: true,
   },
   {
     id: 'aud_1002',
@@ -775,7 +782,7 @@ export const mockAuditEvents: AuditEvent[] = [
     result: 'negado',
     details: 'Membro solicitou adicionar música à Biblioteca Viva global sem a capability global livingLibrary.manage. Execução bloqueada pelo Tool Gateway.',
     timestamp: '2026-07-26T13:46:00Z',
-    isLivingLibraryBlocked: true,
+    isDemoMode: true,
   },
   {
     id: 'aud_1003',
@@ -792,7 +799,7 @@ export const mockAuditEvents: AuditEvent[] = [
     result: 'negado',
     details: 'Tentativa de acesso Cross-Tenant detectada: Token pertence à org_londrina_01 mas solicitou org_curitiba_02. Bloqueio automático.',
     timestamp: '2026-07-26T11:20:00Z',
-    isCrossTenantBlocked: true,
+    isDemoMode: true,
   },
   {
     id: 'aud_1004',
@@ -805,10 +812,11 @@ export const mockAuditEvents: AuditEvent[] = [
     toolName: 'createScheduleDraft',
     riskLevel: 'R2_REVERSIBLE_WRITE',
     requiredPermission: 'musicscale.schedules.manage',
-    confirmationState: 'user_confirmed',
+    confirmationState: 'confirmed',
     result: 'sucesso',
     details: 'Rascunho de escala do culto de domingo criado com sucesso por administrador validado.',
     timestamp: '2026-07-25T16:30:00Z',
+    isDemoMode: true,
   },
 ];
 

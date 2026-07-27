@@ -36,9 +36,28 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
       context,
       selectedTool,
       { title: 'Exemplo Hino Novo', artist: 'Banda Central', key: 'G' },
-      context.activeOrganization.id,
-      'cnv_01',
-      'whatsapp'
+      {
+        requestId: `req_${Date.now()}`,
+        correlationId: `corr_${Date.now()}`,
+        idempotencyKey: `idempotency_${Date.now()}`,
+        actor: {
+          uid: context.user.uid,
+          systemRole: context.user.systemRole,
+        },
+        organization: {
+          id: context.activeOrganization.id,
+        },
+        appAccess: {
+          appId: selectedTool.appId,
+          capabilities: [],
+        },
+        channel: {
+          type: 'whatsapp',
+          conversationId: 'cnv_01',
+        },
+        locale: 'pt-BR',
+        confirmedAt: new Date().toISOString() // Simulando aprovação UI para teste
+      }
     );
     setExecutionResult(res);
   };

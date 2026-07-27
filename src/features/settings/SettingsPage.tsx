@@ -68,7 +68,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ context }) => {
 
               <div className="p-3 bg-[#1A2234] rounded-xl border border-white/5 space-y-1">
                 <span className="text-gray-500 text-[10px] uppercase block">Seu Papel no Ecossistema</span>
-                <span className="text-cyan-300 font-bold">{context.user.globalRole}</span>
+                <span className="text-cyan-300 font-bold">{context.user.systemRole || 'Nenhum'}</span>
                 <span className="text-gray-500 text-[10px] block">Capability: livingLibrary.manage</span>
               </div>
             </div>

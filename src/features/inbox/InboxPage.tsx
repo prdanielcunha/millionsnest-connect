@@ -118,9 +118,28 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
       context,
       tool,
       { title: 'Culto de Domingo Exemplo', query: 'Bondade de Deus' },
-      context.activeOrganization.id,
-      activeConversation.id,
-      activeConversation.channel
+      {
+        requestId: `req_${Date.now()}`,
+        correlationId: `corr_${Date.now()}`,
+        idempotencyKey: `idempotency_${Date.now()}`,
+        actor: {
+          uid: context.user.uid,
+          systemRole: context.user.systemRole,
+        },
+        organization: {
+          id: context.activeOrganization.id,
+        },
+        appAccess: {
+          appId: tool.appId,
+          capabilities: [],
+        },
+        channel: {
+          type: activeConversation.channel,
+          conversationId: activeConversation.id,
+        },
+        locale: 'pt-BR',
+        confirmedAt: new Date().toISOString() // Simulando que a IA pediu e o usuário já confirmou via UI
+      }
     );
 
     const toolMsg: UnifiedMessage = {

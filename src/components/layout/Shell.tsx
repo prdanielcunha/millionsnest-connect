@@ -317,7 +317,7 @@ export const Shell: React.FC<ShellProps> = ({
                     {context.user.name}
                   </span>
                   <span className="text-[10px] text-indigo-400 font-mono">
-                    {context.user.globalRole}
+                    {context.user.systemRole}
                   </span>
                 </div>
               </div>

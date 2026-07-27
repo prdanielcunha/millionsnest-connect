@@ -12,12 +12,12 @@ export type OperationalSystemRole = 'support';
 export type CanonicalSystemRole = GlobalGovernanceRole | OperationalSystemRole;
 
 export interface EcosystemUser {
-  id: string;
+  uid: string;
   name: string;
   email?: string;
   avatarUrl?: string;
   systemRole?: CanonicalSystemRole | null;
-  globalCapabilities: string[]; // e.g. 'livingLibrary.manage'
+  capabilities: string[];
 }
 
 export interface EcosystemOrganization {
@@ -25,17 +25,26 @@ export interface EcosystemOrganization {
   name: string;
   slug: string;
   avatarUrl?: string;
-  plan: 'enterprise' | 'pro' | 'starter';
-  isCanonical: boolean;
+  plan: string;
+  isDemo: true;
 }
+
+export type MembershipStatus = 'active' | 'inactive' | 'suspended';
 
 export interface EcosystemMembership {
   id: string;
-  userId: string;
+  uid: string;
   organizationId: string;
   organizationName: string;
-  role: 'owner' | 'admin' | 'agent' | 'viewer';
+  organizationRole?: string | null;
+  status: MembershipStatus;
   permissions: string[];
+}
+
+export interface DemoAppAccess {
+  appId: string;
+  access: boolean;
+  capabilities: string[];
 }
 
 export interface EffectiveEcosystemContext {
@@ -44,7 +53,7 @@ export interface EffectiveEcosystemContext {
   activeOrganization: EcosystemOrganization;
   availableOrganizations: EcosystemOrganization[];
   memberships: EcosystemMembership[];
-  effectiveCapabilities: string[];
+  appAccess: DemoAppAccess[];
 }
 
 export interface ExternalIdentity {
@@ -257,31 +266,38 @@ export interface ToolInvocationResult<T = unknown> {
   undoToken?: string;
 }
 
-export interface PermissionDecision {
-  allowed: boolean;
+export type DemoPolicyDecisionStatus = 'allowed' | 'denied' | 'needs_confirmation';
+
+export interface DemoPolicyDecision {
+  status: DemoPolicyDecisionStatus;
   reason: string;
-  requiredCapability?: string;
   checkedAt: string;
+  simulated: true;
+  requiredPermissions?: string[];
+  requiredCapability?: string;
+  confirmationPolicy?: ToolDefinition['confirmationPolicy'];
 }
 
 export interface AuditEvent {
   id: string;
   requestId: string;
   correlationId: string;
+  idempotencyKey?: string;
   actor: string;
   organizationId: string;
+  appId?: string;
   channel: string;
   conversationId?: string;
   toolId?: string;
   toolName?: string;
   riskLevel?: RiskLevel;
   requiredPermission?: string;
-  confirmationState: 'auto' | 'user_confirmed' | 'blocked' | 'system_approved';
+  confirmationPolicy?: ToolDefinition['confirmationPolicy'];
+  confirmationState: 'not_required' | 'pending' | 'confirmed' | 'human_approval_pending' | 'blocked';
   result: 'sucesso' | 'negado' | 'falha' | 'pendente';
   details: string;
   timestamp: string;
-  isCrossTenantBlocked?: boolean;
-  isLivingLibraryBlocked?: boolean;
+  isDemoMode: true;
 }
 
 export interface ChannelConnection {

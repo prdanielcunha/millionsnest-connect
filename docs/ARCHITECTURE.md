@@ -1,38 +1,8 @@
-# MillionsNest Connect - Arquitetura do Sistema
+# Architecture - Demo Mode
 
-## 1. Fluxo de Execução E2E
-```
-[ Canal (WhatsApp/Instagram/In-App) ]
-                  │
-                  ▼
-         [ Webhook Gateway ]
-                  │
-                  ▼
-          [ Event Intake ]
-                  │
-                  ▼
-     [ Conversation Processor ]
-                  │
-                  ▼
-          [ Policy Engine ] ◄── Validacao RBAC & Tenant Scoping
-                  │
-                  ▼
-       [ Agent Orchestrator ]
-                  │
-                  ▼
-          [ Tool Gateway ] ◄── Executa ferramentas autorizadas
-                  │
-                  ├───────────────────────┐
-                  ▼                       ▼
-       [ App Responsável ]        [ Trilha de Auditoria ]
-     (MusicScale/NestFinance)         (Imutavel)
-                  │
-                  ▼
-         [ Response Renderer ]
-```
+O Connect possui um simulador local (DemoPolicySimulator) focado em projetar os contratos antes da integração real.
 
-## 2. Componentes Principais
-- **Webhook Gateway:** Recebe eventos dos canais e valida assinaturas de segurança.
-- **Policy Engine:** Aplica regras de autorização verificando `organizationId` validado no servidor e capabilities globais (e.g. `livingLibrary.manage`).
-- **Tool Gateway:** Barramento de execução de ferramentas com suporte a pre visualização, confirmação humana e níveis de risco (R0 a R4).
-- **Audit Log:** Trilha imutável de eventos de auditoria registrando requestId, correlationId, ator e resultado.
+- Diferença entre o DemoPolicySimulator e a Policy Engine real: O simulador executa controles client/local, nunca concedendo autorização em produção real. Todas as avaliações no DEMO_MODE têm status simulado e devem ser revalidadas no backend futuramente.
+- Fluxo de Execução:
+  UI/Canal -> ToolInvocationContext -> DemoPolicySimulator -> Controle de Confirmação -> Idempotência -> Execução Simulada -> Registro na Auditoria.
+- AVISO: Nenhuma parte dessa infraestrutura frontend fornece autorização ou validação de escopo para ambiente de produção real.

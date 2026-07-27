@@ -7,9 +7,10 @@
 import {
   EffectiveEcosystemContext,
   ToolDefinition,
-  PermissionDecision,
+  DemoPolicyDecision,
+  ToolInvocationContext,
 } from '../../types';
-import { isGlobalGovernanceRole, isOperationalSupportRole, normalizeSystemRole } from '../../core/roles/systemRoles';
+import { normalizeSystemRole } from '../../core/roles/systemRoles';
 
 export class DemoPolicySimulator {
   /**
@@ -18,93 +19,152 @@ export class DemoPolicySimulator {
   static evaluateToolPermission(
     context: EffectiveEcosystemContext,
     tool: ToolDefinition,
-    requestedOrganizationId: string
-  ): PermissionDecision {
+    invocationContext: ToolInvocationContext
+  ): DemoPolicyDecision {
     const timestamp = new Date().toISOString();
 
+    const deny = (reason: string): DemoPolicyDecision => ({
+      status: 'denied',
+      reason,
+      checkedAt: timestamp,
+      simulated: true,
+    });
+
+    const needsConfirmation = (reason: string): DemoPolicyDecision => ({
+      status: 'needs_confirmation',
+      reason,
+      checkedAt: timestamp,
+      simulated: true,
+      confirmationPolicy: tool.confirmationPolicy,
+    });
+
+    const allow = (reason: string): DemoPolicyDecision => ({
+      status: 'allowed',
+      reason,
+      checkedAt: timestamp,
+      simulated: true,
+    });
+
+    // 1. Verify DEMO_MODE
     if (context.mode !== 'DEMO_MODE') {
-      return {
-        allowed: false,
-        reason: 'O simulador só opera em DEMO_MODE.',
-        checkedAt: timestamp,
-      };
+      return deny('O simulador só opera em DEMO_MODE.');
     }
 
-    // 1. Cross-Tenant Check
-    if (tool.organizationScoped) {
-      if (requestedOrganizationId !== context.activeOrganization.id) {
-        return {
-          allowed: false,
-          reason: `Bloqueio Cross-Tenant (SIMULAÇÃO): Token pertence à organização "${context.activeOrganization.id}", mas a requisição solicitou "${requestedOrganizationId}".`,
-          checkedAt: timestamp,
-        };
-      }
+    // 2. Verify actor match
+    if (invocationContext.actor.uid !== context.user.uid) {
+      return deny('Ator da invocação não corresponde ao usuário demonstrativo.');
     }
 
-    // 2. Organization Membership Status & Permissions
+    // 3. Normalize systemRole for display/classification (not granting bypasses)
+    const normalizedRole = normalizeSystemRole(invocationContext.actor.systemRole);
+
+    // 4. Resolve appAccess
+    const appAccess = context.appAccess.find((a) => a.appId === tool.appId);
+
+    // 5. Deny if appAccess not found
+    if (!appAccess) {
+      return deny(`Acesso ao aplicativo ${tool.appId} não encontrado no contexto.`);
+    }
+
+    // 6. Deny if appAccess is false
+    if (!appAccess.access) {
+      return deny(`Acesso ao aplicativo ${tool.appId} está desabilitado.`);
+    }
+
+    // 7. Evaluate organizationScoped
     let activeMembership = null;
     if (tool.organizationScoped) {
+      if (!context.activeOrganization) {
+        return deny('Organização ativa não definida no contexto local.');
+      }
+      
+      const requestedOrg = invocationContext.organization.id;
+      if (requestedOrg !== context.activeOrganization.id) {
+        return deny(`Bloqueio Cross-Tenant (SIMULAÇÃO): Token pertence à organização "${context.activeOrganization.id}", mas a requisição solicitou "${requestedOrg}".`);
+      }
+
       activeMembership = context.memberships.find(
         (m) => m.organizationId === context.activeOrganization.id
       );
 
       if (!activeMembership) {
-        return {
-          allowed: false,
-          reason: `Membership inexistente (SIMULAÇÃO).`,
-          checkedAt: timestamp,
-        };
+        return deny('Membership inexistente para a organização solicitada.');
+      }
+
+      if (activeMembership.status !== 'active') {
+        return deny(`Membership inválida (status: ${activeMembership.status}). Acesso negado.`);
       }
     }
 
-    // 3. Required Permissions (Local role owner/admin DOES NOT bypass this in the simulation)
-    // Global Governance Role and Support also DO NOT bypass requiredPermissions in the simulation
+    // 8. Validate requiredPermissions (tenant-scoped)
     if (tool.organizationScoped && tool.requiredPermissions.length > 0) {
-       let hasPermissions = false;
-       if (activeMembership) {
-           hasPermissions = tool.requiredPermissions.every((perm) =>
-              activeMembership?.permissions.includes(perm)
-           );
-       }
+       const hasPermissions = tool.requiredPermissions.every((perm) =>
+          activeMembership?.permissions.includes(perm)
+       );
+       
        if (!hasPermissions) {
-          return {
-            allowed: false,
-            reason: `Falta de permissão local (SIMULAÇÃO): Requer [${tool.requiredPermissions.join(', ')}]. Owner/Admin/Support não possuem bypass.`,
-            checkedAt: timestamp,
-          };
+          return deny(`Falta de permissão local: Requer [${tool.requiredPermissions.join(', ')}]. Owner/Admin/Support não possuem bypass.`);
        }
     }
 
-    // 4. Global Capability Check for Living Library (livingLibrary.manage)
-    // No role automatically grants livingLibrary.manage. It must be explicit.
-    if (tool.name === 'addSongToLivingLibrary' || tool.requiredPermissions.includes('livingLibrary.manage')) {
-      const hasLivingLibraryCap = context.effectiveCapabilities.includes('livingLibrary.manage') ||
-        context.user.globalCapabilities.includes('livingLibrary.manage');
-
-      if (!hasLivingLibraryCap) {
-        return {
-          allowed: false,
-          reason: 'Bloqueio de privilégio (SIMULAÇÃO): A capability "livingLibrary.manage" é estritamente necessária e não está presente no contexto.',
-          requiredCapability: 'livingLibrary.manage',
-          checkedAt: timestamp,
-        };
+    // 9. Validate appAccess capabilities when required (e.g. for global tools without tenant scoping)
+    // Here we consider requiredPermissions for global tools as capabilities required on the appAccess level.
+    if (!tool.organizationScoped && tool.requiredPermissions.length > 0) {
+      // 10. Apply specific rule for livingLibrary.manage
+      const requiresLivingLibrary = tool.requiredPermissions.includes('livingLibrary.manage') || tool.name === 'addSongToLivingLibrary';
+      
+      if (requiresLivingLibrary) {
+        const hasCap = appAccess.capabilities.includes('livingLibrary.manage') || context.user.capabilities.includes('livingLibrary.manage');
+        if (!hasCap) {
+          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária e não está presente.');
+        }
+      } else {
+        const hasPermissions = tool.requiredPermissions.every((perm) =>
+          appAccess.capabilities.includes(perm) || context.user.capabilities.includes(perm)
+        );
+        if (!hasPermissions) {
+          return deny(`Falta de capability global: Requer [${tool.requiredPermissions.join(', ')}]. Nenhum papel possui bypass.`);
+        }
+      }
+    } else if (tool.organizationScoped) {
+      // Even if it's tenant scoped, if it requires livingLibrary.manage (rare, but possible), check it.
+      const requiresLivingLibrary = tool.requiredPermissions.includes('livingLibrary.manage') || tool.name === 'addSongToLivingLibrary';
+      if (requiresLivingLibrary) {
+        const hasCap = appAccess.capabilities.includes('livingLibrary.manage') || context.user.capabilities.includes('livingLibrary.manage');
+        if (!hasCap) {
+          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária e não está presente.');
+        }
       }
     }
 
-    // 5. Evaluate riskLevel and confirmationPolicy
+    // 11. Evaluate confirmationPolicy & 12. Evaluate riskLevel
+    const hasConfirmation = !!invocationContext.confirmedAt;
+
     if (tool.riskLevel === 'R4_CRITICAL') {
-       // R4 can never be executed automatically
-       return {
-          allowed: false,
-          reason: 'Ferramenta R4 (SIMULAÇÃO): Requer human_approval ou strong confirmation. O simulador não executa.',
-          checkedAt: timestamp,
-       };
+       // R4 can never be executed automatically in DEMO_MODE, and even with confirmation it might be blocked.
+       return needsConfirmation('Ferramenta R4 (CRITICAL): Requer human_approval ou strong confirmation. O simulador bloqueia por padrão sem evidência real.');
     }
 
-    return {
-      allowed: true,
-      reason: `Permissão concedida (SIMULAÇÃO). A autorização real será reavaliada pelo backend do MillionsNest e pelo Tool Gateway.`,
-      checkedAt: timestamp,
-    };
+    if (tool.riskLevel === 'R3_PRIVILEGED') {
+       if (tool.confirmationPolicy === 'human_approval') {
+         return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer human_approval. O simulador não finge aprovação humana.');
+       }
+       if (!hasConfirmation) {
+         return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação explícita ou forte.');
+       }
+    }
+
+    if (tool.riskLevel === 'R2_REVERSIBLE_WRITE') {
+       if (!hasConfirmation) {
+         return needsConfirmation('Ferramenta R2 (REVERSIBLE_WRITE): Requer confirmação antes da execução.');
+       }
+    }
+
+    if (tool.confirmationPolicy === 'human_approval') {
+       return needsConfirmation('Ação exige human_approval. O simulador requer aprovação comprovada e não permite bypass.');
+    }
+
+    // 13 & 14. Return allowed if all checks passed
+    return allow('Permissão concedida (SIMULAÇÃO). A autorização real será reavaliada pelo backend do MillionsNest e pelo Tool Gateway.');
   }
 }
