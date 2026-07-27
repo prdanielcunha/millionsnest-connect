@@ -2,7 +2,15 @@
  * MillionsNest Connect - Ecosystem Apps & Registered Tools
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  prepareDemoToolInvocation, 
+  classifyDemoToolFlow, 
+  createDemoConfirmationEvidence, 
+  buildDemoToolInvocationContext, 
+  PendingDemoToolInvocation 
+} from '../../demo/confirmations/demoToolFlow';
+import { DemoToolConfirmationDialog } from '../../components/common/DemoToolConfirmationDialog';
 import {
   Grid,
   ShieldCheck,
@@ -28,38 +36,59 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
   const [tools] = useState<ToolDefinition[]>(mockTools);
   const [selectedToolId, setSelectedToolId] = useState<string>('tool_musicscale_add_song_to_living_library');
   const [executionResult, setExecutionResult] = useState<ToolGatewayInvocationResponse | null>(null);
+  const [pendingTool, setPendingTool] = useState<PendingDemoToolInvocation | null>(null);
 
   const selectedTool = tools.find((t) => t.id === selectedToolId) || tools[0];
 
+  useEffect(() => {
+    setPendingTool(null);
+    setExecutionResult(null);
+  }, [selectedToolId, context.activeOrganization.id]);
+
   const handleTestInvocation = () => {
-    const res = ToolGatewayService.invokeTool(
+    const pending = prepareDemoToolInvocation(
       context,
       selectedTool,
       { title: 'Exemplo Hino Novo', artist: 'Banda Central', key: 'G' },
-      {
-        requestId: `req_${Date.now()}`,
-        correlationId: `corr_${Date.now()}`,
-        idempotencyKey: `idempotency_${Date.now()}`,
-        actor: {
-          uid: context.user.uid,
-          systemRole: context.user.systemRole,
-        },
-        organization: {
-          id: context.activeOrganization.id,
-        },
-        appAccess: {
-          appId: selectedTool.appId,
-          capabilities: [],
-        },
-        channel: {
-          type: 'whatsapp',
-          conversationId: 'cnv_01',
-        },
-        locale: 'pt-BR',
-
-      }
+      'inapp',
+      'cnv_test'
     );
+
+    if (!pending) {
+      alert("Acesso negado: appAccess ausente ou inativo para " + selectedTool.appId);
+      return;
+    }
+
+    const resolution = classifyDemoToolFlow(selectedTool, pending);
+
+    if (resolution.kind === 'execute_directly') {
+      const invokeCtx = buildDemoToolInvocationContext(resolution.pending, context);
+      const res = ToolGatewayService.invokeTool(context, selectedTool, resolution.pending.args, invokeCtx);
+      setExecutionResult(res);
+    } else if (resolution.kind === 'confirmation_required') {
+      setPendingTool(resolution.pending);
+    } else {
+      alert("Ação bloqueada no modo demonstração: " + resolution.reason);
+    }
+  };
+
+  const handleConfirmTool = () => {
+    if (!pendingTool) return;
+    
+    const evidence = createDemoConfirmationEvidence(
+      pendingTool,
+      pendingTool.tool.confirmationPolicy === 'explicit' ? 'explicit_click' : 'simple_click'
+    );
+    
+    const invokeCtx = buildDemoToolInvocationContext(pendingTool, context, evidence);
+    const res = ToolGatewayService.invokeTool(context, pendingTool.tool, pendingTool.args, invokeCtx);
+    
     setExecutionResult(res);
+    setPendingTool(null);
+  };
+
+  const handleCancelTool = () => {
+    setPendingTool(null);
   };
 
   const getRiskBadge = (risk: RiskLevel) => {
@@ -244,7 +273,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
                   <span className="text-gray-400">Resultado do Tool Gateway:</span>
                   {executionResult?.result?.status === 'success' ? (
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> SUCESSO (200 OK)
+                      <CheckCircle2 className="w-3.5 h-3.5" /> SUCESSO (SUCESSO)
                     </span>
                   ) : executionResult?.result?.status === 'needs_confirmation' ? (
                     <span className="text-amber-400 font-bold flex items-center gap-1">
@@ -256,7 +285,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
                     </span>
                   ) : executionResult?.result?.status === 'denied' ? (
                     <span className="text-rose-400 font-bold flex items-center gap-1">
-                      <Lock className="w-3.5 h-3.5" /> NEGADO (403 FORBIDDEN)
+                      <Lock className="w-3.5 h-3.5" /> NEGADO (NEGADO)
                     </span>
                   ) : (
                     <span className="text-rose-400 font-bold flex items-center gap-1">
@@ -273,6 +302,12 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
           </div>
         </div>
       </div>
+      <DemoToolConfirmationDialog
+        pending={pendingTool}
+        isOpen={!!pendingTool}
+        onConfirm={handleConfirmTool}
+        onCancel={handleCancelTool}
+      />
     </div>
   );
 };

@@ -4,6 +4,14 @@
  */
 
 import React, { useState } from 'react';
+import { 
+  prepareDemoToolInvocation, 
+  classifyDemoToolFlow, 
+  createDemoConfirmationEvidence, 
+  buildDemoToolInvocationContext, 
+  PendingDemoToolInvocation 
+} from '../../demo/confirmations/demoToolFlow';
+import { DemoToolConfirmationDialog } from '../../components/common/DemoToolConfirmationDialog';
 import {
   Search,
   Filter,
@@ -61,6 +69,10 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
   const [mobileView, setMobileView] = useState<'list' | 'chat' | 'context'>('list');
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
+
+  React.useEffect(() => {
+    setPendingTool(null);
+  }, [activeConversationId, context.activeOrganization.id]);
   const activeContact: Contact = mockContacts.find((cnt) => cnt.id === activeConversation.contactId) || mockContacts[0];
   const currentMessages = messagesMap[activeConversation.id] || [];
 
@@ -119,62 +131,100 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
     const tool = mockTools.find((t) => t.name === toolName);
     if (!tool) return;
 
-    const gatewayResult = ToolGatewayService.invokeTool(
+    const pending = prepareDemoToolInvocation(
       context,
       tool,
-      { title: 'Culto de Domingo Exemplo', query: 'Bondade de Deus' },
-      {
-        requestId: `req_${Date.now()}`,
-        correlationId: `corr_${Date.now()}`,
-        idempotencyKey: `idempotency_${Date.now()}`,
-        actor: {
-          uid: context.user.uid,
-          systemRole: context.user.systemRole,
-        },
-        organization: {
-          id: context.activeOrganization.id,
-        },
-        appAccess: {
-          appId: tool.appId,
-          capabilities: [],
-        },
-        channel: {
-          type: activeConversation.channel,
-          conversationId: activeConversation.id,
-        },
-        locale: 'pt-BR',
-
-      }
+      { organizationId: context.activeOrganization.id },
+      activeConversation.channel,
+      activeConversation.id
     );
 
+    if (!pending) {
+      alert("Acesso negado: appAccess ausente ou inativo para " + tool.appId);
+      return;
+    }
+
+    const resolution = classifyDemoToolFlow(tool, pending);
+
+    if (resolution.kind === 'execute_directly') {
+      const invokeCtx = buildDemoToolInvocationContext(resolution.pending, context);
+      const gatewayResult = ToolGatewayService.invokeTool(context, tool, resolution.pending.args, invokeCtx);
+      
+      const toolMsg: UnifiedMessage = {
+        id: `msg_tool_${Date.now()}`,
+        conversationId: activeConversation.id,
+        senderType: 'agent',
+        senderName: 'Suporte MusicScale (Agente IA)',
+        content: `Disparando execução da ferramenta **${tool.title}** pelo Tool Gateway...`,
+        createdAt: new Date().toISOString(),
+        toolInvocation: {
+          toolId: tool.id,
+          toolName: tool.name,
+          appId: tool.appId,
+          args: resolution.pending.args,
+          status: gatewayResult.result?.status === 'success' ? 'executed' : (gatewayResult.result?.status === 'needs_confirmation' ? 'requested' : 'failed'),
+          riskLevel: tool.riskLevel,
+          requiresApproval: tool.confirmationPolicy === 'human_approval' || tool.confirmationPolicy === 'strong',
+          executedAt: new Date().toISOString(),
+          result: gatewayResult.result?.data || gatewayResult.result?.humanSummary,
+          error: gatewayResult.result?.status !== 'success' ? gatewayResult.result?.humanSummary : undefined,
+        },
+      };
+      setMessagesMap((prev) => ({
+        ...prev,
+        [activeConversation.id]: [...(prev[activeConversation.id] || []), toolMsg],
+      }));
+    } else if (resolution.kind === 'confirmation_required') {
+      setPendingTool(resolution.pending);
+    } else {
+      alert("Ação bloqueada no modo demonstração: " + resolution.reason);
+    }
+  };
+
+  const handleConfirmTool = () => {
+    if (!pendingTool) return;
+    
+    const evidence = createDemoConfirmationEvidence(
+      pendingTool,
+      pendingTool.tool.confirmationPolicy === 'explicit' ? 'explicit_click' : 'simple_click'
+    );
+    
+    const invokeCtx = buildDemoToolInvocationContext(pendingTool, context, evidence);
+    const gatewayResult = ToolGatewayService.invokeTool(context, pendingTool.tool, pendingTool.args, invokeCtx);
+    
     const toolMsg: UnifiedMessage = {
       id: `msg_tool_${Date.now()}`,
       conversationId: activeConversation.id,
       senderType: 'agent',
       senderName: 'Suporte MusicScale (Agente IA)',
-      content: `Disparando execução da ferramenta **${tool.title}** pelo Tool Gateway...`,
+      content: `Disparando execução da ferramenta **${pendingTool.tool.title}** após confirmação...`,
       createdAt: new Date().toISOString(),
       toolInvocation: {
-        toolId: tool.id,
-        toolName: tool.name,
-        appId: tool.appId,
-        args: { organizationId: context.activeOrganization.id },
+        toolId: pendingTool.tool.id,
+        toolName: pendingTool.tool.name,
+        appId: pendingTool.tool.appId,
+        args: pendingTool.args,
         status: gatewayResult.result?.status === 'success' ? 'executed' : (gatewayResult.result?.status === 'needs_confirmation' ? 'requested' : 'failed'),
-        riskLevel: tool.riskLevel,
-        requiresApproval: tool.confirmationPolicy === 'human_approval' || tool.confirmationPolicy === 'strong',
+        riskLevel: pendingTool.tool.riskLevel,
+        requiresApproval: pendingTool.tool.confirmationPolicy === 'human_approval' || pendingTool.tool.confirmationPolicy === 'strong',
         executedAt: new Date().toISOString(),
         result: gatewayResult.result?.data || gatewayResult.result?.humanSummary,
         error: gatewayResult.result?.status !== 'success' ? gatewayResult.result?.humanSummary : undefined,
       },
     };
-
     setMessagesMap((prev) => ({
       ...prev,
       [activeConversation.id]: [...(prev[activeConversation.id] || []), toolMsg],
     }));
+    setPendingTool(null);
+  };
+
+  const handleCancelTool = () => {
+    setPendingTool(null);
   };
 
   return (
+    <>
     <div className="h-[calc(100vh-8.5rem)] flex flex-col bg-[#0E131F] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
       {/* Top Filter Header Bar */}
       <div className="p-3 bg-[#121824] border-b border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -662,5 +712,13 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
         </div>
       </div>
     </div>
+
+      <DemoToolConfirmationDialog
+        pending={pendingTool}
+        isOpen={!!pendingTool}
+        onConfirm={handleConfirmTool}
+        onCancel={handleCancelTool}
+      />
+    </>
   );
 };
