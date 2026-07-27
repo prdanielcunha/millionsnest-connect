@@ -49,7 +49,7 @@ import { InboxQuickToolsSheet } from './InboxQuickToolsSheet';
 
 interface InboxPageProps {
   context: EffectiveEcosystemContext;
-  currentLang?: LanguageCode;
+  currentLang: LanguageCode;
   onNavigate: (route: string) => void;
 }
 
@@ -58,11 +58,13 @@ type InboxNotice = {
   message: string;
 } | null;
 
-export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt-BR' as LanguageCode, onNavigate }) => {
-  const t = getInboxUxText(currentLang as LanguageCode);
+export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNavigate }) => {
+  const t = getInboxUxText(currentLang);
   const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
-  const [activeConversationId, setActiveConversationId] = useState<string>('cnv_01');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messagesMap, setMessagesMap] = useState<Record<string, UnifiedMessage[]>>(mockMessages);
+  
+  // Filter draft state is handled internally by sheet, these are applied filters
   const [filterMode, setFilterMode] = useState<string>('all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -79,20 +81,37 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
     quickToolsOpen: false,
   });
 
-  const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
-  const activeContact: Contact = mockContacts.find((cnt) => cnt.id === activeConversation.contactId) || mockContacts[0];
-  const currentMessages = messagesMap[activeConversation.id] || [];
+  const organizationConversations = conversations.filter(
+    (c) => c.organizationId === context.activeOrganization.id
+  );
+
+  const activeConversation = activeConversationId
+    ? organizationConversations.find((c) => c.id === activeConversationId) || null
+    : null;
+
+  const activeContact = activeConversation
+    ? mockContacts.find((cnt) => cnt.id === activeConversation.contactId) || null
+    : null;
+
+  const currentMessages = activeConversation ? messagesMap[activeConversation.id] || [] : [];
 
   useEffect(() => {
     dispatchMobile({ type: 'CHANGE_ORG' });
     setPendingTool(null);
+    setNotice(null);
+    
+    // Select first conversation of the new org, if any
+    const orgConversations = conversations.filter(
+      (c) => c.organizationId === context.activeOrganization.id
+    );
+    setActiveConversationId(orgConversations[0]?.id || null);
   }, [context.activeOrganization.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentMessages.length]);
 
-  const filteredConversations = conversations.filter((c) => {
+  const filteredConversations = organizationConversations.filter((c) => {
     if (searchQuery && !c.contactName.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageSnippet.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
@@ -106,7 +125,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
   });
 
   const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !activeConversation || activeConversation.organizationId !== context.activeOrganization.id) return;
 
     const newMessage: UnifiedMessage = {
       id: `msg_${Date.now()}`,
@@ -136,6 +155,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
   };
 
   const handleModeChange = (newMode: ConversationMode) => {
+    if (!activeConversation) return;
     setConversations((prev) =>
       prev.map((c) =>
         c.id === activeConversation.id ? { ...c, mode: newMode } : c
@@ -144,6 +164,11 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
   };
 
   const handleSimulateTool = (toolName: string) => {
+    if (!activeConversation || activeConversation.organizationId !== context.activeOrganization.id) {
+      setNotice({ kind: 'error', message: t.tenantMismatch });
+      return;
+    }
+
     const tool = mockTools.find((t) => t.name === toolName);
     if (!tool) return;
 
@@ -156,7 +181,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
     );
 
     if (!pending) {
-      setNotice({ kind: 'error', message: 'appAccess missing or inactive for ' + tool.appId });
+      setNotice({ kind: 'error', message: t.appAccessUnavailable + ' ' + tool.appId });
       return;
     }
 
@@ -248,15 +273,19 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
       {notice && (
         <div 
           role={notice.kind === 'error' || notice.kind === 'warning' ? 'alert' : 'status'}
-          className={`absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-lg text-sm font-medium shadow-lg flex items-center gap-3 ${
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 w-[calc(100%-24px)] max-w-md rounded-lg text-sm font-medium shadow-lg flex items-center justify-between gap-3 break-words ${
             notice.kind === 'error' ? 'bg-rose-500/90 text-white' :
             notice.kind === 'warning' ? 'bg-amber-500/90 text-white' :
             'bg-emerald-500/90 text-white'
           }`}
         >
-          {notice.message}
-          <button onClick={() => setNotice(null)} className="opacity-80 hover:opacity-100" aria-label="Fechar aviso">
-            <X className="w-4 h-4" />
+          <span>{notice.message}</span>
+          <button 
+            onClick={() => setNotice(null)} 
+            className="w-11 h-11 shrink-0 flex items-center justify-center opacity-80 hover:opacity-100 bg-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-white" 
+            aria-label={t.closeNotice}
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -276,7 +305,8 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
               onClick={() => dispatchMobile({ type: 'OPEN_FILTERS' })}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 rounded-lg text-xs text-gray-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
               aria-expanded={mobileState.filtersOpen}
-              aria-controls="mobile-filters-sheet"
+              aria-label={t.filters}
+              aria-haspopup="dialog"
             >
               <Filter className="w-3.5 h-3.5" />
               <span>{t.filters}</span>
@@ -284,21 +314,21 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
           </div>
         </div>
         <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t.searchPlaceholder}
-            className="w-full bg-[#1A2234] border border-white/10 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-[#1A2234] border border-white/10 rounded-lg pl-9 pr-12 min-h-[44px] text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-2 p-1 text-gray-400 hover:text-white"
-              aria-label="Limpar busca"
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white"
+              aria-label={t.clearSearch}
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -369,7 +399,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 pb-safe">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 pb-[env(safe-area-inset-bottom)]">
             {filteredConversations.length === 0 ? (
               <div className="p-6 text-center text-sm text-gray-500 flex flex-col items-center gap-3">
                 <MessageSquare className="w-8 h-8 text-gray-600" />
@@ -456,7 +486,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
 
                         {c.priority === 'alta' || c.priority === 'urgente' ? (
                           <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/30 whitespace-nowrap">
-                            Alta
+                            {t.highPriority}
                           </span>
                         ) : null}
                       </div>
@@ -474,8 +504,10 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
             mobileState.view === 'chat' ? 'flex' : 'hidden lg:flex'
           }`}
         >
-          {/* Active Conversation Header */}
-          <div className="p-2 sm:p-3 bg-[#121824] border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 shrink-0">
+          {activeConversation ? (
+            <>
+              {/* Active Conversation Header */}
+              <div className="p-2 sm:p-3 bg-[#121824] border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 shrink-0">
             <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <button
@@ -622,7 +654,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
                         ) : (
                           <div className="bg-rose-950/40 text-rose-200 p-3 rounded-lg text-xs font-mono overflow-x-auto border border-rose-500/20">
                             <AlertTriangle className="w-4 h-4 text-rose-400 inline mr-1.5 align-text-bottom" />
-                            {msg.toolInvocation.error || 'Falha'}
+                            {msg.toolInvocation.error || t.genericFailure}
                           </div>
                         )}
                         <div className="text-[10px] text-gray-400 mt-2 bg-white/5 p-1.5 rounded text-center">
@@ -668,6 +700,8 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
             <button
               type="button"
               onClick={() => dispatchMobile({ type: 'OPEN_QUICK_TOOLS' })}
+              aria-controls="mobile-quick-tools-sheet"
+              aria-haspopup="dialog"
               className="lg:hidden w-full min-h-[44px] flex items-center justify-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-indigo-300 rounded-xl font-semibold text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <Wrench className="w-4 h-4" />
@@ -676,7 +710,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
           </div>
 
           {/* Message Composer */}
-          <div className="p-3 sm:p-4 bg-[#121824] border-t border-white/10 space-y-3 shrink-0 pb-safe">
+          <div className="p-3 sm:p-4 bg-[#121824] border-t border-white/10 space-y-3 shrink-0 pb-[env(safe-area-inset-bottom)]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px] sm:min-h-0">
                 <input
@@ -740,22 +774,32 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
               </button>
             </div>
           </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-gray-400 h-full">
+              <Bot className="w-12 h-12 text-gray-600 mb-4" />
+              <p className="font-medium text-gray-300 text-base">{t.noConversationForOrganization}</p>
+            </div>
+          )}
         </div>
 
         {/* Pane 3: Context Sidebar */}
         <div
-          className={`w-full lg:w-80 bg-[#121824] border-l border-white/10 flex-col overflow-y-auto pb-safe ${
+          className={`w-full lg:w-80 bg-[#121824] border-l border-white/10 flex-col overflow-y-auto pb-[env(safe-area-inset-bottom)] ${
             mobileState.view === 'context' ? 'flex' : 'hidden lg:flex'
           }`}
         >
           {/* Header */}
           <div className="sticky top-0 z-10 bg-[#121824]/95 backdrop-blur border-b border-white/10 p-3 flex items-center justify-between shrink-0 min-h-[60px]">
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2" tabIndex={-1} autoFocus={mobileState.view === 'context'}>
               <User className="w-4 h-4 text-indigo-400" /> {t.context}
             </h3>
             <button
               type="button"
-              onClick={() => dispatchMobile({ type: 'OPEN_CHAT' })}
+              onClick={() => {
+                dispatchMobile({ type: 'OPEN_CHAT' });
+                // We could restore focus here if needed, but keeping it simple for now
+              }}
               className="lg:hidden w-11 h-11 flex items-center justify-center text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               aria-label={t.back}
             >
@@ -764,7 +808,9 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
           </div>
 
           <div className="p-4 space-y-6">
-            {/* Contact Identity Card */}
+            {activeContact ? (
+              <>
+                {/* Contact Identity Card */}
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 {activeContact.avatarUrl ? (
@@ -821,56 +867,63 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
               </div>
             </div>
 
-            {/* AI Intelligence Insights */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-cyan-400" /> {t.summary}
-              </h4>
+                {/* AI Intelligence Insights */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400" /> {t.summary}
+                  </h4>
 
-              <div className="p-4 bg-[#1A2234] border border-white/5 rounded-xl space-y-4 text-sm">
-                <div>
-                  <span className="text-gray-400 text-xs block mb-1">{t.intent}:</span>
-                  <span className="font-semibold text-cyan-300 font-mono bg-cyan-500/10 px-2 py-1 rounded inline-block border border-cyan-500/20">
-                    {activeConversation.aiIntent || 'consulta_geral'}
-                  </span>
-                </div>
+                  <div className="p-4 bg-[#1A2234] border border-white/5 rounded-xl space-y-4 text-sm">
+                    <div>
+                      <span className="text-gray-400 text-xs block mb-1">{t.intent}:</span>
+                      <span className="font-semibold text-cyan-300 font-mono bg-cyan-500/10 px-2 py-1 rounded inline-block border border-cyan-500/20 text-xs">
+                        {activeConversation?.aiIntent || t.defaultIntent}
+                      </span>
+                    </div>
 
-                <div>
-                  <span className="text-gray-400 text-xs block mb-1">{t.summary}:</span>
-                  <p className="text-gray-200 leading-relaxed bg-white/5 p-3 rounded-lg text-sm">
-                    {activeConversation.aiSummary || 'Atendimento em andamento.'}
-                  </p>
-                  <p className="text-[10px] text-gray-500 mt-2 text-right">{t.generatedSummary}</p>
-                </div>
+                    <div>
+                      <span className="text-gray-400 text-xs block mb-1">{t.summary}:</span>
+                      <p className="text-gray-200 leading-relaxed bg-white/5 p-3 rounded-lg text-sm">
+                        {activeConversation?.aiSummary || t.serviceInProgress}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-2 text-right">{t.generatedSummary}</p>
+                    </div>
 
-                {/* Sentiment Disclaimer Warning Banner */}
-                <div className="bg-indigo-950/40 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-200/90 space-y-1.5">
-                  <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
-                    <Info className="w-4 h-4 text-indigo-400 shrink-0" /> {t.sentiment}
+                    {/* Sentiment Disclaimer Warning Banner */}
+                    <div className="bg-indigo-950/40 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-200/90 space-y-1.5">
+                      <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-indigo-400 shrink-0" /> {t.sentiment}
+                      </div>
+                      <p className="text-xs text-indigo-200/70 leading-relaxed">
+                        {t.sentimentDisclaimer}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-indigo-200/70 leading-relaxed">
-                    Sinal de sentimento é um auxiliar estatístico e não representa prova factual nem autoridade de decisão.
-                  </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Contact Tags */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {t.tags}
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {activeContact.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-gray-300 text-xs font-medium"
-                  >
-                    {tag}
-                  </span>
-                ))}
+                {/* Contact Tags */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    {t.tags}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {activeContact.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-gray-300 text-xs font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-gray-500 py-10">
+                <User className="w-10 h-10 mx-auto text-gray-600 mb-2" />
+                {t.noContactFound}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -878,10 +931,16 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt
       <InboxFilterSheet 
         isOpen={mobileState.filtersOpen}
         onClose={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
-        filterMode={filterMode}
-        setFilterMode={setFilterMode}
-        channelFilter={channelFilter}
-        setChannelFilter={setChannelFilter}
+        onCancel={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
+        appliedFilters={{ mode: filterMode as any, channel: channelFilter as any }}
+        onApply={(draft) => {
+          setFilterMode(draft.mode);
+          setChannelFilter(draft.channel);
+        }}
+        onClear={() => {
+          setFilterMode('all');
+          setChannelFilter('all');
+        }}
         currentLang={currentLang}
       />
 

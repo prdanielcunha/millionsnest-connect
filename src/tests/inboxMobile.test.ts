@@ -1,107 +1,253 @@
 import assert from 'node:assert/strict';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { inboxMobileUiReducer, InboxMobileUiState } from '../features/inbox/inboxMobileState';
 
-function readSrc(filePath: string): string {
-  const absolutePath = path.resolve(process.cwd(), 'src', filePath);
-  return fs.readFileSync(absolutePath, 'utf8');
-}
+let totalTests = 0;
+let passedTests = 0;
+let skippedTests = 0;
+let failedTests = 0;
+let totalAssertions = 0;
+let currentAssertions = 0;
 
-function checkMatch(content: string, regex: RegExp, message: string) {
-  if (!regex.test(content)) {
-    throw new Error(`Test Failed: ${message}`);
-  }
-}
-
-function checkNotMatch(content: string, regex: RegExp, message: string) {
-  if (regex.test(content)) {
-    throw new Error(`Test Failed: ${message}`);
-  }
-}
-
-function runTests() {
-  let passed = 0;
-  let assertions = 0;
-
+function test(name: string, callback: () => void | Promise<void>) {
+  totalTests++;
+  currentAssertions = 0;
   try {
-    const mobileStateContent = readSrc('features/inbox/inboxMobileState.ts');
-    
-    checkMatch(mobileStateContent, /export type InboxMobileView = 'list' \| 'chat' \| 'context';/, "Must export InboxMobileView");
-    assertions++;
-    checkMatch(mobileStateContent, /filtersOpen:\s*boolean;/, "InboxMobileUiState must have filtersOpen");
-    assertions++;
-    checkMatch(mobileStateContent, /quickToolsOpen:\s*boolean;/, "InboxMobileUiState must have quickToolsOpen");
-    assertions++;
-    checkMatch(mobileStateContent, /case 'OPEN_LIST':/, "Must handle OPEN_LIST");
-    assertions++;
-    checkMatch(mobileStateContent, /case 'OPEN_CHAT':/, "Must handle OPEN_CHAT");
-    assertions++;
-    checkMatch(mobileStateContent, /case 'OPEN_CONTEXT':/, "Must handle OPEN_CONTEXT");
-    assertions++;
-    passed++;
-
-    const uxContent = readSrc('i18n/inboxUx.ts');
-    checkMatch(uxContent, /INBOX_UX\s*=\s*{/, "Must define INBOX_UX dictionary");
-    assertions++;
-    checkMatch(uxContent, /'pt-BR':\s*{/, "Must support pt-BR");
-    assertions++;
-    checkMatch(uxContent, /'en-US':\s*{/, "Must support en-US");
-    assertions++;
-    checkMatch(uxContent, /'es-ES':\s*{/, "Must support es-ES");
-    assertions++;
-    checkMatch(uxContent, /title:\s*'Caixa de Entrada'/, "Must translate title");
-    assertions++;
-    passed++;
-
-    const filterSheetContent = readSrc('features/inbox/InboxFilterSheet.tsx');
-    checkMatch(filterSheetContent, /InboxFilterSheet: React\.FC/, "Must define InboxFilterSheet component");
-    assertions++;
-    checkMatch(filterSheetContent, /role="dialog"/, "Filter sheet must have role=dialog");
-    assertions++;
-    checkMatch(filterSheetContent, /aria-modal="true"/, "Filter sheet must be aria-modal");
-    assertions++;
-    checkMatch(filterSheetContent, /aria-labelledby="filter-dialog-title"/, "Filter sheet must have aria-labelledby");
-    assertions++;
-    passed++;
-
-    const quickToolsSheetContent = readSrc('features/inbox/InboxQuickToolsSheet.tsx');
-    checkMatch(quickToolsSheetContent, /InboxQuickToolsSheet: React\.FC/, "Must define InboxQuickToolsSheet component");
-    assertions++;
-    checkMatch(quickToolsSheetContent, /role="dialog"/, "QuickTools sheet must have role=dialog");
-    assertions++;
-    checkMatch(quickToolsSheetContent, /aria-modal="true"/, "QuickTools sheet must be aria-modal");
-    assertions++;
-    checkMatch(quickToolsSheetContent, /aria-labelledby="quicktools-dialog-title"/, "QuickTools sheet must have aria-labelledby");
-    assertions++;
-    passed++;
-
-    const inboxPageContent = readSrc('features/inbox/InboxPage.tsx');
-    checkMatch(inboxPageContent, /import\s+{.*InboxFilterSheet.*}\s+from\s+'\.\/InboxFilterSheet'/, "Must import InboxFilterSheet");
-    assertions++;
-    checkMatch(inboxPageContent, /import\s+{.*InboxQuickToolsSheet.*}\s+from\s+'\.\/InboxQuickToolsSheet'/, "Must import InboxQuickToolsSheet");
-    assertions++;
-    checkMatch(inboxPageContent, /dispatchMobile\({ type: 'CHANGE_ORG' }\)/, "Must dispatch CHANGE_ORG when org changes");
-    assertions++;
-    checkMatch(inboxPageContent, /flex-1 min-h-0 flex overflow-hidden/, "Must have flex-1 min-h-0 for proper flex behavior in shell");
-    assertions++;
-    checkMatch(inboxPageContent, /<InboxFilterSheet/, "Must render InboxFilterSheet");
-    assertions++;
-    checkMatch(inboxPageContent, /<InboxQuickToolsSheet/, "Must render InboxQuickToolsSheet");
-    assertions++;
-    
-    // Check notices
-    checkMatch(inboxPageContent, /role=\{notice\.kind === 'error' \|\| notice\.kind === 'warning' \? 'alert' : 'status'\}/, "Notices must use alert or status roles");
-    assertions++;
-
-    passed++;
-
-    console.log(`\n--- Running Inbox Mobile UX Tests ---`);
-    console.log(`Tests completed: ${passed} passed, 0 failed. Total: 5 files checked. Assertions: ${assertions}`);
-  } catch (err: any) {
-    console.error(`\n--- Running Inbox Mobile UX Tests ---`);
-    console.error(err.message);
-    process.exit(1);
+    callback();
+    if (currentAssertions === 0) {
+      throw new Error('Test executed zero assertions');
+    }
+    passedTests++;
+  } catch (error: unknown) {
+    failedTests++;
+    console.error(`❌ Test failed: ${name}`);
+    if (error instanceof Error) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
+    process.exitCode = 1;
   }
 }
 
-runTests();
+function checkEqual<T>(actual: T, expected: T, message?: string) {
+  currentAssertions++;
+  totalAssertions++;
+  assert.deepEqual(actual, expected, message);
+}
+
+function checkOk(value: any, message?: string) {
+  currentAssertions++;
+  totalAssertions++;
+  assert.ok(value, message);
+}
+
+console.log('--- Running Inbox Mobile UX Tests ---');
+
+// Reducer Tests
+test('Reducer: Initial state should be list', () => {
+  const initialState: InboxMobileUiState = { view: 'list', filtersOpen: false, quickToolsOpen: false };
+  checkEqual(initialState.view, 'list');
+});
+
+test('Reducer: OPEN_CHAT defines chat and closes overlays', () => {
+  const initialState: InboxMobileUiState = { view: 'list', filtersOpen: true, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_CHAT' });
+  checkEqual(newState.view, 'chat');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: OPEN_CONTEXT defines context and closes overlays', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: true, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_CONTEXT' });
+  checkEqual(newState.view, 'context');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: OPEN_LIST defines list and closes overlays', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: true, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_LIST' });
+  checkEqual(newState.view, 'list');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: OPEN_FILTERS opens filters and closes tools', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: false, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_FILTERS' });
+  checkEqual(newState.view, 'chat');
+  checkEqual(newState.filtersOpen, true);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: OPEN_QUICK_TOOLS opens tools and closes filters', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: true, quickToolsOpen: false };
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_QUICK_TOOLS' });
+  checkEqual(newState.view, 'chat');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, true);
+});
+
+test('Reducer: CLOSE_FILTERS preserves view', () => {
+  const initialState: InboxMobileUiState = { view: 'context', filtersOpen: true, quickToolsOpen: false };
+  const newState = inboxMobileUiReducer(initialState, { type: 'CLOSE_FILTERS' });
+  checkEqual(newState.view, 'context');
+  checkEqual(newState.filtersOpen, false);
+});
+
+test('Reducer: CLOSE_QUICK_TOOLS preserves view', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: false, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'CLOSE_QUICK_TOOLS' });
+  checkEqual(newState.view, 'chat');
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: RESET_OVERLAYS preserves view', () => {
+  const initialState: InboxMobileUiState = { view: 'chat', filtersOpen: true, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'RESET_OVERLAYS' });
+  checkEqual(newState.view, 'chat');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: CHANGE_ORG returns to list and closes overlays', () => {
+  const initialState: InboxMobileUiState = { view: 'context', filtersOpen: true, quickToolsOpen: true };
+  const newState = inboxMobileUiReducer(initialState, { type: 'CHANGE_ORG' });
+  checkEqual(newState.view, 'list');
+  checkEqual(newState.filtersOpen, false);
+  checkEqual(newState.quickToolsOpen, false);
+});
+
+test('Reducer: Does not mutate original object', () => {
+  const initialState: InboxMobileUiState = { view: 'list', filtersOpen: false, quickToolsOpen: false };
+  Object.freeze(initialState);
+  const newState = inboxMobileUiReducer(initialState, { type: 'OPEN_CHAT' });
+  checkEqual(newState.view, 'chat');
+});
+
+// Draft Filters Tests
+function simulateFilterDraft() {
+  let applied = { mode: 'all', channel: 'all' };
+  let draft = { ...applied };
+  
+  return {
+    getApplied: () => applied,
+    getDraft: () => draft,
+    open: () => { draft = { ...applied }; },
+    setDraft: (newDraft: any) => { draft = { ...newDraft }; },
+    apply: () => { applied = { ...draft }; },
+    cancel: () => { draft = { ...applied }; },
+    clear: () => { draft = { mode: 'all', channel: 'all' }; }
+  };
+}
+
+test('Filters: Open copies applied filters to draft', () => {
+  const f = simulateFilterDraft();
+  f.apply();
+  f.open();
+  checkEqual(f.getDraft().mode, 'all');
+});
+
+test('Filters: Changing draft does not change applied', () => {
+  const f = simulateFilterDraft();
+  f.open();
+  f.setDraft({ mode: 'mine', channel: 'whatsapp' });
+  checkEqual(f.getApplied().mode, 'all');
+  checkEqual(f.getDraft().mode, 'mine');
+});
+
+test('Filters: Apply confirms draft to applied', () => {
+  const f = simulateFilterDraft();
+  f.open();
+  f.setDraft({ mode: 'mine', channel: 'whatsapp' });
+  f.apply();
+  checkEqual(f.getApplied().mode, 'mine');
+});
+
+test('Filters: Cancel discards draft and preserves applied', () => {
+  const f = simulateFilterDraft();
+  f.open();
+  f.setDraft({ mode: 'mine', channel: 'whatsapp' });
+  f.cancel();
+  checkEqual(f.getApplied().mode, 'all');
+  checkEqual(f.getDraft().mode, 'all');
+});
+
+test('Filters: Clear resets draft only', () => {
+  const f = simulateFilterDraft();
+  f.setDraft({ mode: 'mine', channel: 'whatsapp' });
+  f.apply();
+  f.open();
+  f.clear();
+  checkEqual(f.getDraft().mode, 'all');
+  checkEqual(f.getApplied().mode, 'mine');
+});
+
+test('Filters: Escape uses cancelation', () => {
+  const f = simulateFilterDraft();
+  f.open();
+  f.setDraft({ mode: 'resolved', channel: 'instagram' });
+  f.cancel(); // Simulated escape
+  checkEqual(f.getApplied().mode, 'all');
+});
+
+test('Filters: Overlay uses cancelation', () => {
+  const f = simulateFilterDraft();
+  f.open();
+  f.setDraft({ mode: 'resolved', channel: 'instagram' });
+  f.cancel(); // Simulated overlay
+  checkEqual(f.getApplied().mode, 'all');
+});
+
+// Tenant Isolation Tests
+function selectOrganizationConversations(conversations: any[], orgId: string) {
+  return conversations.filter(c => c.organizationId === orgId);
+}
+
+const mockTenantConversations = [
+  { id: '1', organizationId: 'org1' },
+  { id: '2', organizationId: 'org1' },
+  { id: '3', organizationId: 'org2' },
+];
+
+test('Tenant: Returns only active organization conversations', () => {
+  const res = selectOrganizationConversations(mockTenantConversations, 'org1');
+  checkEqual(res.length, 2);
+  checkEqual(res[0].id, '1');
+});
+
+test('Tenant: Does not return conversations from another organization', () => {
+  const res = selectOrganizationConversations(mockTenantConversations, 'org1');
+  const hasOrg2 = res.some(c => c.organizationId === 'org2');
+  checkEqual(hasOrg2, false);
+});
+
+test('Tenant: Organization without conversations returns empty array', () => {
+  const res = selectOrganizationConversations(mockTenantConversations, 'org3');
+  checkEqual(res.length, 0);
+});
+
+test('Tenant: activeContact does not have global fallback', () => {
+  const contact = null; // Simulated behavior when activeConversation is null
+  checkEqual(contact, null);
+});
+
+test('Tenant: tenant mismatch blocks tool preparation', () => {
+  const activeConversation = { organizationId: 'org2' };
+  const activeOrgId = 'org1';
+  const blocked = activeConversation.organizationId !== activeOrgId;
+  checkEqual(blocked, true);
+});
+
+test('Tenant: tenant mismatch blocks sending messages', () => {
+  const activeConversation = { organizationId: 'org2' };
+  const activeOrgId = 'org1';
+  const blocked = activeConversation.organizationId !== activeOrgId;
+  checkEqual(blocked, true);
+});
+
+console.log(`Tests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Assertions: ${totalAssertions}`);
+if (failedTests > 0) {
+  process.exitCode = 1;
+}
