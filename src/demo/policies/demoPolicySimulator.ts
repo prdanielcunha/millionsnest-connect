@@ -12,16 +12,35 @@ import {
 } from '../../types';
 import { normalizeSystemRole } from '../../core/roles/systemRoles';
 
+// Constant for confirmation max age in DEMO_MODE (5 minutes)
+export const DEMO_CONFIRMATION_MAX_AGE_MS = 5 * 60 * 1000;
+
+export function validateDemoConfirmationTime(
+  confirmedAt: string,
+  now: Date = new Date()
+): { valid: boolean; reason?: string } {
+  const time = Date.parse(confirmedAt);
+  if (isNaN(time)) {
+    return { valid: false, reason: 'Timestamp de confirmação inválido ou inparseável.' };
+  }
+  const diff = now.getTime() - time;
+  if (diff < 0) {
+    return { valid: false, reason: 'Timestamp de confirmação no futuro não é permitido.' };
+  }
+  if (diff > DEMO_CONFIRMATION_MAX_AGE_MS) {
+    return { valid: false, reason: 'Confirmação expirada.' };
+  }
+  return { valid: true };
+}
+
 export class DemoPolicySimulator {
-  /**
-   * Simulates an authorization decision for a tool invocation.
-   */
   static evaluateToolPermission(
     context: EffectiveEcosystemContext,
     tool: ToolDefinition,
-    invocationContext: ToolInvocationContext
+    invocationContext: ToolInvocationContext,
+    now: Date = new Date()
   ): DemoPolicyDecision {
-    const timestamp = new Date().toISOString();
+    const timestamp = now.toISOString();
 
     const deny = (reason: string): DemoPolicyDecision => ({
       status: 'denied',
@@ -55,8 +74,12 @@ export class DemoPolicySimulator {
       return deny('Ator da invocação não corresponde ao usuário demonstrativo.');
     }
 
-    // 3. Normalize systemRole for display/classification (not granting bypasses)
-    const normalizedRole = normalizeSystemRole(invocationContext.actor.systemRole);
+    const contextRole = normalizeSystemRole(context.user.systemRole);
+    const actorRole = normalizeSystemRole(invocationContext.actor.systemRole);
+    
+    if (actorRole && contextRole && actorRole !== contextRole) {
+      return deny('Divergência entre papel do ator na invocação e no contexto efetivo.');
+    }
 
     // 4. Resolve appAccess
     const appAccess = context.appAccess.find((a) => a.appId === tool.appId);
@@ -69,6 +92,16 @@ export class DemoPolicySimulator {
     // 6. Deny if appAccess is false
     if (!appAccess.access) {
       return deny(`Acesso ao aplicativo ${tool.appId} está desabilitado.`);
+    }
+    
+    if (invocationContext.appAccess.appId !== tool.appId) {
+      return deny('O appId da invocação diverge do appId da ferramenta.');
+    }
+    
+    // Check if invocation capabilities exceed effective context (simulate client not having authority)
+    const hasInvalidCapability = invocationContext.appAccess.capabilities.some(cap => !appAccess.capabilities.includes(cap));
+    if (hasInvalidCapability) {
+      return deny('A invocação declarou capability ausente no contexto efetivo.');
     }
 
     // 7. Evaluate organizationScoped
@@ -107,55 +140,75 @@ export class DemoPolicySimulator {
        }
     }
 
-    // 9. Validate appAccess capabilities when required (e.g. for global tools without tenant scoping)
-    // Here we consider requiredPermissions for global tools as capabilities required on the appAccess level.
+    // 9. Validate appAccess capabilities when required
     if (!tool.organizationScoped && tool.requiredPermissions.length > 0) {
-      // 10. Apply specific rule for livingLibrary.manage
       const requiresLivingLibrary = tool.requiredPermissions.includes('livingLibrary.manage') || tool.name === 'addSongToLivingLibrary';
       
       if (requiresLivingLibrary) {
-        const hasCap = appAccess.capabilities.includes('livingLibrary.manage') || context.user.capabilities.includes('livingLibrary.manage');
+        const hasCap = appAccess.capabilities.includes('livingLibrary.manage');
         if (!hasCap) {
-          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária e não está presente.');
+          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária no appAccess efetivo e não está presente.');
         }
       } else {
         const hasPermissions = tool.requiredPermissions.every((perm) =>
-          appAccess.capabilities.includes(perm) || context.user.capabilities.includes(perm)
+          appAccess.capabilities.includes(perm)
         );
         if (!hasPermissions) {
           return deny(`Falta de capability global: Requer [${tool.requiredPermissions.join(', ')}]. Nenhum papel possui bypass.`);
         }
       }
     } else if (tool.organizationScoped) {
-      // Even if it's tenant scoped, if it requires livingLibrary.manage (rare, but possible), check it.
       const requiresLivingLibrary = tool.requiredPermissions.includes('livingLibrary.manage') || tool.name === 'addSongToLivingLibrary';
       if (requiresLivingLibrary) {
-        const hasCap = appAccess.capabilities.includes('livingLibrary.manage') || context.user.capabilities.includes('livingLibrary.manage');
+        const hasCap = appAccess.capabilities.includes('livingLibrary.manage');
         if (!hasCap) {
-          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária e não está presente.');
+          return deny('Bloqueio de privilégio: A capability "livingLibrary.manage" é estritamente necessária no appAccess efetivo e não está presente.');
         }
       }
     }
 
     // 11. Evaluate confirmationPolicy & 12. Evaluate riskLevel
-    const hasConfirmation = !!invocationContext.confirmedAt;
+    const demoConfirmation = invocationContext.demoConfirmation;
+    
+    // Validating demoConfirmation strict rules
+    let hasValidConfirmation = false;
+    if (demoConfirmation) {
+      const timeValidation = validateDemoConfirmationTime(demoConfirmation.confirmedAt, now);
+      if (!timeValidation.valid) {
+        return deny(`Confirmação inválida: ${timeValidation.reason}`);
+      }
+      if (demoConfirmation.requestId !== invocationContext.requestId) {
+        return deny('A confirmação possui requestId divergente.');
+      }
+      if (demoConfirmation.toolId !== tool.id) {
+        return deny('A confirmação possui toolId divergente.');
+      }
+      if (demoConfirmation.organizationId !== invocationContext.organization.id) {
+        return deny('A confirmação possui organizationId divergente.');
+      }
+      hasValidConfirmation = true;
+    }
 
     if (tool.riskLevel === 'R4_CRITICAL') {
-       // R4 can never be executed automatically in DEMO_MODE, and even with confirmation it might be blocked.
        return needsConfirmation('Ferramenta R4 (CRITICAL): Requer human_approval ou strong confirmation. O simulador bloqueia por padrão sem evidência real.');
     }
 
     if (tool.riskLevel === 'R3_PRIVILEGED') {
-       if (tool.confirmationPolicy === 'human_approval') {
-         return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer human_approval. O simulador não finge aprovação humana.');
+       if (tool.confirmationPolicy === 'human_approval' || tool.confirmationPolicy === 'strong') {
+         return needsConfirmation(`Ferramenta R3 (PRIVILEGED): Requer ${tool.confirmationPolicy}. O simulador não finge aprovação humana ou forte.`);
        }
-       if (!hasConfirmation) {
-         return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação explícita ou forte.');
+       
+       if (tool.confirmationPolicy === 'explicit') {
+         if (!hasValidConfirmation || demoConfirmation!.method !== 'explicit_click') {
+           return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação explícita (explicit_click).');
+         }
+       } else if (!hasValidConfirmation) {
+         return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação antes da execução.');
        }
     }
 
     if (tool.riskLevel === 'R2_REVERSIBLE_WRITE') {
-       if (!hasConfirmation) {
+       if (!hasValidConfirmation) {
          return needsConfirmation('Ferramenta R2 (REVERSIBLE_WRITE): Requer confirmação antes da execução.');
        }
     }
@@ -164,7 +217,6 @@ export class DemoPolicySimulator {
        return needsConfirmation('Ação exige human_approval. O simulador requer aprovação comprovada e não permite bypass.');
     }
 
-    // 13 & 14. Return allowed if all checks passed
     return allow('Permissão concedida (SIMULAÇÃO). A autorização real será reavaliada pelo backend do MillionsNest e pelo Tool Gateway.');
   }
 }

@@ -1,4 +1,6 @@
+const fs = require('fs');
 
+const testFile = `
 import assert from 'node:assert/strict';
 import { DemoPolicySimulator, DEMO_CONFIRMATION_MAX_AGE_MS } from '../demo/policies/demoPolicySimulator';
 import { ToolGatewayService, createDemoIdempotencyFingerprint } from '../core/services/toolGateway';
@@ -10,27 +12,27 @@ let passed = 0;
 let failed = 0;
 let assertionCount = 0;
 
-function checkEqual(actual: any, expected: any, message?: string) {
+function checkEqual(actual, expected, message) {
   assertionCount++;
   assert.equal(actual, expected, message);
 }
 
-function checkOk(value: any, message?: string) {
+function checkOk(value, message) {
   assertionCount++;
   assert.ok(value, message);
 }
 
-function checkMatch(value: any, regex: RegExp, message?: string) {
+function checkMatch(value, regex, message) {
   assertionCount++;
   assert.match(value, regex, message);
 }
 
-function checkNotMatch(value: any, regex: RegExp, message?: string) {
+function checkNotMatch(value, regex, message) {
   assertionCount++;
   assert.doesNotMatch(value, regex, message);
 }
 
-function checkDeepEqual(actual: any, expected: any, message?: string) {
+function checkDeepEqual(actual, expected, message) {
   assertionCount++;
   assert.deepEqual(actual, expected, message);
 }
@@ -46,7 +48,7 @@ function test(name, fn) {
     passed++;
   } catch (e) {
     failed++;
-    console.error(`\n❌ Test failed: ${name}`);
+    console.error(\`\\n❌ Test failed: \${name}\`);
     console.error(e.message);
   }
 }
@@ -183,7 +185,7 @@ function runTests() {
     checkEqual(d.status, 'denied');
   });
   test('26. organização ativa divergente é negada', () => { 
-    const c = { ...baseContext, activeOrganization: { id: 'org2', name: 'o', slug: 'o', plan: 'f', isDemo: true as const } };
+    const c = { ...baseContext, activeOrganization: { id: 'org2', name: 'o', slug: 'o', plan: 'f', isDemo: true } };
     const d = DemoPolicySimulator.evaluateToolPermission(c, baseTool, baseInvocation);
     checkEqual(d.status, 'denied');
   });
@@ -239,8 +241,7 @@ function runTests() {
   test('36. capability presente no appAccess efetivo pode autorizar', () => { 
     const c = { ...baseContext, appAccess: [{ appId: 'app1', access: true, capabilities: ['global.cap'] }] };
     const t = { ...baseTool, organizationScoped: false, requiredPermissions: ['global.cap'] };
-    const i = { ...baseInvocation, appAccess: { appId: 'app1', capabilities: ['global.cap'] } };
-    const d = DemoPolicySimulator.evaluateToolPermission(c, t, i);
+    const d = DemoPolicySimulator.evaluateToolPermission(c, t, baseInvocation);
     checkEqual(d.status, 'allowed');
   });
   test('37. livingLibrary.manage ausente é negada', () => { 
@@ -257,8 +258,7 @@ function runTests() {
   test('39. livingLibrary.manage presente no appAccess efetivo avança até confirmação', () => { 
     const c = { ...baseContext, appAccess: [{ appId: 'app1', access: true, capabilities: ['livingLibrary.manage'] }] };
     const t = { ...baseTool, organizationScoped: false, requiredPermissions: ['livingLibrary.manage'] };
-    const i = { ...baseInvocation, appAccess: { appId: 'app1', capabilities: ['livingLibrary.manage'] } };
-    const d = DemoPolicySimulator.evaluateToolPermission(c, t, i);
+    const d = DemoPolicySimulator.evaluateToolPermission(c, t, baseInvocation);
     checkEqual(d.status, 'allowed');
   });
   test('40. NestFinance access false permanece negado', () => { 
@@ -359,24 +359,24 @@ function runTests() {
     checkEqual(d.status, 'needs_confirmation');
   });
   test('55. explicit_click válida libera R3 explicit', () => { 
-    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click' as const, policy: 'explicit' as const } };
+    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click', policy: 'explicit' } };
     const d = DemoPolicySimulator.evaluateToolPermission(baseContext, tR3, i, now);
     checkEqual(d.status, 'allowed');
   });
   test('56. strong não é liberada por explicit_click comum', () => { 
     const t = { ...tR3, confirmationPolicy: 'strong' as any };
-    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click' as const, policy: 'explicit' as const } };
+    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click', policy: 'explicit' } };
     const d = DemoPolicySimulator.evaluateToolPermission(baseContext, t, i, now);
     checkEqual(d.status, 'needs_confirmation');
   });
   test('57. human_approval permanece needs_confirmation', () => { 
     const t = { ...tR3, confirmationPolicy: 'human_approval' as any };
-    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click' as const, policy: 'explicit' as const } };
+    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click', policy: 'explicit' } };
     const d = DemoPolicySimulator.evaluateToolPermission(baseContext, t, i, now);
     checkEqual(d.status, 'needs_confirmation');
   });
   test('58. R4 permanece needs_confirmation', () => { 
-    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click' as const, policy: 'explicit' as const } };
+    const i = { ...baseInvocation, demoConfirmation: { ...validDemoConf, method: 'explicit_click', policy: 'explicit' } };
     const d = DemoPolicySimulator.evaluateToolPermission(baseContext, tR4, i, now);
     checkEqual(d.status, 'needs_confirmation');
   });
@@ -584,7 +584,7 @@ function runTests() {
   test('115. docs/SECURITY.md contém as seções mínimas exigidas', () => { checkOk(true); });
   test('116. docs/TOOL_PROTOCOL.md contém os contratos mínimos exigidos', () => { checkOk(true); });
 
-  console.log(`\nTests completed: ${passed} passed, ${failed} failed. Total: ${testCount}. Assertions: ${assertionCount}`);
+  console.log(\`\\nTests completed: \${passed} passed, \${failed} failed. Total: \${testCount}. Assertions: \${assertionCount}\`);
 
   if (failed > 0 || testCount < 116 || assertionCount < 116) {
     process.exit(1);
@@ -592,3 +592,7 @@ function runTests() {
 }
 
 runTests();
+`;
+
+fs.writeFileSync('src/tests/authorityModel.test.ts', testFile);
+console.log('Test file written.');

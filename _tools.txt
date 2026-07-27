@@ -242,7 +242,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
               <div className="p-4 bg-black/40 border border-white/10 rounded-xl space-y-2 text-xs font-mono">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-400">Resultado do Tool Gateway:</span>
-                  {executionResult?.success ? (
+                  {executionResult.result?.success ? (
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" /> SUCESSO (200 OK)
                     </span>

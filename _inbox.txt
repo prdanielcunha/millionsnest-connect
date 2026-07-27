@@ -53,9 +53,6 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [inputMessage, setInputMessage] = useState<string>('');
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
-  
-  const [pendingTool, setPendingTool] = useState<{ tool: any, args: any } | null>(null);
-  
   const [mobileView, setMobileView] = useState<'list' | 'chat' | 'context'>('list');
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];

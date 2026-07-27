@@ -90,8 +90,8 @@ export const mockContacts: Contact[] = [
     name: 'Gabriel Santos',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     email: 'gabriel.santos@email.com',
-    phone: '+55 43 99812-4455',
-    instagramHandle: '@gabrielsantos_music',
+    phone: '+55 00 00000-0001',
+    instagramHandle: '@demo_contato_01',
     identities: [
       {
         channel: 'whatsapp',
@@ -126,9 +126,9 @@ export const mockContacts: Contact[] = [
     id: 'cnt_02',
     name: 'Mariana Costa',
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-    email: 'mariana.costa@gmail.com',
-    phone: '+55 43 98877-1122',
-    instagramHandle: '@marianacosta_vocal',
+    email: 'contato02@example.invalid',
+    phone: '+55 00 00000-0002',
+    instagramHandle: '@demo_contato_02',
     identities: [
       {
         channel: 'whatsapp',
@@ -152,7 +152,7 @@ export const mockContacts: Contact[] = [
     id: 'cnt_03',
     name: 'Carlos Eduardo',
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    instagramHandle: '@carlosedu_bassist',
+    instagramHandle: '@demo_contato_03',
     identities: [
       {
         channel: 'instagram',
@@ -750,6 +750,7 @@ export const mockChannels: ChannelConnection[] = [
 export const mockAuditEvents: AuditEvent[] = [
   {
     id: 'aud_1001',
+    eventType: 'tool_execution',
     requestId: 'req_a9821f00',
     correlationId: 'corr_88123912',
     actor: 'Agente IA (Suporte MusicScale)',
@@ -762,12 +763,13 @@ export const mockAuditEvents: AuditEvent[] = [
     requiredPermission: 'musicscale.schedules.view',
     confirmationState: 'not_required',
     result: 'sucesso',
-    details: 'Consulta de escala para Gabriel Santos (+5543998124455). Tenant validado no servidor.',
+    details: 'Consulta de escala. Tenant validado no servidor.',
     timestamp: '2026-07-26T13:42:32Z',
     isDemoMode: true,
   },
   {
     id: 'aud_1002',
+    eventType: 'policy_denied',
     requestId: 'req_b11299cc',
     correlationId: 'corr_99812311',
     actor: 'Agente IA (Recepção MillionsNest)',
@@ -786,9 +788,10 @@ export const mockAuditEvents: AuditEvent[] = [
   },
   {
     id: 'aud_1003',
+    eventType: 'policy_denied',
     requestId: 'req_c4455123',
     correlationId: 'corr_77123910',
-    actor: 'Membro Externo (Injetado via Frontend)',
+    actor: 'Membro Externo',
     organizationId: 'org_curitiba_02',
     channel: 'inapp',
     toolId: 'tool_musicscale_get_schedule',
@@ -803,9 +806,10 @@ export const mockAuditEvents: AuditEvent[] = [
   },
   {
     id: 'aud_1004',
+    eventType: 'tool_execution',
     requestId: 'req_d5566778',
     correlationId: 'corr_11223344',
-    actor: 'Pr. Daniel Cunha',
+    actor: 'demo-user-001',
     organizationId: 'org_londrina_01',
     channel: 'inapp',
     toolId: 'tool_musicscale_create_schedule_draft',

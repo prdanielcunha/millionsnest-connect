@@ -14,14 +14,39 @@ import {
 import { DemoPolicySimulator } from '../../demo/policies/demoPolicySimulator';
 import { mockAuditEvents } from '../../demo/mockData';
 
+type DemoIdempotencyRecord<T = unknown> = {
+  result: ToolInvocationResult<T>;
+  originalExecutionAuditId: string;
+  originalConfirmationState: AuditEvent['confirmationState'];
+  createdAt: string;
+  toolId: string;
+  organizationId: string;
+};
+
+export function createDemoIdempotencyFingerprint(value: string): string {
+  // Funcao puramente demonstrativa, nao deve ser usada como hash criptografico em producao
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    const char = value.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `fp_${Math.abs(hash).toString(16)}`;
+}
+
 export class ToolGatewayService {
   private static auditLogs: AuditEvent[] = [...mockAuditEvents];
   
-  // Im-memory store for idempotency in DEMO_MODE
-  private static idempotencyStore: Record<string, ToolInvocationResult> = {};
+  // In-memory store for idempotency in DEMO_MODE
+  private static idempotencyStore = new Map<string, DemoIdempotencyRecord>();
 
   static getAuditLogs(): AuditEvent[] {
     return this.auditLogs;
+  }
+
+  static resetDemoState() {
+    this.auditLogs = [...mockAuditEvents];
+    this.idempotencyStore.clear();
   }
 
   static invokeTool<TInput, TOutput>(
@@ -43,6 +68,10 @@ export class ToolGatewayService {
       invocationContext
     );
     
+    const fp = invocationContext.idempotencyKey 
+      ? createDemoIdempotencyFingerprint(invocationContext.idempotencyKey)
+      : undefined;
+      
     // Idempotency check setup
     let cacheKey: string | null = null;
     if (tool.idempotencyPolicy === 'required') {
@@ -56,15 +85,18 @@ export class ToolGatewayService {
       cacheKey = `${tool.appId}:${tool.name}:${invocationContext.organization.id}:${invocationContext.idempotencyKey}`;
     }
 
-    if (cacheKey && decision.status === 'allowed' && this.idempotencyStore[cacheKey]) {
+    if (cacheKey && decision.status === 'allowed' && this.idempotencyStore.has(cacheKey)) {
       // Reutilização de resultado idempotente
-      const cachedResult = this.idempotencyStore[cacheKey] as ToolInvocationResult<TOutput>;
+      const record = this.idempotencyStore.get(cacheKey)!;
+      const cachedResult = record.result as ToolInvocationResult<TOutput>;
       
       const auditEvent: AuditEvent = {
         id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+        eventType: 'idempotency_reuse',
         requestId: invocationContext.requestId,
         correlationId: invocationContext.correlationId,
-        idempotencyKey: invocationContext.idempotencyKey, // hash would be better in prod
+        idempotencyKeyFingerprint: fp,
+        originalExecutionAuditId: record.originalExecutionAuditId,
         actor: invocationContext.actor.uid,
         organizationId: invocationContext.organization.id,
         appId: tool.appId,
@@ -75,20 +107,22 @@ export class ToolGatewayService {
         riskLevel: tool.riskLevel,
         requiredPermission: tool.requiredPermissions.join(', '),
         confirmationPolicy: tool.confirmationPolicy,
-        confirmationState: 'confirmed',
+        confirmationState: record.originalConfirmationState,
         result: 'sucesso',
-        details: `Resultado reutilizado por idempotência. (Chave original executada anteriormente)`,
+        details: `Resultado reutilizado por idempotência. Ação original auditada sob ID ${record.originalExecutionAuditId}`,
         timestamp,
         isDemoMode: true,
       };
+
+      this.auditLogs.unshift(auditEvent);
 
       return {
         decision,
         result: {
            ...cachedResult,
-           auditId: auditEvent.id, // Update audit ID for this fetch
+           auditId: record.originalExecutionAuditId, // preserva apontamento para o evento original no retorno client
            humanSummary: `${cachedResult.humanSummary} (Resultado reutilizado via idempotência)`,
-           warnings: ['Resultado reutilizado por idempotência demonstrativa.'],
+           warnings: [...(cachedResult.warnings || []), 'Resultado reutilizado por idempotência demonstrativa.'],
         },
         auditEvent
       };
@@ -97,17 +131,20 @@ export class ToolGatewayService {
     if (decision.status !== 'allowed') {
       let confirmationState: AuditEvent['confirmationState'] = 'blocked';
       let resultStatus: AuditEvent['result'] = 'negado';
+      let eventType: AuditEvent['eventType'] = 'policy_denied';
       
       if (decision.status === 'needs_confirmation') {
         confirmationState = tool.confirmationPolicy === 'human_approval' ? 'human_approval_pending' : 'pending';
         resultStatus = 'pendente';
+        eventType = 'confirmation_pending';
       }
 
       const auditEvent: AuditEvent = {
         id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+        eventType,
         requestId: invocationContext.requestId,
         correlationId: invocationContext.correlationId,
-        idempotencyKey: invocationContext.idempotencyKey,
+        idempotencyKeyFingerprint: fp,
         actor: invocationContext.actor.uid,
         organizationId: invocationContext.organization.id,
         appId: tool.appId,
@@ -140,6 +177,7 @@ export class ToolGatewayService {
 
     // Simulated execution payload for mock tools
     let simulatedData: unknown = null;
+    const typedInput = input as Record<string, unknown>;
 
     if (tool.name === 'listSchedules') {
       simulatedData = {
@@ -154,26 +192,23 @@ export class ToolGatewayService {
         ],
       };
     } else if (tool.name === 'createScheduleDraft') {
-      const args = input as any;
       simulatedData = {
         draftId: `draft_${Math.random().toString(36).substring(2, 8)}`,
-        title: args?.title || 'Rascunho de Culto',
+        title: typedInput?.title || 'Rascunho de Culto',
         status: 'RASCUNHO_CRIADO',
         message: 'Rascunho criado com sucesso no MusicScale. Voluntários ainda não foram notificados.',
       };
     } else if (tool.name === 'searchLivingLibrary') {
-      const args = input as any;
       simulatedData = {
-        query: args?.query || '',
+        query: typedInput?.query || '',
         results: [
           { id: 'song_ll_01', title: 'Bondade de Deus', artist: 'Isaias Saad', key: 'G', bpm: 72 },
         ],
       };
     } else if (tool.name === 'addSongToLivingLibrary') {
-      const args = input as any;
       simulatedData = {
         globalSongId: `g_song_${Math.random().toString(36).substring(2, 8)}`,
-        title: args?.title || 'Música Nova',
+        title: typedInput?.title || 'Música Nova',
         status: 'HOMOLOGADO_BIBLIOTECA_VIVA',
         message: 'Música homologada no acervo global compartilhada com todo o ecossistema MillionsNest.',
       };
@@ -183,12 +218,15 @@ export class ToolGatewayService {
         argsUsed: input,
       };
     }
+    
+    const confirmationState: AuditEvent['confirmationState'] = invocationContext.demoConfirmation ? 'confirmed' : 'not_required';
 
     const auditEvent: AuditEvent = {
       id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+      eventType: 'tool_execution',
       requestId: invocationContext.requestId,
       correlationId: invocationContext.correlationId,
-      idempotencyKey: invocationContext.idempotencyKey,
+      idempotencyKeyFingerprint: fp,
       actor: invocationContext.actor.uid,
       organizationId: invocationContext.organization.id,
       appId: tool.appId,
@@ -199,7 +237,7 @@ export class ToolGatewayService {
       riskLevel: tool.riskLevel,
       requiredPermission: tool.requiredPermissions.join(', '),
       confirmationPolicy: tool.confirmationPolicy,
-      confirmationState: invocationContext.confirmedAt ? 'confirmed' : 'not_required',
+      confirmationState,
       result: 'sucesso',
       details: `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`,
       timestamp,
@@ -216,7 +254,14 @@ export class ToolGatewayService {
     };
 
     if (cacheKey) {
-      this.idempotencyStore[cacheKey] = invocationResult as ToolInvocationResult<unknown>;
+      this.idempotencyStore.set(cacheKey, {
+        result: invocationResult as ToolInvocationResult<unknown>,
+        originalExecutionAuditId: auditEvent.id,
+        originalConfirmationState: confirmationState,
+        createdAt: timestamp,
+        toolId: tool.id,
+        organizationId: invocationContext.organization.id
+      });
     }
 
     return {

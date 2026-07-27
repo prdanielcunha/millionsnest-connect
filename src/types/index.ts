@@ -118,9 +118,9 @@ export interface ToolInvocationState {
   toolId: string;
   toolName: string;
   appId: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   status: 'requested' | 'confirmed' | 'executed' | 'rejected' | 'failed';
-  result?: any;
+  result?: unknown;
   riskLevel: RiskLevel;
   requiredCapabilities?: string[];
   requiresApproval: boolean;
@@ -230,6 +230,18 @@ export interface ToolDefinition {
   deprecatedAt?: string;
 }
 
+export type DemoConfirmationMethod = 'simple_click' | 'explicit_click';
+
+export interface DemoConfirmationEvidence {
+  confirmationId: string;
+  requestId: string;
+  toolId: string;
+  organizationId: string;
+  policy: 'simple' | 'explicit';
+  method: DemoConfirmationMethod;
+  confirmedAt: string;
+}
+
 export interface ToolInvocationContext {
   requestId: string;
   correlationId: string;
@@ -253,6 +265,7 @@ export interface ToolInvocationContext {
   locale: string;
   reason?: string;
   confirmedAt?: string;
+  demoConfirmation?: DemoConfirmationEvidence;
 }
 
 export interface ToolInvocationResult<T = unknown> {
@@ -280,9 +293,11 @@ export interface DemoPolicyDecision {
 
 export interface AuditEvent {
   id: string;
+  eventType: 'policy_denied' | 'confirmation_pending' | 'tool_execution' | 'idempotency_reuse' | 'tool_failed';
   requestId: string;
   correlationId: string;
-  idempotencyKey?: string;
+  idempotencyKeyFingerprint?: string;
+  originalExecutionAuditId?: string;
   actor: string;
   organizationId: string;
   appId?: string;
