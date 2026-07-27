@@ -52,6 +52,7 @@ export default function App() {
         return (
           <InboxPage
             context={context}
+            currentLang={currentLang}
             onNavigate={setActiveRoute}
           />
         );

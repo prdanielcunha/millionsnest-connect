@@ -1,15 +1,10 @@
-/**
- * MillionsNest Connect - Inbox Page
- * 3-pane layout on desktop, stackable on mobile.
- */
-
-import React, { useState } from 'react';
-import { 
-  prepareDemoToolInvocation, 
-  classifyDemoToolFlow, 
-  createDemoConfirmationEvidence, 
-  buildDemoToolInvocationContext, 
-  PendingDemoToolInvocation 
+import React, { useState, useReducer, useEffect, useRef } from 'react';
+import {
+  prepareDemoToolInvocation,
+  classifyDemoToolFlow,
+  createDemoConfirmationEvidence,
+  buildDemoToolInvocationContext,
+  PendingDemoToolInvocation,
 } from '../../demo/confirmations/demoToolFlow';
 import { DemoToolConfirmationDialog } from '../../components/common/DemoToolConfirmationDialog';
 import {
@@ -17,29 +12,28 @@ import {
   Filter,
   Send,
   Paperclip,
-  ShieldCheck,
   Bot,
   User,
   AlertTriangle,
   CheckCircle,
   Tag,
-  Clock,
   Sparkles,
-  ChevronRight,
   ArrowLeft,
   Info,
   Wrench,
   Link2,
+  X,
+  MessageSquare,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   EffectiveEcosystemContext,
   Conversation,
   UnifiedMessage,
   ConversationMode,
-  ConversationChannel,
   Contact,
-  DemoConfirmationEvidence,
   ToolDefinition,
+  LanguageCode,
 } from '../../types';
 import {
   mockConversations,
@@ -48,13 +42,24 @@ import {
   mockTools,
 } from '../../demo/mockData';
 import { ToolGatewayService } from '../../core/services/toolGateway';
+import { getInboxUxText } from '../../i18n/inboxUx';
+import { inboxMobileUiReducer, InboxMobileUiState } from './inboxMobileState';
+import { InboxFilterSheet } from './InboxFilterSheet';
+import { InboxQuickToolsSheet } from './InboxQuickToolsSheet';
 
 interface InboxPageProps {
   context: EffectiveEcosystemContext;
+  currentLang?: LanguageCode;
   onNavigate: (route: string) => void;
 }
 
-export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => {
+type InboxNotice = {
+  kind: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+} | null;
+
+export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang = 'pt-BR' as LanguageCode, onNavigate }) => {
+  const t = getInboxUxText(currentLang as LanguageCode);
   const [conversations, setConversations] = useState<Conversation[]>(mockConversations);
   const [activeConversationId, setActiveConversationId] = useState<string>('cnv_01');
   const [messagesMap, setMessagesMap] = useState<Record<string, UnifiedMessage[]>>(mockMessages);
@@ -63,20 +68,30 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [inputMessage, setInputMessage] = useState<string>('');
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
-  
-  const [pendingTool, setPendingTool] = useState<{ tool: ToolDefinition, args: Record<string, unknown> } | null>(null);
-  
-  const [mobileView, setMobileView] = useState<'list' | 'chat' | 'context'>('list');
+  const [notice, setNotice] = useState<InboxNotice>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [pendingTool, setPendingTool] = useState<PendingDemoToolInvocation | null>(null);
+
+  const [mobileState, dispatchMobile] = useReducer(inboxMobileUiReducer, {
+    view: 'list',
+    filtersOpen: false,
+    quickToolsOpen: false,
+  });
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId) || conversations[0];
-
-  React.useEffect(() => {
-    setPendingTool(null);
-  }, [activeConversationId, context.activeOrganization.id]);
   const activeContact: Contact = mockContacts.find((cnt) => cnt.id === activeConversation.contactId) || mockContacts[0];
   const currentMessages = messagesMap[activeConversation.id] || [];
 
-  // Filter conversations list
+  useEffect(() => {
+    dispatchMobile({ type: 'CHANGE_ORG' });
+    setPendingTool(null);
+  }, [context.activeOrganization.id]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentMessages.length]);
+
   const filteredConversations = conversations.filter((c) => {
     if (searchQuery && !c.contactName.toLowerCase().includes(searchQuery.toLowerCase()) && !c.lastMessageSnippet.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
@@ -96,7 +111,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
     const newMessage: UnifiedMessage = {
       id: `msg_${Date.now()}`,
       conversationId: activeConversation.id,
-      senderType: isInternalNote ? 'human_agent' : 'human_agent',
+      senderType: 'human_agent',
       senderName: context.user.name,
       content: inputMessage,
       createdAt: new Date().toISOString(),
@@ -117,6 +132,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
     );
 
     setInputMessage('');
+    setNotice({ kind: 'success', message: t.noExternalCall });
   };
 
   const handleModeChange = (newMode: ConversationMode) => {
@@ -140,22 +156,23 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
     );
 
     if (!pending) {
-      alert("Acesso negado: appAccess ausente ou inativo para " + tool.appId);
+      setNotice({ kind: 'error', message: 'appAccess missing or inactive for ' + tool.appId });
       return;
     }
 
     const resolution = classifyDemoToolFlow(tool, pending);
 
     if (resolution.kind === 'execute_directly') {
-      const invokeCtx = buildDemoToolInvocationContext(resolution.pending, context);
+      const baseInvokeCtx = buildDemoToolInvocationContext(resolution.pending, context);
+      const invokeCtx = { ...baseInvokeCtx, locale: currentLang };
       const gatewayResult = ToolGatewayService.invokeTool(context, tool, resolution.pending.args, invokeCtx);
       
       const toolMsg: UnifiedMessage = {
         id: `msg_tool_${Date.now()}`,
         conversationId: activeConversation.id,
         senderType: 'agent',
-        senderName: 'Suporte MusicScale (Agente IA)',
-        content: `Disparando execução da ferramenta **${tool.title}** pelo Tool Gateway...`,
+        senderName: 'Tool Gateway (Demo)',
+        content: `${t.simulatedTool} **${tool.title}**. ${t.noExternalCall}`,
         createdAt: new Date().toISOString(),
         toolInvocation: {
           toolId: tool.id,
@@ -177,7 +194,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
     } else if (resolution.kind === 'confirmation_required') {
       setPendingTool(resolution.pending);
     } else {
-      alert("Ação bloqueada no modo demonstração: " + resolution.reason);
+      setNotice({ kind: 'warning', message: t.policyBlocked + ' ' + resolution.reason });
     }
   };
 
@@ -189,15 +206,16 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
       pendingTool.tool.confirmationPolicy === 'explicit' ? 'explicit_click' : 'simple_click'
     );
     
-    const invokeCtx = buildDemoToolInvocationContext(pendingTool, context, evidence);
+    const baseInvokeCtx = buildDemoToolInvocationContext(pendingTool, context, evidence);
+    const invokeCtx = { ...baseInvokeCtx, locale: currentLang };
     const gatewayResult = ToolGatewayService.invokeTool(context, pendingTool.tool, pendingTool.args, invokeCtx);
     
     const toolMsg: UnifiedMessage = {
       id: `msg_tool_${Date.now()}`,
       conversationId: activeConversation.id,
       senderType: 'agent',
-      senderName: 'Suporte MusicScale (Agente IA)',
-      content: `Disparando execução da ferramenta **${pendingTool.tool.title}** após confirmação...`,
+      senderName: 'Tool Gateway (Demo)',
+      content: `${t.simulatedTool} **${pendingTool.tool.title}**. ${t.noExternalCall}`,
       createdAt: new Date().toISOString(),
       toolInvocation: {
         toolId: pendingTool.tool.id,
@@ -224,21 +242,81 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
   };
 
   return (
-    <>
-    <div className="h-[calc(100vh-8.5rem)] flex flex-col bg-[#0E131F] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-      {/* Top Filter Header Bar */}
-      <div className="p-3 bg-[#121824] border-b border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+    <div className="flex-1 min-h-0 flex flex-col bg-[#0E131F] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative">
+      
+      {/* Notices */}
+      {notice && (
+        <div 
+          role={notice.kind === 'error' || notice.kind === 'warning' ? 'alert' : 'status'}
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-lg text-sm font-medium shadow-lg flex items-center gap-3 ${
+            notice.kind === 'error' ? 'bg-rose-500/90 text-white' :
+            notice.kind === 'warning' ? 'bg-amber-500/90 text-white' :
+            'bg-emerald-500/90 text-white'
+          }`}
+        >
+          {notice.message}
+          <button onClick={() => setNotice(null)} className="opacity-80 hover:opacity-100" aria-label="Fechar aviso">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Toolbar (lg:hidden) */}
+      <div className="lg:hidden p-3 bg-[#121824] border-b border-white/10 flex flex-col gap-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-indigo-400" />
+            <h1 className="text-sm font-bold text-white">{t.title}</h1>
+            <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-mono uppercase border border-amber-500/30">
+              DEMO_MODE
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => dispatchMobile({ type: 'OPEN_FILTERS' })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 rounded-lg text-xs text-gray-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-expanded={mobileState.filtersOpen}
+              aria-controls="mobile-filters-sheet"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>{t.filters}</span>
+            </button>
+          </div>
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t.searchPlaceholder}
+            className="w-full bg-[#1A2234] border border-white/10 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-2 p-1 text-gray-400 hover:text-white"
+              aria-label="Limpar busca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Toolbar (hidden lg:flex) */}
+      <div className="hidden lg:flex p-3 bg-[#121824] border-b border-white/10 items-center justify-between gap-3 text-xs shrink-0">
+        <div className="flex items-center gap-2">
           <span className="text-gray-400 font-semibold flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5 text-indigo-400" /> Filtros:
+            <Filter className="w-3.5 h-3.5 text-indigo-400" /> {t.filters}:
           </span>
           {[
-            { id: 'all', label: 'Todas' },
-            { id: 'mine', label: 'Minhas' },
-            { id: 'unassigned', label: 'Não Atribuídas' },
-            { id: 'waiting_human', label: 'Aguardando Humano' },
-            { id: 'automatic', label: 'Automação Ativa' },
-            { id: 'resolved', label: 'Resolvidas' },
+            { id: 'all', label: t.all },
+            { id: 'mine', label: t.mine },
+            { id: 'unassigned', label: t.unassigned },
+            { id: 'waiting_human', label: t.waitingHuman },
+            { id: 'automatic', label: t.automationActive },
+            { id: 'resolved', label: t.resolved },
           ].map((f) => (
             <button
               key={f.id}
@@ -246,15 +324,13 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
               className={`px-2.5 py-1 rounded-lg font-medium transition shrink-0 ${
                 filterMode === f.id
                   ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-[#1A2234] text-gray-400 hover:text-gray-200'
+                  : 'bg-[#1A2234] text-gray-400 hover:text-gray-200 focus:ring-2 focus:ring-indigo-500'
               }`}
             >
               {f.label}
             </button>
           ))}
         </div>
-
-        {/* Channel filter tabs */}
         <div className="flex items-center gap-1 bg-[#1A2234] p-1 rounded-lg border border-white/5">
           {['all', 'whatsapp', 'instagram', 'inapp'].map((ch) => (
             <button
@@ -264,60 +340,82 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
                 channelFilter === ch ? 'bg-indigo-500/30 text-indigo-300' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {ch}
+              {ch === 'whatsapp' ? t.channelWhatsappDemo : ch === 'instagram' ? t.channelInstagramDemo : ch === 'inapp' ? t.channelInAppDemo : t.allChannels}
             </button>
           ))}
         </div>
       </div>
 
       {/* 3-Pane Body */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        
         {/* Pane 1: Conversations List */}
         <div
-          className={`w-full md:w-80 lg:w-96 bg-[#121824] border-r border-white/10 flex flex-col ${
-            mobileView !== 'list' ? 'hidden md:flex' : 'flex'
+          className={`w-full lg:w-80 xl:w-96 bg-[#121824] border-r border-white/10 flex-col ${
+            mobileState.view === 'list' ? 'flex' : 'hidden lg:flex'
           }`}
         >
-          {/* Search box */}
-          <div className="p-3 border-b border-white/10">
+          {/* Search box for desktop */}
+          <div className="hidden lg:block p-3 border-b border-white/10 shrink-0">
             <div className="relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por contato ou mensagem..."
-                className="w-full bg-[#1A2234] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none"
+                placeholder={t.searchPlaceholder}
+                className="w-full bg-[#1A2234] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
-          {/* Conversations Scroll */}
-          <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 pb-safe">
             {filteredConversations.length === 0 ? (
-              <div className="p-6 text-center text-xs text-gray-500">
-                Nenhuma conversa encontrada neste filtro.
+              <div className="p-6 text-center text-sm text-gray-500 flex flex-col items-center gap-3">
+                <MessageSquare className="w-8 h-8 text-gray-600" />
+                <div>
+                  <div className="font-semibold text-gray-400">{t.emptyStateTitle}</div>
+                  <div className="mt-1">{t.emptyStateDesc}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setFilterMode('all'); setChannelFilter('all'); setSearchQuery(''); }}
+                  className="mt-2 px-4 py-2 bg-[#1A2234] hover:bg-[#222C42] rounded-lg text-xs font-semibold text-white transition focus:ring-2 focus:ring-indigo-500"
+                >
+                  {t.clearFilters}
+                </button>
               </div>
             ) : (
               filteredConversations.map((c) => {
                 const isActive = c.id === activeConversation.id;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={c.id}
                     onClick={() => {
+                      if (pendingTool && pendingTool.conversationId !== c.id) {
+                        setPendingTool(null);
+                      }
                       setActiveConversationId(c.id);
-                      setMobileView('chat');
+                      dispatchMobile({ type: 'OPEN_CHAT' });
                     }}
-                    className={`p-3 cursor-pointer transition flex items-start gap-3 ${
-                      isActive ? 'bg-indigo-600/15 border-l-2 border-indigo-500' : 'hover:bg-white/5'
+                    aria-current={isActive ? 'true' : undefined}
+                    className={`w-full text-left p-3 min-h-[72px] transition flex items-start gap-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 ${
+                      isActive ? 'bg-indigo-600/15 border-l-2 border-indigo-500' : 'hover:bg-white/5 border-l-2 border-transparent'
                     }`}
                   >
                     <div className="relative shrink-0">
-                      <img
-                        src={c.contactAvatar}
-                        alt={c.contactName}
-                        className="w-10 h-10 rounded-full object-cover border border-white/10"
-                      />
+                      {c.contactAvatar ? (
+                        <img
+                          src={c.contactAvatar}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover border border-white/10"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-indigo-900/50 flex items-center justify-center text-indigo-300 font-bold border border-indigo-500/30">
+                          {c.contactName.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
                       <span
                         className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#121824] ${
                           c.channel === 'whatsapp'
@@ -329,13 +427,13 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
                       ></span>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white truncate">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-white truncate">
                           {c.contactName}
                         </span>
-                        <span className="text-[10px] text-gray-500 font-numeric">
-                          {new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <span className="text-xs text-gray-500 font-numeric shrink-0">
+                          {new Date(c.lastMessageAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
@@ -343,9 +441,9 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
                         {c.lastMessageSnippet}
                       </p>
 
-                      <div className="flex items-center gap-1.5 mt-2">
+                      <div className="flex items-center gap-1.5 mt-2 overflow-x-hidden">
                         <span
-                          className={`px-1.5 py-0.2 rounded text-[10px] font-mono border ${
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono border whitespace-nowrap ${
                             c.mode === 'automatico'
                               ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
                               : c.mode === 'com_aprovacao'
@@ -353,17 +451,17 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
                               : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
                           }`}
                         >
-                          {c.mode === 'automatico' ? 'IA Ativa' : c.mode === 'com_aprovacao' ? 'Aprovação' : 'Humano'}
+                          {c.mode === 'automatico' ? t.modeAuto : c.mode === 'com_aprovacao' ? t.modeApproval : t.modeHuman}
                         </span>
 
                         {c.priority === 'alta' || c.priority === 'urgente' ? (
-                          <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/30">
+                          <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/30 whitespace-nowrap">
                             Alta
                           </span>
                         ) : null}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -372,99 +470,112 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
 
         {/* Pane 2: Conversation View & Composer */}
         <div
-          className={`flex-1 flex flex-col bg-[#0B0E14] ${
-            mobileView === 'chat' ? 'flex' : mobileView === 'list' ? 'hidden md:flex' : 'hidden lg:flex'
+          className={`flex-1 min-w-0 flex-col bg-[#0B0E14] ${
+            mobileState.view === 'chat' ? 'flex' : 'hidden lg:flex'
           }`}
         >
           {/* Active Conversation Header */}
-          <div className="p-3 bg-[#121824] border-b border-white/10 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setMobileView('list')}
-                className="md:hidden p-1 text-gray-400 hover:text-white"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+          <div className="p-2 sm:p-3 bg-[#121824] border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => dispatchMobile({ type: 'OPEN_LIST' })}
+                  className="lg:hidden w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shrink-0"
+                  aria-label={t.back}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
 
-              <img
-                src={activeConversation.contactAvatar}
-                alt={activeConversation.contactName}
-                className="w-9 h-9 rounded-full object-cover border border-white/10"
-              />
+                {activeConversation.contactAvatar ? (
+                  <img
+                    src={activeConversation.contactAvatar}
+                    alt=""
+                    className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-indigo-900/50 flex items-center justify-center text-indigo-300 font-bold border border-indigo-500/30 shrink-0">
+                    {activeConversation.contactName.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-white">
-                    {activeConversation.contactName}
-                  </h2>
-                  <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 bg-white/5 text-gray-400 rounded">
-                    {activeConversation.channel}
-                  </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-bold text-white truncate">
+                      {activeConversation.contactName}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 font-numeric truncate mt-0.5">
+                    <span className="uppercase font-mono text-[10px] bg-white/5 px-1 rounded text-gray-300 shrink-0">
+                      {activeConversation.channel}
+                    </span>
+                    <span className="truncate">{activeConversation.channelIdentifier}</span>
+                  </div>
                 </div>
-                <span className="text-xs text-gray-400 font-numeric">
-                  {activeConversation.channelIdentifier}
-                </span>
               </div>
+              
+              <button
+                type="button"
+                onClick={() => dispatchMobile({ type: 'OPEN_CONTEXT' })}
+                className="lg:hidden w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white bg-[#1A2234] border border-white/10 rounded-lg shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label={t.context}
+              >
+                <Info className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Mode Switcher */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-400 font-medium hidden sm:inline">Modo:</span>
-              <div className="flex bg-[#1A2234] border border-white/10 rounded-lg p-0.5">
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+              <div className="flex bg-[#1A2234] border border-white/10 rounded-lg p-1 w-full sm:w-auto">
                 {(['automatico', 'com_aprovacao', 'humano'] as ConversationMode[]).map((mode) => (
                   <button
                     key={mode}
+                    type="button"
+                    aria-pressed={activeConversation.mode === mode}
                     onClick={() => handleModeChange(mode)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded transition ${
+                    className={`flex-1 sm:flex-none min-h-[36px] sm:min-h-[auto] px-2 py-1 text-xs font-semibold rounded-md transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       activeConversation.mode === mode
                         ? mode === 'humano'
                           ? 'bg-rose-600 text-white shadow'
                           : 'bg-indigo-600 text-white shadow'
-                        : 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
                     }`}
                   >
-                    {mode === 'automatico' ? 'Automático' : mode === 'com_aprovacao' ? 'Aprovação' : 'Humano'}
+                    {mode === 'automatico' ? t.modeAuto : mode === 'com_aprovacao' ? t.modeApproval : t.modeHuman}
                   </button>
                 ))}
               </div>
-
-              <button
-                onClick={() => setMobileView('context')}
-                className="lg:hidden p-2 text-gray-400 hover:text-white bg-[#1A2234] border border-white/10 rounded-lg"
-              >
-                <Info className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
           {/* Mode Alert Banner if Human Mode is Active */}
           {activeConversation.mode === 'humano' && (
-            <div className="bg-rose-950/40 border-b border-rose-500/20 px-4 py-2 text-xs text-rose-200 flex items-center gap-2">
-              <User className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>
-                <strong>Modo Humano Ativado:</strong> A resposta automática de agentes de IA está pausada para esta conversa. O atendimento é 100% conduzido pela equipe.
+            <div className="bg-rose-950/40 border-b border-rose-500/20 px-4 py-3 text-sm text-rose-200 flex items-start sm:items-center gap-3 shrink-0">
+              <User className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 sm:mt-0" />
+              <span className="leading-tight">
+                <strong>{t.modeHuman}:</strong> {t.humanBanner}
               </span>
             </div>
           )}
 
           {/* Messages Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
             {currentMessages.map((msg) => {
               const isContact = msg.senderType === 'contact';
               const isInternal = msg.isInternalNote;
 
               if (isInternal) {
                 return (
-                  <div key={msg.id} className="mx-auto max-w-lg bg-amber-950/30 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-200 space-y-1">
-                    <div className="flex items-center justify-between font-semibold">
-                      <span className="flex items-center gap-1.5 text-amber-400">
-                        <Tag className="w-3.5 h-3.5" /> Nota Interna • {msg.senderName}
+                  <div key={msg.id} className="mx-auto max-w-md w-full bg-amber-950/30 border border-amber-500/20 rounded-xl p-3 sm:p-4 text-sm text-amber-200 space-y-2">
+                    <div className="flex items-center justify-between font-semibold border-b border-amber-500/20 pb-2">
+                      <span className="flex items-center gap-2 text-amber-400 text-xs sm:text-sm">
+                        <Tag className="w-4 h-4" /> {t.internalNote} • {msg.senderName}
                       </span>
-                      <span className="text-[10px] text-amber-400/60 font-numeric">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <span className="text-xs text-amber-400/60 font-numeric shrink-0 ml-2">
+                        {new Date(msg.createdAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-amber-100/90">{msg.content}</p>
+                    <p className="text-amber-100/90 whitespace-pre-wrap break-words text-sm">{msg.content}</p>
                   </div>
                 );
               }
@@ -472,125 +583,160 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col max-w-xl ${
+                  className={`flex flex-col max-w-[85%] sm:max-w-xl ${
                     isContact ? 'items-start' : 'items-end ml-auto'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-1 text-[10px] text-gray-500 font-mono">
-                    <span>{msg.senderName}</span>
+                  <div className="flex items-center gap-1.5 mb-1.5 text-xs text-gray-500 font-mono pl-1 pr-1">
+                    <span className="font-semibold text-gray-400">{msg.senderName}</span>
                     <span>•</span>
-                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date(msg.createdAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
 
                   <div
-                    className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
+                    className={`p-3.5 sm:p-4 rounded-2xl text-sm leading-relaxed break-words shadow-sm ${
                       isContact
                         ? 'bg-[#1A2234] text-gray-200 rounded-tl-none border border-white/5'
-                        : 'bg-indigo-600 text-white rounded-tr-none shadow-lg shadow-indigo-600/10'
+                        : 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-600/10'
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{msg.content}</p>
 
-                    {/* Tool Invocation Attachment Card if present */}
+                    {/* Tool Invocation Attachment Card */}
                     {msg.toolInvocation && (
-                      <div className="mt-3 p-2.5 rounded-xl bg-black/30 border border-white/10 text-xs space-y-1.5">
-                        <div className="flex items-center justify-between font-mono text-[10px] text-cyan-300">
-                          <span className="flex items-center gap-1 font-bold">
-                            <Wrench className="w-3 h-3 text-cyan-400" /> Tool Gateway • {msg.toolInvocation.toolName}
+                      <div className="mt-3 p-3 rounded-xl bg-black/30 border border-white/10 text-sm space-y-2 max-w-full">
+                        <div className="flex items-center justify-between font-mono text-xs text-cyan-300 flex-wrap gap-2">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <Wrench className="w-4 h-4 text-cyan-400" /> Tool Gateway • {msg.toolInvocation.toolName}
                           </span>
-                          <span className="px-1.5 py-0.2 bg-cyan-500/20 rounded border border-cyan-500/30 uppercase">
+                          <span className="px-1.5 py-0.5 bg-cyan-500/20 rounded border border-cyan-500/30 uppercase text-[10px]">
                             {msg.toolInvocation.riskLevel}
                           </span>
                         </div>
 
                         {msg.toolInvocation.status === 'executed' ? (
-                          <div className="bg-emerald-950/40 text-emerald-200 p-2 rounded text-[11px] font-mono">
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400 inline mr-1" />
-                            {JSON.stringify(msg.toolInvocation.result, null, 2)}
+                          <div className="bg-emerald-950/40 text-emerald-200 p-3 rounded-lg text-xs font-mono overflow-x-auto border border-emerald-500/20">
+                            <CheckCircle className="w-4 h-4 text-emerald-400 inline mr-1.5 align-text-bottom" />
+                            <pre className="whitespace-pre-wrap break-all inline">{JSON.stringify(msg.toolInvocation.result, null, 2)}</pre>
                           </div>
                         ) : (
-                          <div className="bg-rose-950/40 text-rose-200 p-2 rounded text-[11px] font-mono">
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-400 inline mr-1" />
-                            {msg.toolInvocation.error || 'Execução falhou ou bloqueada'}
+                          <div className="bg-rose-950/40 text-rose-200 p-3 rounded-lg text-xs font-mono overflow-x-auto border border-rose-500/20">
+                            <AlertTriangle className="w-4 h-4 text-rose-400 inline mr-1.5 align-text-bottom" />
+                            {msg.toolInvocation.error || 'Falha'}
                           </div>
                         )}
+                        <div className="text-[10px] text-gray-400 mt-2 bg-white/5 p-1.5 rounded text-center">
+                          {t.gatewaySimulated}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Tool Trigger Bar */}
-          <div className="px-4 py-2 bg-[#121824] border-t border-white/10 flex items-center gap-2 overflow-x-auto text-xs">
-            <span className="text-gray-400 font-semibold text-[11px] shrink-0">Invocação rápida de ferramentas:</span>
+          {/* Quick Tool Trigger Bar (Desktop) & Button (Mobile) */}
+          <div className="px-4 py-2 bg-[#121824] border-t border-white/10 shrink-0">
+            <div className="hidden lg:flex items-center gap-3 overflow-x-auto pb-1">
+              <span className="text-gray-400 font-semibold text-xs shrink-0 flex items-center gap-1.5">
+                <Wrench className="w-3.5 h-3.5" /> {t.quickTools}:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleSimulateTool('listSchedules')}
+                className="px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-cyan-300 rounded-lg font-mono text-xs shrink-0 transition focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                listSchedules (R1)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSimulateTool('createScheduleDraft')}
+                className="px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-amber-300 rounded-lg font-mono text-xs shrink-0 transition focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                createScheduleDraft (R2)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSimulateTool('addSongToLivingLibrary')}
+                className="px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-rose-300 rounded-lg font-mono text-xs shrink-0 transition focus:outline-none focus:ring-2 focus:ring-rose-500"
+              >
+                addSongToLivingLibrary (R3)
+              </button>
+            </div>
             <button
-              onClick={() => handleSimulateTool('listSchedules')}
-              className="px-2.5 py-1 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-indigo-300 rounded-md font-mono text-[11px] shrink-0 transition"
+              type="button"
+              onClick={() => dispatchMobile({ type: 'OPEN_QUICK_TOOLS' })}
+              className="lg:hidden w-full min-h-[44px] flex items-center justify-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-indigo-300 rounded-xl font-semibold text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              listSchedules (R1)
-            </button>
-            <button
-              onClick={() => handleSimulateTool('createScheduleDraft')}
-              className="px-2.5 py-1 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-amber-300 rounded-md font-mono text-[11px] shrink-0 transition"
-            >
-              createScheduleDraft (R2)
-            </button>
-            <button
-              onClick={() => handleSimulateTool('addSongToLivingLibrary')}
-              className="px-2.5 py-1 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-cyan-300 rounded-md font-mono text-[11px] shrink-0 transition"
-            >
-              addSongToLivingLibrary (R3)
+              <Wrench className="w-4 h-4" />
+              {t.quickTools}
             </button>
           </div>
 
           {/* Message Composer */}
-          <div className="p-3 bg-[#121824] border-t border-white/10 space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div className="p-3 sm:p-4 bg-[#121824] border-t border-white/10 space-y-3 shrink-0 pb-safe">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none min-h-[44px] sm:min-h-0">
                 <input
                   type="checkbox"
                   checked={isInternalNote}
                   onChange={(e) => setIsInternalNote(e.target.checked)}
-                  className="rounded border-gray-600 bg-[#1A2234] text-amber-500 focus:ring-0"
+                  className="rounded border-gray-600 bg-[#1A2234] text-amber-500 focus:ring-indigo-500 w-5 h-5 sm:w-4 sm:h-4"
                 />
-                <span className={isInternalNote ? 'text-amber-400 font-semibold' : ''}>
-                  Nota Interna (Visível apenas para a equipe)
+                <span className={`text-sm sm:text-xs ${isInternalNote ? 'text-amber-400 font-semibold' : 'text-gray-400'}`}>
+                  {t.internalNote}
                 </span>
               </label>
 
-              <span className="text-[11px] text-gray-500">
-                Pressione Enter para enviar
-              </span>
+              <div className="bg-indigo-500/10 text-indigo-300 text-[10px] px-2 py-1 rounded border border-indigo-500/20">
+                {t.demoNotice}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button className="p-2 text-gray-400 hover:text-white rounded-lg bg-[#1A2234] border border-white/10">
-                <Paperclip className="w-4 h-4" />
+            <div className="flex items-end gap-2">
+              <button 
+                type="button"
+                className="w-11 h-11 shrink-0 flex items-center justify-center text-gray-500 cursor-not-allowed rounded-xl bg-[#1A2234] border border-white/10"
+                aria-label={t.attachmentsPlanned}
+                aria-disabled="true"
+                disabled
+              >
+                <Paperclip className="w-5 h-5" />
               </button>
 
-              <input
-                type="text"
+              <textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder={isInternalNote ? 'Escreva uma nota interna...' : 'Escreva uma mensagem...'}
-                className={`flex-1 bg-[#1A2234] border rounded-xl px-4 py-2.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none transition ${
-                  isInternalNote ? 'border-amber-500/50 bg-amber-950/20' : 'border-white/10'
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder={isInternalNote ? t.internalNote + '...' : t.typeMessage}
+                rows={1}
+                className={`flex-1 min-h-[44px] max-h-32 resize-none bg-[#1A2234] border rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none transition focus:ring-2 ${
+                  isInternalNote ? 'border-amber-500/50 bg-amber-950/20 focus:ring-amber-500' : 'border-white/10 focus:ring-indigo-500'
                 }`}
               />
 
               <button
+                type="button"
                 onClick={handleSendMessage}
-                className={`px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 transition ${
-                  isInternalNote
-                    ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                disabled={!inputMessage.trim()}
+                aria-label={isInternalNote ? t.saveNote : t.sendSimulated}
+                className={`w-11 h-11 sm:w-auto sm:px-4 shrink-0 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition focus:outline-none focus:ring-2 ${
+                  !inputMessage.trim()
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                    : isInternalNote
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white focus:ring-amber-500'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 focus:ring-indigo-500'
                 }`}
               >
-                <span>{isInternalNote ? 'Salvar Nota' : 'Enviar'}</span>
-                <Send className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isInternalNote ? t.saveNote : t.sendSimulated}</span>
+                <Send className="w-5 h-5 sm:w-4 sm:h-4" />
               </button>
             </div>
           </div>
@@ -598,120 +744,153 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
 
         {/* Pane 3: Context Sidebar */}
         <div
-          className={`w-full lg:w-80 bg-[#121824] border-l border-white/10 p-4 overflow-y-auto space-y-5 ${
-            mobileView === 'context' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
+          className={`w-full lg:w-80 bg-[#121824] border-l border-white/10 flex-col overflow-y-auto pb-safe ${
+            mobileState.view === 'context' ? 'flex' : 'hidden lg:flex'
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-              Contexto do Contato
+          <div className="sticky top-0 z-10 bg-[#121824]/95 backdrop-blur border-b border-white/10 p-3 flex items-center justify-between shrink-0 min-h-[60px]">
+            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+              <User className="w-4 h-4 text-indigo-400" /> {t.context}
             </h3>
             <button
-              onClick={() => setMobileView('chat')}
-              className="lg:hidden text-xs text-indigo-400"
+              type="button"
+              onClick={() => dispatchMobile({ type: 'OPEN_CHAT' })}
+              className="lg:hidden w-11 h-11 flex items-center justify-center text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label={t.back}
             >
-              Voltar ao Chat
+              <ArrowLeft className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Contact Identity Card */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <img
-                src={activeContact.avatarUrl}
-                alt={activeContact.name}
-                className="w-12 h-12 rounded-full object-cover border border-indigo-500/30"
-              />
-              <div>
-                <h4 className="text-sm font-bold text-white">{activeContact.name}</h4>
-                <span className="text-xs text-gray-400 block font-numeric">
-                  {activeContact.phone || activeContact.instagramHandle}
-                </span>
+          <div className="p-4 space-y-6">
+            {/* Contact Identity Card */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                {activeContact.avatarUrl ? (
+                  <img
+                    src={activeContact.avatarUrl}
+                    alt=""
+                    className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500/30"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-indigo-900/50 flex items-center justify-center text-indigo-300 font-bold text-xl border-2 border-indigo-500/30">
+                    {activeContact.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h4 className="text-base font-bold text-white">{activeContact.name}</h4>
+                  <span className="text-sm text-gray-400 block font-numeric mt-0.5">
+                    {activeContact.phone || activeContact.instagramHandle}
+                  </span>
+                </div>
+              </div>
+
+              {/* MillionsNest Identity Link Status */}
+              <div className="p-3.5 rounded-xl bg-[#1A2234] border border-white/5 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400 flex items-center gap-1.5 font-medium">
+                    <Link2 className="w-4 h-4 text-indigo-400" /> {t.bindingStatus}:
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase font-mono border ${
+                      activeContact.linkingStatus === 'vinculado'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    {activeContact.linkingStatus}
+                  </span>
+                </div>
+
+                {activeContact.linkingStatus === 'vinculado' ? (
+                  <div className="text-xs text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5 space-y-1">
+                    <div className="font-semibold text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="w-4 h-4" /> {t.demoBinding}
+                    </div>
+                    <div className="font-mono text-[11px] break-all">{t.localId}: {activeContact.identities[0]?.linkedUserId}</div>
+                    <div className="text-[10px] text-gray-500 mt-2">{t.scenarioOnly}</div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-amber-200/90 bg-amber-950/30 p-3 rounded-lg border border-amber-500/20 space-y-1">
+                    <div className="font-bold flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {t.authorityNotice}</div>
+                    <div>{t.noBindingNotice}</div>
+                    <div className="text-[10px] opacity-70 mt-1">{t.reauthNotice}.</div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* MillionsNest Identity Link Status */}
-            <div className="p-3 rounded-xl bg-[#1A2234] border border-white/5 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-400 flex items-center gap-1.5 font-medium">
-                  <Link2 className="w-3.5 h-3.5 text-indigo-400" /> Identidade MillionsNest:
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
-                    activeContact.linkingStatus === 'vinculado'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  }`}
-                >
-                  {activeContact.linkingStatus}
-                </span>
-              </div>
+            {/* AI Intelligence Insights */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-cyan-400" /> {t.summary}
+              </h4>
 
-              {activeContact.linkingStatus === 'vinculado' ? (
-                <div className="text-[11px] text-gray-300 font-mono bg-black/20 p-2 rounded">
-                  ID: usr_mn_8812 (Igreja Central Londrina)
+              <div className="p-4 bg-[#1A2234] border border-white/5 rounded-xl space-y-4 text-sm">
+                <div>
+                  <span className="text-gray-400 text-xs block mb-1">{t.intent}:</span>
+                  <span className="font-semibold text-cyan-300 font-mono bg-cyan-500/10 px-2 py-1 rounded inline-block border border-cyan-500/20">
+                    {activeConversation.aiIntent || 'consulta_geral'}
+                  </span>
                 </div>
-              ) : (
-                <div className="text-[11px] text-amber-200/80 bg-amber-950/30 p-2 rounded">
-                  Aviso: Telefone/Instagram não constituem autoridade de permissão. Exige autenticação prévia.
+
+                <div>
+                  <span className="text-gray-400 text-xs block mb-1">{t.summary}:</span>
+                  <p className="text-gray-200 leading-relaxed bg-white/5 p-3 rounded-lg text-sm">
+                    {activeConversation.aiSummary || 'Atendimento em andamento.'}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-2 text-right">{t.generatedSummary}</p>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* AI Intelligence Insights */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Resumo da Inteligência
-            </h4>
-
-            <div className="p-3 bg-[#1A2234] border border-white/5 rounded-xl space-y-2 text-xs">
-              <div>
-                <span className="text-gray-400 text-[11px] block">Intenção Identificada:</span>
-                <span className="font-semibold text-cyan-300 font-mono">
-                  {activeConversation.aiIntent || 'consulta_geral'}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-gray-400 text-[11px] block">Resumo do Atendimento:</span>
-                <p className="text-gray-300 mt-0.5 leading-relaxed">
-                  {activeConversation.aiSummary || 'Atendimento em andamento.'}
-                </p>
-              </div>
-
-              {/* Sentiment Disclaimer Warning Banner */}
-              <div className="bg-indigo-950/40 border border-indigo-500/20 p-2.5 rounded-lg text-[11px] text-indigo-200/90 space-y-1">
-                <div className="font-semibold text-indigo-300 flex items-center gap-1">
-                  <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0" /> Sinal de Sentimento Auxiliar
+                {/* Sentiment Disclaimer Warning Banner */}
+                <div className="bg-indigo-950/40 border border-indigo-500/20 p-3 rounded-lg text-xs text-indigo-200/90 space-y-1.5">
+                  <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-indigo-400 shrink-0" /> {t.sentiment}
+                  </div>
+                  <p className="text-[11px] text-indigo-200/70 leading-relaxed">
+                    Sinal de sentimento é um auxiliar estatístico e não representa prova factual nem autoridade de decisão.
+                  </p>
                 </div>
-                <p className="text-[10px] text-indigo-200/70">
-                  Sinal de sentimento é um auxiliar estatístico e não representa prova factual nem autoridade de decisão.
-                </p>
               </div>
             </div>
-          </div>
 
-          {/* Contact Tags */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Etiquetas
-            </h4>
-            <div className="flex flex-wrap gap-1.5">
-              {activeContact.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300 text-[11px]"
-                >
-                  {tag}
-                </span>
-              ))}
+            {/* Contact Tags */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {t.tags}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {activeContact.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-gray-300 text-xs font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <InboxFilterSheet 
+        isOpen={mobileState.filtersOpen}
+        onClose={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
+        filterMode={filterMode}
+        setFilterMode={setFilterMode}
+        channelFilter={channelFilter}
+        setChannelFilter={setChannelFilter}
+        currentLang={currentLang}
+      />
+
+      <InboxQuickToolsSheet
+        isOpen={mobileState.quickToolsOpen}
+        onClose={() => dispatchMobile({ type: 'CLOSE_QUICK_TOOLS' })}
+        onSimulateTool={handleSimulateTool}
+        currentLang={currentLang}
+      />
 
       <DemoToolConfirmationDialog
         pending={pendingTool}
@@ -719,6 +898,6 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
         onConfirm={handleConfirmTool}
         onCancel={handleCancelTool}
       />
-    </>
+    </div>
   );
 };

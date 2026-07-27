@@ -1,0 +1,217 @@
+--- Running Mobile Layout Tests ---
+
+❌ Test failed: 7. Conteúdo principal possui min-w-0 e overflow-x-hidden
+The input did not match the regular expression /className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden/. Input:
+
+"import React, { useState } from 'react';\n" +
+  'import { \n' +
+  '  Menu, X, Search, Bell, Building2, Globe, ChevronDown, ChevronUp,\n' +
+  '  LayoutDashboard, MessageSquare, Wrench, Users, BrainCircuit,\n' +
+  '  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen\n' +
+  "} from 'lucide-react';\n" +
+  "import { EffectiveEcosystemContext, LanguageCode } from '../../types';\n" +
+  "import { DemoBanner } from '../common/DemoBanner';\n" +
+  "import { CommandPalette } from './CommandPalette';\n" +
+  "import { MobileAppHeader } from './MobileAppHeader';\n" +
+  "import { MobileNavigationDrawer } from './MobileNavigationDrawer';\n" +
+  "import { getUxText } from '../../i18n/mobileUx';\n" +
+  '\n' +
+  'interface ShellProps {\n' +
+  '  children: React.ReactNode;\n' +
+  '  context: EffectiveEcosystemContext;\n' +
+  '  currentLang: LanguageCode;\n' +
+  '  onChangeLang: (lang: LanguageCode) => void;\n' +
+  '  onSelectOrg: (orgId: string) => void;\n' +
+  '  activeRoute: string;\n' +
+  '  onNavigate: (route: string) => void;\n' +
+  '}\n' +
+  '\n' +
+  'export const Shell: React.FC<ShellProps> = ({\n' +
+  '  children,\n' +
+  '  context,\n' +
+  '  currentLang,\n' +
+  '  onChangeLang,\n' +
+  '  onSelectOrg,\n' +
+  '  activeRoute,\n' +
+  '  onNavigate,\n' +
+  '}) => {\n' +
+  '  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);\n' +
+  '  const [isDesktopOrgMenuOpen, setIsDesktopOrgMenuOpen] = useState(false);\n' +
+  '  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);\n' +
+  '  const t = getUxText(currentLang);\n' +
+  '\n' +
+  '  const navItems = [\n' +
+  "    { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },\n" +
+  "    { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },\n" +
+  "    { id: 'tools', label: t.navigation.tools, icon: Wrench },\n" +
+  "    { id: 'contacts', label: t.navigation.contacts, icon: Users },\n" +
+  "    { id: 'agents', label: t.navigation.agents, icon: BrainCircuit },\n" +
+  "    { id: 'knowledge', label: t.navigation.knowledge, icon: BookOpen },\n" +
+  "    { id: 'automations', label: t.navigation.automations, icon: Workflow },\n" +
+  "    { id: 'channels', label: t.navigation.channels, icon: Radio },\n" +
+  "    { id: 'analytics', label: t.navigation.analytics, icon: LineChart },\n" +
+  "    { id: 'audit', label: t.navigation.audit, icon: ShieldCheck },\n" +
+  "    { id: 'settings', label: t.navigation.settings, icon: Settings },\n" +
+  '  ];\n' +
+  '\n' +
+  '  return (\n' +
+  '    <div className="min-h-[100dvh] flex flex-col bg-[#0B0E14] overflow-x-hidden">\n' +
+  '      <DemoBanner currentLang={currentLang} />\n' +
+  '\n' +
+  '      <div className="flex-1 min-h-0 flex flex-col">\n' +
+  '        {/* Mobile Header (Hidden on lg) */}\n' +
+  '        <MobileAppHeader\n' +
+  '          className="lg:hidden"\n' +
+  '          context={context}\n' +
+  '          isMobileMenuOpen={isMobileMenuOpen}\n' +
+  '          setIsMobileMenuOpen={setIsMobileMenuOpen}\n' +
+  '          setIsCommandPaletteOpen={setIsCommandPaletteOpen}\n' +
+  '          currentLang={currentLang}\n' +
+  '          onSelectOrg={onSelectOrg}\n' +
+  '        />\n' +
+  '\n' +
+  '        <MobileNavigationDrawer\n' +
+  '          isOpen={isMobileMenuOpen}\n' +
+  '          onClose={() => setIsMobileMenuOpen(false)}\n' +
+  '          context={context}\n' +
+  '          navItems={navItems}\n' +
+  '          activeRoute={activeRoute}\n' +
+  '          onNavigate={onNavigate}\n' +
+  '          currentLang={currentLang}\n' +
+  '          onChangeLang={onChangeLang}\n' +
+  '        />\n' +
+  '\n' +
+  '        <div className="flex-1 min-h-0 flex">\n' +
+  '          {/* Desktop Sidebar (Hidden on mobile/tablet) */}\n' +
+  '          <div className="hidden lg:flex w-64 flex-col bg-[#121824] border-r border-white/10 shrink-0">\n' +
+  '            <div className="h-14 flex items-center gap-2 px-4 border-b border-white/10">\n' +
+  '              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">\n' +
+  '                MN\n' +
+  '              </div>\n' +
+  '              <span className="font-bold text-sm text-white">Connect</span>\n' +
+  '            </div>\n' +
+  '            \n' +
+  '            <div className="flex-1 overflow-y-auto py-4">\n' +
+  '              <nav className="space-y-1 px-3">\n' +
+  '                {navItems.map((item) => {\n' +
+  '                  const Icon = item.icon;\n' +
+  '                  const isActive = activeRoute === item.id;\n' +
+  '                  return (\n' +
+  '                    <button\n' +
+  '                      key={item.id}\n' +
+  '                      onClick={() => onNavigate(item.id)}\n' +
+  '                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${\n' +
+  '                        isActive\n' +
+  "                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'\n" +
+  "                          : 'text-gray-300 hover:bg-white/5'\n" +
+  '                      }`}\n' +
+  '                    >\n' +
+  '                      <Icon className="w-4 h-4" />\n' +
+  '                      <span>{item.label}</span>\n' +
+  '                    </button>\n' +
+  '                  );\n' +
+  '                })}\n' +
+  '              </nav>\n' +
+  '            </div>\n' +
+  '            \n' +
+  '            <div className="p-4 border-t border-white/10 text-[10px] text-gray-500 text-center">\n' +
+  "              {t.header.brandAuth.split('|').map((part, i) => (\n" +
+  '                <React.Fragment key={i}>\n' +
+  '                  {part.trim()}\n' +
+  '                  {i === 0 && <br />}\n' +
+  '                </React.Fragment>\n' +
+  '              ))}\n' +
+  '            </div>\n' +
+  '          </div>\n' +
+  '\n' +
+  '          <section className="flex-1 min-w-0 min-h-0 flex flex-col">\n' +
+  '            {/* Desktop Top Bar (Hidden on mobile/tablet) */}\n' +
+  '            <header className="hidden lg:flex h-14 border-b border-white/10 bg-[#121824] px-4 items-center justify-between gap-4 shrink-0">\n' +
+  '              {/* Left: Organization Selector */}\n' +
+  '              <div className="relative flex items-center gap-3 min-w-0">\n' +
+  '                <div className="relative">\n' +
+  '                  <button\n' +
+  '                    onClick={() => setIsDesktopOrgMenuOpen(!isDesktopOrgMenuOpen)}\n' +
+  '                    className="flex items-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-200 transition"\n' +
+  '                    aria-expanded={isDesktopOrgMenuOpen}\n' +
+  '                    aria-label={t.header.activeOrganization}\n' +
+  '                  >\n' +
+  '                    <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />\n' +
+  '                    <span className="font-semibold text-white max-w-[160px] truncate">\n' +
+  '                      {context.activeOrganization.name}\n' +
+  '                    </span>\n' +
+  '                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase font-mono">\n' +
+  '                      {context.activeOrganization.plan}\n' +
+  '                    </span>\n' +
+  '                    {isDesktopOrgMenuOpen ? (\n' +
+  '                      <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />\n' +
+  '                    ) : (\n' +
+  '                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />\n' +
+  '                    )}\n' +
+  '                  </button>\n' +
+  '                  {isDesktopOrgMenuOpen && (\n' +
+  '                    <div className="absolute left-0 mt-2 w-64 bg-[#121824] border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">\n' +
+  '                      <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">\n' +
+  '                        {t.header.organizations}\n' +
+  '                      </div>\n' +
+  '                      {context.availableOrganizations.map((org) => {\n' +
+  '                        const isActive = org.id === context.activeOrganization.id;\n' +
+  '                        return (\n' +
+  '                          <button\n' +
+  '                            key={org.id}\n' +
+  '                            onClick={() => {\n' +
+  '                              onSelectOrg(org.id);\n' +
+  '                              setIsDesktopOrgMenuOpen(false);\n' +
+  '                            }}\n' +
+  '                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-white/5 transition ${\n' +
+  "                              isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'\n" +
+  '                            }`}\n' +
+  '                          >\n' +
+  '                            <span className="font-medium truncate pr-2">{org.name}</span>\n' +
+  '                            {isActive && (\n' +
+  '                              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>\n' +
+  '                            )}\n' +
+  '                          </button>\n' +
+  '                        );\n' +
+  '                      })}\n' +
+  '                    </div>\n' +
+  '                  )}\n' +
+  '                </div>\n' +
+  '              </div>\n' +
+  '\n' +
+  '              {/* Middle: Global Search Palette Trigger */}\n' +
+  '              <div className="flex items-center flex-1 max-w-md">\n' +
+  '                <button\n' +
+  '                  onClick={() => setIsCommandPaletteOpen(true)}\n' +
+  '                  className="w-full bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-gray-400 px-3 py-1.5 rounded-lg text-xs flex items-center justify-between transition group"\n' +
+  '                  aria-label={t.header.openSearch}\n' +
+  '                >\n' +
+  '                  <span className="flex items-center gap-2 group-hover:text-gray-200">\n' +
+  '                    <Search className="w-3.5 h-3.5 text-gray-400" />\n' +
+  '                    <span>{t.header.openSearch}</span>\n' +
+  '                  </span>\n' +
+  '                  <kbd className="bg-[#0B0E14] border border-white/10 text-[10px] px-1.5 py-0.5 rounded font-mono text-gray-400">\n' +
+  '                    ⌘K\n' +
+  '                  </kbd>\n' +
+  '                </button>\n' +
+  '              </div>\n' +
+  '\n' +
+  '              {/* Right Controls: Language, Notifications, User */}\n' +
+  '              <div className="flex items-center gap-3 shrink-0">\n' +
+  '                <div className="flex items-center gap-1 bg-[#1A2234] border border-white/10 rounded-lg p-0.5 text-xs">\n' +
+  '                  <Globe className="w-3.5 h-3.5 text-gray-400 ml-1.5" />\n' +
+  "                  {(['pt-BR', 'en-US', 'es-ES'] as LanguageCode[]).map((lang) => (\n" +
+  '                    <button\n' +
+  '                      key={lang}\n' +
+  '                      onClick={() => onChangeLang(lang)}\n' +
+  '                      className={`px-2 py-1 rounded text-[11px] font-medium transition ${\n' +
+  '                        currentLang === lang\n' +
+  "                          ? 'bg-indigo-600 text-white shadow'\n" +
+  "                          : 'text-gray-400 hover:text-gray-200'\n" +
+  '                      }`}\n' +
+  '                      aria-pressed={currentLang === lang}\n' +
+  '                    >\n' +
+  '           '... 1742 more characters
+
+
+Tests completed: 29 passed, 1 failed. Assertions: 67
