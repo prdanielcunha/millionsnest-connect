@@ -23,7 +23,34 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   className = '',
 }) => {
   const [isMobileOrgMenuOpen, setIsMobileOrgMenuOpen] = useState(false);
+  const headerRef = React.useRef<HTMLDivElement>(null);
   const t = getUxText(currentLang);
+
+  React.useEffect(() => {
+    if (!isMobileOrgMenuOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileOrgMenuOpen(false);
+      }
+    };
+
+    const handlePointerDown = (e: PointerEvent | MouseEvent | TouchEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setIsMobileOrgMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('mousedown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [isMobileOrgMenuOpen]);
 
   const toggleOrgMenu = () => {
     setIsMobileOrgMenuOpen(!isMobileOrgMenuOpen);
@@ -38,7 +65,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   };
 
   return (
-    <div className={`flex flex-col border-b border-white/10 bg-[#121824] shrink-0 z-40 ${className}`}>
+    <div ref={headerRef} className={`flex flex-col border-b border-white/10 bg-[#121824] shrink-0 z-40 ${className}`}>
       {/* Top row: Menu, Brand, Search, Notifications */}
       <div className="h-14 px-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
@@ -68,7 +95,13 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setIsCommandPaletteOpen(true)}
+            onClick={() => {
+              setIsMobileOrgMenuOpen(false);
+              if (isMobileMenuOpen) {
+                setIsMobileMenuOpen(false);
+              }
+              setIsCommandPaletteOpen(true);
+            }}
             className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
             aria-label={t.header.openSearch}
           >
@@ -79,6 +112,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
             className="w-11 h-11 flex items-center justify-center text-gray-600 cursor-not-allowed focus:outline-none rounded-lg" 
             aria-label={t.header.notificationsPlanned}
             aria-disabled="true"
+            disabled
             title={t.header.notificationsPlanned}
           >
             <Bell className="w-5 h-5" />
@@ -94,6 +128,8 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           className="flex items-center justify-between w-full h-full px-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
           aria-expanded={isMobileOrgMenuOpen}
           aria-controls="mobile-org-menu"
+          aria-label={`${t.header.activeOrganization}: ${context.activeOrganization.name}`}
+          title={context.activeOrganization.name}
         >
           <div className="flex items-center gap-2 min-w-0">
             <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -127,6 +163,8 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
                     isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300 hover:bg-white/5'
                   }`}
                   aria-current={isActive ? 'true' : undefined}
+                  aria-label={org.name}
+                  title={org.name}
                 >
                   <span className="font-medium truncate pr-2">{org.name}</span>
                   {isActive && (

@@ -90,6 +90,12 @@ export type MobileUxTranslations = {
     toConfigure: string;
     coexistenceCloudApi: string;
     futureIntegration: string;
+    createSubscriptionDemo: string;
+    time1h: string;
+    time2h: string;
+    weekdaysShort: readonly [string, string, string, string, string, string, string];
+    nestFinanceMemoryOnly: string;
+    chartValueLabel: (day: string, value: number) => string;
   };
 };
 
@@ -184,6 +190,12 @@ export const translations: Record<LanguageCode, MobileUxTranslations> = {
       toConfigure: 'A CONFIGURAR',
       coexistenceCloudApi: 'Coexistência oficial com Cloud API',
       futureIntegration: 'Integração futura com os aplicativos MillionsNest',
+      createSubscriptionDemo: 'Criar Inscrição',
+      time1h: 'Há 1h',
+      time2h: 'Há 2h',
+      weekdaysShort: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const,
+      nestFinanceMemoryOnly: 'Resultado gerado somente em memória. Nenhuma ação foi enviada ao NestFinance.',
+      chartValueLabel: (day: string, value: number) => `${day}: ${value} atendimentos demonstrativos`,
     },
   },
   'en-US': {
@@ -276,6 +288,12 @@ export const translations: Record<LanguageCode, MobileUxTranslations> = {
       toConfigure: 'TO CONFIGURE',
       coexistenceCloudApi: 'Official coexistence with Cloud API',
       futureIntegration: 'Future integration with MillionsNest apps',
+      createSubscriptionDemo: 'Create subscription',
+      time1h: '1h ago',
+      time2h: '2h ago',
+      weekdaysShort: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const,
+      nestFinanceMemoryOnly: 'Result generated only in memory. No action was sent to NestFinance.',
+      chartValueLabel: (day: string, value: number) => `${day}: ${value} demonstrative interactions`,
     },
   },
   'es-ES': {
@@ -368,6 +386,12 @@ export const translations: Record<LanguageCode, MobileUxTranslations> = {
       toConfigure: 'A CONFIGURAR',
       coexistenceCloudApi: 'Coexistencia oficial con Cloud API',
       futureIntegration: 'Futura integración con apps MillionsNest',
+      createSubscriptionDemo: 'Crear suscripción',
+      time1h: 'Hace 1h',
+      time2h: 'Hace 2h',
+      weekdaysShort: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const,
+      nestFinanceMemoryOnly: 'Resultado generado únicamente en memoria. No se envió ninguna acción a NestFinance.',
+      chartValueLabel: (day: string, value: number) => `${day}: ${value} atenciones demostrativas`,
     },
   },
 };

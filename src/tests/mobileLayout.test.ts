@@ -191,6 +191,58 @@ test('22. Notificações sem dot engenhado', () => {
   checkMatch(header, /aria-disabled="true"/);
 });
 
+test('23. MobileAppHeader implementa Escape e clique fora para seletor de org', () => {
+  const header = readSrc('components/layout/MobileAppHeader.tsx');
+  checkMatch(header, /e\.key === 'Escape'/);
+  checkMatch(header, /document\.addEventListener\('pointerdown'/);
+  checkMatch(header, /headerRef\.current\.contains/);
+});
+
+test('24. Busca fecha o seletor de organização e drawer', () => {
+  const header = readSrc('components/layout/MobileAppHeader.tsx');
+  checkMatch(header, /setIsMobileOrgMenuOpen\(false\)/);
+  checkMatch(header, /setIsCommandPaletteOpen\(true\)/);
+});
+
+test('25. Nome ativo possui aria-label e title com nome completo', () => {
+  const header = readSrc('components/layout/MobileAppHeader.tsx');
+  checkMatch(header, /aria-label=\{`\$\{t\.header\.activeOrganization\}: \$\{context\.activeOrganization\.name\}`\}/);
+  checkMatch(header, /title=\{context\.activeOrganization\.name\}/);
+});
+
+test('26. Notificação possui disabled verdadeiro', () => {
+  const header = readSrc('components/layout/MobileAppHeader.tsx');
+  checkMatch(header, /disabled\s*$/m);
+  checkNotMatch(header, /aria-disabled="true"\s*onClick/);
+});
+
+test('27. Overview não contém textos hardcoded (Criar Inscrição, Há 1h, Seg/Ter/Qua)', () => {
+  const overview = readSrc('features/overview/OverviewPage.tsx');
+  checkNotMatch(overview, /Criar Inscrição/);
+  checkNotMatch(overview, /Há 1h/);
+  checkNotMatch(overview, /Há 2h/);
+  checkNotMatch(overview, /'Seg', 'Ter', 'Qua'/);
+});
+
+test('28. Overview não contém margens negativas (-mr, -ml, -mx)', () => {
+  const overview = readSrc('features/overview/OverviewPage.tsx');
+  checkNotMatch(overview, /-mr-/);
+  checkNotMatch(overview, /-ml-/);
+  checkNotMatch(overview, /-mx-/);
+});
+
+test('29. Itens de atenção são buttons sem margem negativa, com foco visível', () => {
+  const overview = readSrc('features/overview/OverviewPage.tsx');
+  checkMatch(overview, /<button\s+type="button"\s+key=\{item\.id\}/);
+  checkMatch(overview, /focus:ring-2/);
+});
+
+test('30. Gráfico possui aria-label e role="img"', () => {
+  const overview = readSrc('features/overview/OverviewPage.tsx');
+  checkMatch(overview, /role="img"/);
+  checkMatch(overview, /aria-label=\{t\.chartValueLabel/);
+});
+
 console.log(`\nTests completed: ${passed} passed, ${failed} failed. Assertions: ${assertionCount}`);
 
 if (failed > 0 || assertionCount === 0) {
