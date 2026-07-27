@@ -16,7 +16,7 @@ import {
   ExternalLink,
   Code2,
 } from 'lucide-react';
-import { ToolDefinition, EffectiveEcosystemContext, RiskLevel } from '../../types';
+import { ToolDefinition, EffectiveEcosystemContext, RiskLevel, ToolGatewayInvocationResponse, DemoConfirmationEvidence } from '../../types';
 import { mockTools, mockAppManifests } from '../../demo/mockData';
 import { ToolGatewayService } from '../../core/services/toolGateway';
 
@@ -27,7 +27,7 @@ interface ToolsPageProps {
 export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
   const [tools] = useState<ToolDefinition[]>(mockTools);
   const [selectedToolId, setSelectedToolId] = useState<string>('tool_musicscale_add_song_to_living_library');
-  const [executionResult, setExecutionResult] = useState<any>(null);
+  const [executionResult, setExecutionResult] = useState<ToolGatewayInvocationResponse | null>(null);
 
   const selectedTool = tools.find((t) => t.id === selectedToolId) || tools[0];
 
@@ -56,7 +56,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
           conversationId: 'cnv_01',
         },
         locale: 'pt-BR',
-        confirmedAt: new Date().toISOString() // Simulando aprovação UI para teste
+
       }
     );
     setExecutionResult(res);
@@ -242,13 +242,25 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context }) => {
               <div className="p-4 bg-black/40 border border-white/10 rounded-xl space-y-2 text-xs font-mono">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-400">Resultado do Tool Gateway:</span>
-                  {executionResult?.success ? (
+                  {executionResult?.result?.status === 'success' ? (
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" /> SUCESSO (200 OK)
                     </span>
-                  ) : (
+                  ) : executionResult?.result?.status === 'needs_confirmation' ? (
+                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5" /> AGUARDANDO CONFIRMAÇÃO
+                    </span>
+                  ) : executionResult?.result?.status === 'conflict' ? (
+                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5" /> CONFLITO
+                    </span>
+                  ) : executionResult?.result?.status === 'denied' ? (
                     <span className="text-rose-400 font-bold flex items-center gap-1">
                       <Lock className="w-3.5 h-3.5" /> NEGADO (403 FORBIDDEN)
+                    </span>
+                  ) : (
+                    <span className="text-rose-400 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> FALHA
                     </span>
                   )}
                 </div>

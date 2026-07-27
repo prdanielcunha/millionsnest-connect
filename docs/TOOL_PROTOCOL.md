@@ -1,10 +1,20 @@
 # Tool Protocol
 
-O Tool Protocol estabelece a definição formal das ferramentas integradas e da comunicação com o Tool Gateway.
+O Tool Protocol estabelece a definição formal das ferramentas e da comunicação com o Tool Gateway.
 
-- **ToolDefinition**: Contrato que estipula o nome, capacidades exigidas e comportamento de confirmação.
-- **ToolInvocationContext**: Objeto passado pelo chamador que informa os detalhes do ator (uid), canal, organização e estado da confirmação.
-- **DemoPolicyDecision**: O objeto resultante da avaliação do simulador de política. Pode ser `allowed`, `denied` ou `needs_confirmation`.
-- **ToolInvocationResult**: Objeto padronizado de retorno da ferramenta invocada. Pode conter `status: 'success' | 'denied' | 'needs_confirmation' | 'conflict' | 'failed'`.
-- **Confirmação por Risco**: R0 (none), R1 (none), R2 (simple), R3 (explicit/strong/human_approval), R4 (strong/human_approval).
-- **Idempotência**: Controlada pela chave `idempotencyKey` no momento da requisição para prevenir replays de chamadas em R2+.
+## Principais Contratos
+- **ToolDefinition**: Contrato que estipula `id`, `name`, `riskLevel`, `confirmationPolicy`, `idempotencyPolicy` e `requiredPermissions`.
+- **ToolInvocationContext**: Estrutura que informa os detalhes do ator (`uid`), organização (`id`), `appAccess` e a possível evidência de confirmação do usuário.
+- **DemoConfirmationEvidence**: Entidade injetada após interação do usuário demonstrando consentimento. Possui `policy`, `method`, `confirmedAt`, atrelando-se ao `requestId`.
+
+## Respostas
+- **DemoPolicyDecision**: Resultado da avaliação do DemoPolicySimulator: `allowed`, `denied` ou `needs_confirmation`.
+- **ToolInvocationResult**: Objeto padronizado retornado pela invocação da ferramenta contendo status restrito (`success`, `denied`, `needs_confirmation`, `conflict` ou `failed`), dados opcionalmente tipados genéricos e um ID de auditoria.
+- **AuditEvent**: Registro de auditoria cobrindo o ciclo de vida. Tipos incluem: `policy_denied`, `confirmation_pending`, `tool_execution`, `idempotency_reuse` ou `tool_failed`.
+
+## Riscos e Políticas
+- Níveis de Risco: `R0_PUBLIC`, `R1_AUTH_READ`, `R2_AUTH_WRITE_LOW`, `R3_AUTH_WRITE_HIGH`, `R4_CRITICAL`.
+- Políticas de Confirmação: `none`, `simple` (aceita cliques simples), `explicit` (exige `explicit_click`), `strong`, `human_approval`.
+
+## Idempotência
+Controlada pela política da ferramenta (`none`, `recommended`, `required`). Baseada no uso de um `idempotencyKey` mapeado internamente para prevenir repetições não intencionais e originar eventos de `idempotency_reuse`.

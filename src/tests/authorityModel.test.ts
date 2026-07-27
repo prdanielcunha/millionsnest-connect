@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DemoPolicySimulator, DEMO_CONFIRMATION_MAX_AGE_MS } from '../demo/policies/demoPolicySimulator';
 import { ToolGatewayService, createDemoIdempotencyFingerprint } from '../core/services/toolGateway';
 import { normalizeSystemRole } from '../core/roles/systemRoles';
-import { EffectiveEcosystemContext, ToolInvocationContext, ToolDefinition, AuditEvent } from '../types';
+import { EffectiveEcosystemContext, ToolInvocationContext, ToolDefinition, AuditEvent, DemoConfirmationEvidence } from '../types';
 
 let testCount = 0;
 let passed = 0;
@@ -276,13 +276,13 @@ function runTests() {
   const tR4 = { ...baseTool, riskLevel: 'R4_CRITICAL' as any, confirmationPolicy: 'strong' as any };
   const now = new Date();
   
-  const validDemoConf = {
+  const validDemoConf: DemoConfirmationEvidence = {
     confirmationId: 'c1',
     requestId: 'req_1',
     toolId: 't1',
     organizationId: 'org1',
-    policy: 'simple' as any,
-    method: 'simple_click' as any,
+    policy: 'simple',
+    method: 'simple_click',
     confirmedAt: now.toISOString()
   };
 
@@ -301,7 +301,7 @@ function runTests() {
     checkEqual(d.status, 'needs_confirmation');
   });
   test('44. R2 com confirmedAt, mas sem demoConfirmation, retorna needs_confirmation', () => { 
-    const i = { ...baseInvocation, confirmedAt: now.toISOString() };
+    const i = { ...baseInvocation, confirmedAt: now.toISOString() } as any;
     const d = DemoPolicySimulator.evaluateToolPermission(baseContext, tR2, i, now);
     checkEqual(d.status, 'needs_confirmation');
   });

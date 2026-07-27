@@ -30,6 +30,8 @@ import {
   ConversationMode,
   ConversationChannel,
   Contact,
+  DemoConfirmationEvidence,
+  ToolDefinition,
 } from '../../types';
 import {
   mockConversations,
@@ -54,7 +56,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
   const [inputMessage, setInputMessage] = useState<string>('');
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
   
-  const [pendingTool, setPendingTool] = useState<{ tool: any, args: any } | null>(null);
+  const [pendingTool, setPendingTool] = useState<{ tool: ToolDefinition, args: Record<string, unknown> } | null>(null);
   
   const [mobileView, setMobileView] = useState<'list' | 'chat' | 'context'>('list');
 
@@ -68,7 +70,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
       return false;
     }
     if (channelFilter !== 'all' && c.channel !== channelFilter) return false;
-    if (filterMode === 'mine' && c.assignedToUserId !== context.user.id) return false;
+    if (filterMode === 'mine' && c.assignedToUserId !== context.user.uid) return false;
     if (filterMode === 'unassigned' && c.assignedToUserId) return false;
     if (filterMode === 'waiting_human' && c.status !== 'aguardando_humano') return false;
     if (filterMode === 'automatic' && c.mode !== 'automatico') return false;
@@ -141,7 +143,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, onNavigate }) => 
           conversationId: activeConversation.id,
         },
         locale: 'pt-BR',
-        confirmedAt: new Date().toISOString() // Simulando que a IA pediu e o usuário já confirmou via UI
+
       }
     );
 

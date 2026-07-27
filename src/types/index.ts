@@ -264,7 +264,6 @@ export interface ToolInvocationContext {
   };
   locale: string;
   reason?: string;
-  confirmedAt?: string;
   demoConfirmation?: DemoConfirmationEvidence;
 }
 
@@ -336,3 +335,9 @@ export interface AppManifest {
   status: 'ativo' | 'planejado' | 'desativado';
   registeredToolsCount: number;
 }
+
+export type ToolGatewayInvocationResponse<T = unknown> = {
+  decision: DemoPolicyDecision;
+  result: ToolInvocationResult<T>;
+  auditEvent: AuditEvent;
+};
