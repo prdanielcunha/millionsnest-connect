@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getNextFocusIndex, getPreviousFocusIndex } from './inboxDomain';
+import { getNextFocusIndex, getPreviousFocusIndex, isElementFocusable, ElementFocusDescriptor } from './inboxDomain';
 
 export function getFocusableElements(container: HTMLElement): HTMLElement[] {
   const candidates = container.querySelectorAll<HTMLElement>(
@@ -9,26 +9,42 @@ export function getFocusableElements(container: HTMLElement): HTMLElement[] {
   for (let i = 0; i < candidates.length; i++) {
     const el = candidates[i];
     
-    if (el.hasAttribute('disabled')) continue;
+    let disabled = false;
     if (
       el instanceof HTMLButtonElement ||
       el instanceof HTMLInputElement ||
       el instanceof HTMLSelectElement ||
       el instanceof HTMLTextAreaElement
     ) {
-      if (el.disabled) continue;
+      disabled = el.disabled;
     }
-    if (el.getAttribute('aria-hidden') === 'true') continue;
-    if (el.hasAttribute('inert')) continue;
-    if (el.hasAttribute('hidden')) continue;
-    
+
+    let display = 'block';
+    let visibility = 'visible';
     if (typeof window !== 'undefined') {
       const style = window.getComputedStyle(el);
-      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      display = style.display;
+      visibility = style.visibility;
     }
-    if (el.getClientRects && el.getClientRects().length === 0) continue;
-    
-    result.push(el);
+
+    const hasClientRects = el.getClientRects && el.getClientRects().length > 0;
+
+    const descriptor: ElementFocusDescriptor = {
+      tagName: el.tagName,
+      disabled,
+      hasDisabledAttribute: el.hasAttribute('disabled'),
+      ariaHidden: el.getAttribute('aria-hidden'),
+      inert: el.hasAttribute('inert'),
+      hidden: el.hasAttribute('hidden'),
+      tabIndex: el.tabIndex,
+      display,
+      visibility,
+      hasClientRects,
+    };
+
+    if (isElementFocusable(descriptor)) {
+      result.push(el);
+    }
   }
   return result;
 }

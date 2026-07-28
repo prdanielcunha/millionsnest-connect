@@ -85,3 +85,28 @@ export function getPreviousFocusIndex(currentIndex: number, totalElements: numbe
   if (currentIndex < 0) return 0;
   return (currentIndex - 1 + totalElements) % totalElements;
 }
+
+export interface ElementFocusDescriptor {
+  tagName?: string;
+  disabled?: boolean;
+  hasDisabledAttribute?: boolean;
+  ariaHidden?: string | null;
+  inert?: boolean;
+  hidden?: boolean;
+  tabIndex?: number;
+  display?: string;
+  visibility?: string;
+  hasClientRects?: boolean;
+}
+
+export function isElementFocusable(el: ElementFocusDescriptor): boolean {
+  if (el.hasDisabledAttribute) return false;
+  if (el.disabled) return false;
+  if (el.ariaHidden === 'true') return false;
+  if (el.inert) return false;
+  if (el.hidden) return false;
+  if (el.tabIndex === -1) return false;
+  if (el.display === 'none' || el.visibility === 'hidden') return false;
+  if (el.hasClientRects === false) return false;
+  return true;
+}
