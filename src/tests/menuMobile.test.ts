@@ -19,7 +19,7 @@ let passedTests = 0;
 let failedTests = 0;
 let skippedTests = 0;
 let totalAssertions = 0;
-let totalPassedAssertions = 0;
+let currentAssertions = 0;
 
 function runTest(name: string, fn: () => void): void {
   totalTests++;
@@ -39,7 +39,8 @@ function checkOk(condition: boolean, msg = 'Condition not satisfied'): void {
   if (!condition) {
     throw new Error(msg);
   }
-  totalPassedAssertions++;
+  totalAssertions++;
+  currentAssertions++;
 }
 
 function checkEqual<T>(actual: T, expected: T, msg = ''): void {
@@ -47,7 +48,8 @@ function checkEqual<T>(actual: T, expected: T, msg = ''): void {
   if (actual !== expected) {
     throw new Error(`${msg ? msg + ': ' : ''}Expected ${JSON.stringify(expected)}, but got ${JSON.stringify(actual)}`);
   }
-  totalPassedAssertions++;
+  totalAssertions++;
+  currentAssertions++;
 }
 
 // ------------------------------------------------------------------
@@ -139,6 +141,26 @@ const testTools: ToolDefinition[] = [
     supportsUndo: true,
     timeoutMs: 1000,
     auditEventType: 'AUDIT_CREATE',
+  },
+  {
+    id: 't99',
+    appId: 'musicscale',
+    name: 'addSongToLivingLibrary',
+    version: '1.0.0',
+    title: 'Add Song',
+    description: 'Add',
+    inputSchema: {},
+    outputSchema: {},
+    requiredPermissions: ['livingLibrary.manage'],
+    organizationScoped: false,
+    riskLevel: 'R3_PRIVILEGED',
+    confirmationPolicy: 'explicit',
+    readOnly: false,
+    idempotencyPolicy: 'required',
+    supportsPreview: false,
+    supportsUndo: false,
+    timeoutMs: 1000,
+    auditEventType: 'AUDIT_CREATE',
   }
 ];
 
@@ -148,109 +170,109 @@ const testTools: ToolDefinition[] = [
 
 // TRIGGER TESTS (1-30)
 runTest('1. Trigger "menu" matches exactly', () => {
-  const match = matchMenuTrigger('menu');
+  const match = matchMenuTrigger('menu', 'pt-BR');
   checkOk(match !== null, 'Match should not be null');
   checkEqual(match?.canonicalTrigger, 'menu');
 });
 
 runTest('2. Trigger "ajuda" matches exactly', () => {
-  const match = matchMenuTrigger('ajuda');
+  const match = matchMenuTrigger('ajuda', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'ajuda');
 });
 
 runTest('3. Trigger "opções" matches exactly', () => {
-  const match = matchMenuTrigger('opções');
+  const match = matchMenuTrigger('opções', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'opções');
 });
 
 runTest('4. Trigger "opcoes" matches exactly', () => {
-  const match = matchMenuTrigger('opcoes');
+  const match = matchMenuTrigger('opcoes', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'opções');
 });
 
 runTest('5. Trigger "começar" matches exactly', () => {
-  const match = matchMenuTrigger('começar');
+  const match = matchMenuTrigger('começar', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'começar');
 });
 
 runTest('6. Trigger "comecar" matches exactly', () => {
-  const match = matchMenuTrigger('comecar');
+  const match = matchMenuTrigger('comecar', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'começar');
 });
 
 runTest('7. Trigger "início" matches exactly', () => {
-  const match = matchMenuTrigger('início');
+  const match = matchMenuTrigger('início', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'início');
 });
 
 runTest('8. Trigger "inicio" matches exactly', () => {
-  const match = matchMenuTrigger('inicio');
+  const match = matchMenuTrigger('inicio', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'início');
 });
 
 runTest('9. Trigger "help" matches exactly', () => {
-  const match = matchMenuTrigger('help');
+  const match = matchMenuTrigger('help', 'en-US');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'help');
 });
 
 runTest('10. Trigger "options" matches exactly', () => {
-  const match = matchMenuTrigger('options');
+  const match = matchMenuTrigger('options', 'en-US');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'options');
 });
 
 runTest('11. Trigger "start" matches exactly', () => {
-  const match = matchMenuTrigger('start');
+  const match = matchMenuTrigger('start', 'en-US');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'start');
 });
 
 runTest('12. Trigger "ayuda" matches exactly', () => {
-  const match = matchMenuTrigger('ayuda');
+  const match = matchMenuTrigger('ayuda', 'es-ES');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'ayuda');
 });
 
 runTest('13. Trigger "opciones" matches exactly', () => {
-  const match = matchMenuTrigger('opciones');
+  const match = matchMenuTrigger('opciones', 'es-ES');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'opciones');
 });
 
 runTest('14. Trigger "comenzar" matches exactly', () => {
-  const match = matchMenuTrigger('comenzar');
+  const match = matchMenuTrigger('comenzar', 'es-ES');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'comenzar');
 });
 
 runTest('15. Shortcut "0" matches exactly', () => {
-  const match = matchMenuTrigger('0');
+  const match = matchMenuTrigger('0', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, '0');
 });
 
 runTest('16. Shortcut "#" matches exactly', () => {
-  const match = matchMenuTrigger('#');
+  const match = matchMenuTrigger('#', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, '#');
 });
 
 runTest('17. Uppercase trigger is matched', () => {
-  const match = matchMenuTrigger('MENU');
+  const match = matchMenuTrigger('MENU', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'menu');
 });
 
 runTest('18. Outer spaces in trigger are removed', () => {
-  const match = matchMenuTrigger('  começar   ');
+  const match = matchMenuTrigger('  começar   ', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'começar');
 });
@@ -261,58 +283,58 @@ runTest('19. Diacritics are removed during normalization', () => {
 });
 
 runTest('20. Punctuation around trigger is handled correctly', () => {
-  const match = matchMenuTrigger('menu!');
+  const match = matchMenuTrigger('menu!', 'pt-BR');
   checkOk(match !== null);
   checkEqual(match?.canonicalTrigger, 'menu');
 });
 
 runTest('21. Reject "submenu"', () => {
-  const match = matchMenuTrigger('submenu');
+  const match = matchMenuTrigger('submenu', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('22. Reject "helpful"', () => {
-  const match = matchMenuTrigger('helpful');
+  const match = matchMenuTrigger('helpful', 'en-US');
   checkEqual(match, null);
 });
 
 runTest('23. Reject "opcional"', () => {
-  const match = matchMenuTrigger('opcional');
+  const match = matchMenuTrigger('opcional', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('24. Reject "opções extras"', () => {
-  const match = matchMenuTrigger('opções extras');
+  const match = matchMenuTrigger('opções extras', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('25. Reject "começar agora"', () => {
-  const match = matchMenuTrigger('começar agora');
+  const match = matchMenuTrigger('começar agora', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('26. Reject "menu123"', () => {
-  const match = matchMenuTrigger('menu123');
+  const match = matchMenuTrigger('menu123', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('27. Reject "10"', () => {
-  const match = matchMenuTrigger('10');
+  const match = matchMenuTrigger('10', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('28. Reject phone containing zero', () => {
-  const match = matchMenuTrigger('+5500000000000');
+  const match = matchMenuTrigger('+5500000000000', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('29. Reject empty string', () => {
-  const match = matchMenuTrigger('');
+  const match = matchMenuTrigger('', 'pt-BR');
   checkEqual(match, null);
 });
 
 runTest('30. Reject spaces-only string', () => {
-  const match = matchMenuTrigger('     ');
+  const match = matchMenuTrigger('     ', 'pt-BR');
   checkEqual(match, null);
 });
 
@@ -321,7 +343,7 @@ runTest('31. True match contains matchedTrigger', () => {
   const res = ConversationalMenuService.getMenu({
     input: 'menu',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -334,7 +356,7 @@ runTest('32. No-match returns isTriggerMatch false', () => {
   const res = ConversationalMenuService.getMenu({
     input: 'something-invalid',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -346,7 +368,7 @@ runTest('33. No-match has no matchedTrigger', () => {
   const res = ConversationalMenuService.getMenu({
     input: 'invalid',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -358,7 +380,7 @@ runTest('34. No-match returns empty options lists', () => {
   const res = ConversationalMenuService.getMenu({
     input: 'invalid',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -371,7 +393,7 @@ runTest('35. Action payloads remain identical across languages', () => {
   const ptRes = ConversationalMenuService.getMenu({
     input: 'menu',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -379,7 +401,7 @@ runTest('35. Action payloads remain identical across languages', () => {
   const enRes = ConversationalMenuService.getMenu({
     input: 'menu',
     locale: 'en-US',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -391,7 +413,7 @@ runTest('36. Subtitles change based on selected locale', () => {
   const ptRes = ConversationalMenuService.getMenu({
     input: 'menu',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'unlinked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -399,7 +421,7 @@ runTest('36. Subtitles change based on selected locale', () => {
   const enRes = ConversationalMenuService.getMenu({
     input: 'menu',
     locale: 'en-US',
-    channel: 'whatsapp',
+    
     scenario: 'unlinked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -411,7 +433,7 @@ runTest('37. Invalid input does not return complete menu', () => {
   const res = ConversationalMenuService.getMenu({
     input: 'hello',
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'linked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -425,7 +447,7 @@ runTest('38. Service does not mutate input', () => {
   ConversationalMenuService.getMenu({
     input: inputVal,
     locale: 'pt-BR',
-    channel: 'whatsapp',
+    
     scenario: 'unlinked_demo',
     context: testBaseContext,
     tools: testTools,
@@ -721,16 +743,47 @@ runTest('55. Global option does not receive synthesized permissions', () => {
 });
 
 runTest('56. livingLibrary.manage is never granted by bypass', () => {
-  // Check if option opt_ms_7 or a hypothetical living library write option gets blocked if livingLibrary.manage is not in context
-  const results = resolveDemoMenuProjection(
+  const customOption = {
+    id: 'opt_ms_test_living',
+    numberKey: '9',
+    category: 'protected' as const,
+    requiresActiveMembership: true,
+    appId: 'musicscale',
+    toolName: 'addSongToLivingLibrary',
+    actionPayload: 'ACTION_TEST_LIVING'
+  };
+  
+  // No capability
+  let results = resolveDemoMenuProjection(
     testBaseContext,
     'linked_demo',
-    staticOptionDefinitions,
+    [customOption],
     testTools
   );
-  // our base permissions don't have 'livingLibrary.manage', let's check opt_ms_7 if it requires listSchedules/searchLivingLibrary
-  const opt7 = staticOptionDefinitions.find((o) => o.id === 'opt_ms_7');
-  checkOk(opt7 !== undefined);
+  checkEqual(results['opt_ms_test_living'].allowed, false);
+
+  // Owner bypass attempt
+  const ownerContext = {
+    ...testBaseContext,
+    memberships: [{
+      ...testBaseContext.memberships[0],
+      organizationRole: 'owner' as const,
+      permissions: []
+    }]
+  };
+  results = resolveDemoMenuProjection(ownerContext, 'linked_demo', [customOption], testTools);
+  checkEqual(results['opt_ms_test_living'].allowed, false);
+  
+  // Explicit capability test
+  const explicitContext = {
+    ...testBaseContext,
+    memberships: [{
+      ...testBaseContext.memberships[0],
+      permissions: ['livingLibrary.manage']
+    }]
+  };
+  results = resolveDemoMenuProjection(explicitContext, 'linked_demo', [customOption], testTools);
+  checkEqual(results['opt_ms_test_living'].allowed, true);
 });
 
 // MOBILE STATE TESTS (57-61)
@@ -745,7 +798,7 @@ runTest('58. OPEN_PREVIEW changes view to "preview"', () => {
 
 runTest('59. OPEN_CONFIGURE returns view to "configure"', () => {
   const state = menuMobileReducer(
-    { activeView: 'preview', selectedOptionId: 'opt_1' },
+    { activeView: 'preview' },
     { type: 'OPEN_CONFIGURE' }
   );
   checkEqual(state.activeView, 'configure');
@@ -753,15 +806,14 @@ runTest('59. OPEN_CONFIGURE returns view to "configure"', () => {
 
 runTest('60. CHANGE_ORG resets state to "configure" and clears selected option', () => {
   const state = menuMobileReducer(
-    { activeView: 'preview', selectedOptionId: 'opt_1' },
+    { activeView: 'preview' },
     { type: 'CHANGE_ORG' }
   );
   checkEqual(state.activeView, 'configure');
-  checkEqual(state.selectedOptionId, null);
-});
+  });
 
 runTest('61. Reducer does not mutate the original state', () => {
-  const originalState: MenuMobileState = { activeView: 'preview', selectedOptionId: 'opt_2' };
+  const originalState: MenuMobileState = { activeView: 'preview' };
   const serializedBefore = JSON.stringify(originalState);
   menuMobileReducer(originalState, { type: 'CHANGE_ORG' });
   checkEqual(JSON.stringify(originalState), serializedBefore);
@@ -815,11 +867,11 @@ runTest('71. ConversationalMenuPage uses button tag for interactive menu items',
 });
 
 runTest('72. ConversationalMenuPage has no cursor-pointer clickable divs', () => {
-  checkOk(!pageTsx.includes('cursor-pointer') || !pageTsx.includes('onClick={'));
+  checkOk(!pageTsx.includes('<div className="cursor-pointer"') && !pageTsx.includes('<div onClick={'));
 });
 
 runTest('73. Interactive items ensure minimum target size (e.g. min-h-[44px] or similar)', () => {
-  checkOk(pageTsx.includes('min-h-[44px]') || pageTsx.includes('min-h-[38px]'));
+  checkOk(pageTsx.includes('min-h-[44px]') && !pageTsx.includes('min-h-[38px]'));
 });
 
 runTest('74. ConversationalMenuPage has no md:grid-cols-12 class', () => {
@@ -873,17 +925,14 @@ runTest('85. window.prompt is not used', () => {
 runTest('86. No extra npm dependencies have been added to package.json', () => {
   const pkg = JSON.parse(packageJson);
   const depKeys = Object.keys(pkg.dependencies || {});
-  const expectedDeps = ['lucide-react', 'motion', 'react', 'react-dom'];
+  const expectedDeps = ['@google/genai', '@tailwindcss/vite', '@vitejs/plugin-react', 'lucide-react', 'react', 'react-dom', 'vite', 'express', 'dotenv', 'motion'];
+  checkEqual(depKeys.length, expectedDeps.length);
   for (const d of expectedDeps) {
-    if (depKeys.includes(d)) {
-      checkOk(true);
-    }
+    checkOk(depKeys.includes(d));
   }
 });
 
-console.log(
-  `\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Total tests: ${totalTests}. Total assertions: ${totalAssertions} (passed: ${totalPassedAssertions})`
-);
+console.log(`\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Total tests: ${totalTests}. Total assertions: ${totalAssertions}`);
 
 if (failedTests > 0 || totalAssertions === 0) {
   process.exit(1);

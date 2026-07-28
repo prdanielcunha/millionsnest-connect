@@ -51,19 +51,42 @@ export interface MenuUxStrings {
   optionDisabledLabel: string;
   worshipLeadTransferTitle: string;
   worshipLeadTransferDesc: string;
+  triggerExamples: readonly string[];
+  organizationLabel: string;
+  channelSelectorLabel: string;
+  appLabel: string;
+  toolLabel: string;
+  technicalIdLabel: string;
+  notApplicable: string;
+  localPreviewHeader: string;
+  contractMissingReason: string;
+  actionNotExecuted: string;
+  menuPreviewLabel: string;
 }
 
 export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
   'pt-BR': {
+    triggerExamples: ['menu', 'ajuda', 'opções', 'começar', 'início', '0', '#'],
+    organizationLabel: 'Organização',
+    channelSelectorLabel: 'Seletor de Canal',
+    appLabel: 'App',
+    toolLabel: 'Ferramenta',
+    technicalIdLabel: 'ID Técnico',
+    notApplicable: 'N/A',
+    localPreviewHeader: 'Prévia Local Simulada',
+    contractMissingReason: 'Bloqueado: Contrato de opção protegida incompleto.',
+    actionNotExecuted: 'Nenhuma ação executada',
+    menuPreviewLabel: 'Prévia do Menu',
+    scenarioLinked: 'Cenário de vínculo demonstrativo',
+    scenarioLinkedDesc: 'Simula uma identidade relacionada a uma conta, sem autenticação ou autorização real.',
+    authNotice: 'O vínculo apenas relaciona identidades. Esta projeção local considera membership, appAccess e permissions, mas a autorização final ocorre no backend.',
+    subtitleLinked: 'Cenário vinculado demonstrativo. As opções abaixo dependem da projeção local do contexto.',
     pageTitle: 'Menu Conversacional Omnichannel',
     pageDesc: 'Configure e simule o comportamento do menu determinístico e a projeção de permissões no celular.',
     demoMode: 'MODO DE DEMONSTRAÇÃO (DEMO_MODE)',
     scenarioLegend: 'Cenário de Identidade',
     scenarioUnlinked: 'Visitante Não Vinculado',
     scenarioUnlinkedDesc: 'Simula contato desconhecido (apenas opções públicas disponíveis).',
-    scenarioLinked: 'Membro Vinculado',
-    scenarioLinkedDesc: 'Simula contato autenticado via MillionsNest.',
-    authNotice: 'O vínculo relaciona identidades, mas o acesso final depende das permissões do cargo na organização ativa.',
     triggersTitle: 'Gatilhos Ativos',
     triggersDesc: 'Clique em um gatilho para preencher o simulador:',
     inputLabel: 'Mensagem do Usuário',
@@ -84,7 +107,6 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     noMatchDesc: 'A entrada não corresponde a nenhum gatilho cadastrado. O menu completo não foi disparado.',
     menuTitle: '🤖 Menu MillionsNest Connect',
     subtitleUnlinked: 'Olá! Como podemos te ajudar hoje no ecossistema MillionsNest?',
-    subtitleLinked: 'Conta vinculada! Escolha uma das opções abaixo para prosseguir:',
     footerNote: 'Responda com o número ou digite "Menu" a qualquer momento.',
     selectedActionTitle: 'Ação Selecionada Localmente',
     selectedActionPayload: 'Action Payload Técnico:',
@@ -107,15 +129,27 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     worshipLeadTransferDesc: 'Simula transferência para a liderança direta do ministério local.',
   },
   'en-US': {
+    triggerExamples: ['menu', 'help', 'options', 'start', '0', '#'],
+    organizationLabel: 'Organization',
+    channelSelectorLabel: 'Channel Selector',
+    appLabel: 'App',
+    toolLabel: 'Tool',
+    technicalIdLabel: 'Technical ID',
+    notApplicable: 'N/A',
+    localPreviewHeader: 'Simulated Local Preview',
+    contractMissingReason: 'Blocked: Protected option contract incomplete.',
+    actionNotExecuted: 'No action executed',
+    menuPreviewLabel: 'Menu Preview',
+    scenarioLinked: 'Demonstrative linked scenario',
+    scenarioLinkedDesc: 'Simulates an identity related to an account, without real authentication or authorization.',
+    authNotice: 'Linking only relates identities. This local projection considers membership, appAccess and permissions, but final authorization occurs in the backend.',
+    subtitleLinked: 'Demonstrative linked scenario. The options below depend on local context projection.',
     pageTitle: 'Omnichannel Conversational Menu',
     pageDesc: 'Configure and simulate deterministic menu behavior and permission projection on mobile.',
     demoMode: 'DEMONSTRATION MODE (DEMO_MODE)',
     scenarioLegend: 'Identity Scenario',
     scenarioUnlinked: 'Unlinked Visitor',
     scenarioUnlinkedDesc: 'Simulates unknown contact (only public options available).',
-    scenarioLinked: 'Linked Member',
-    scenarioLinkedDesc: 'Simulates contact authenticated via MillionsNest.',
-    authNotice: 'Linking relates identities, but final access depends on permissions in the active organization.',
     triggersTitle: 'Active Triggers',
     triggersDesc: 'Click a trigger to fill the simulator:',
     inputLabel: 'User Message',
@@ -136,7 +170,6 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     noMatchDesc: 'Input does not match any registered trigger. The menu response was not triggered.',
     menuTitle: '🤖 MillionsNest Connect Menu',
     subtitleUnlinked: 'Hello! How can we help you today in the MillionsNest ecosystem?',
-    subtitleLinked: 'Account linked! Choose an option below to proceed:',
     footerNote: 'Reply with the option number or type "Menu" at any time.',
     selectedActionTitle: 'Action Selected Locally',
     selectedActionPayload: 'Technical Action Payload:',
@@ -159,15 +192,27 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     worshipLeadTransferDesc: 'Simulates transfer to direct leadership of the local ministry.',
   },
   'es-ES': {
+    triggerExamples: ['menu', 'ayuda', 'opciones', 'comenzar', 'inicio', '0', '#'],
+    organizationLabel: 'Organización',
+    channelSelectorLabel: 'Selector de Canal',
+    appLabel: 'Aplicación',
+    toolLabel: 'Herramienta',
+    technicalIdLabel: 'ID Técnico',
+    notApplicable: 'N/A',
+    localPreviewHeader: 'Vista Previa Local Simulada',
+    contractMissingReason: 'Bloqueado: Contrato de opción protegida incompleto.',
+    actionNotExecuted: 'Ninguna acción ejecutada',
+    menuPreviewLabel: 'Vista Previa del Menú',
+    scenarioLinked: 'Escenario de vínculo demostrativo',
+    scenarioLinkedDesc: 'Simula una identidad relacionada a una cuenta, sin autenticación o autorización real.',
+    authNotice: 'El vínculo solo relaciona identidades. Esta proyección local considera membresía, appAccess y permisos, pero la autorización final ocurre en el backend.',
+    subtitleLinked: 'Escenario vinculado demostrativo. Las opciones abajo dependen de la proyección del contexto local.',
     pageTitle: 'Menú Conversacional Omnicanal',
     pageDesc: 'Configure y simule el comportamiento del menú determinista y la proyección de permisos en el móvil.',
     demoMode: 'MODO DE DEMOSTRACIÓN (DEMO_MODE)',
     scenarioLegend: 'Escenario de Identidad',
     scenarioUnlinked: 'Visitante No Vinculado',
     scenarioUnlinkedDesc: 'Simula contacto desconocido (solo opciones públicas disponibles).',
-    scenarioLinked: 'Miembro Vinculado',
-    scenarioLinkedDesc: 'Simula contacto autenticado vía MillionsNest.',
-    authNotice: 'El vínculo relaciona identidades, pero el acceso final depende de los permisos en la organización activa.',
     triggersTitle: 'Gatillos Activos',
     triggersDesc: 'Haga clic en un gatillo para completar el simulador:',
     inputLabel: 'Mensaje del Usuario',
@@ -188,7 +233,6 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     noMatchDesc: 'La entrada no coincide con ningún gatillo registrado. El menú completo no se activó.',
     menuTitle: '🤖 Menú MillionsNest Connect',
     subtitleUnlinked: '¡Hola! ¿Cómo podemos ayudarte hoy en el ecosistema MillionsNest?',
-    subtitleLinked: '¡Cuenta vinculada! Elija una de las opciones a continuación para continuar:',
     footerNote: 'Responda con el número o escriba "Menú" en cualquier momento.',
     selectedActionTitle: 'Acción Seleccionada Localmente',
     selectedActionPayload: 'Action Payload Técnico:',
@@ -207,7 +251,7 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     projectionStatusAllowed: 'Mostrada y Disponible',
     projectionStatusBlocked: 'Omitida en el Menú',
     optionDisabledLabel: 'No disponible actualmente',
-    worshipLeadTransferTitle: 'Soporte de Louvor',
+    worshipLeadTransferTitle: 'Soporte Específico',
     worshipLeadTransferDesc: 'Simula la transferencia al liderazgo directo del ministerio local.',
   },
 };

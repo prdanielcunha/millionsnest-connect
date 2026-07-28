@@ -2,7 +2,6 @@ export type MenuMobileView = 'configure' | 'preview';
 
 export interface MenuMobileState {
   activeView: MenuMobileView;
-  selectedOptionId: string | null;
 }
 
 export type MenuMobileAction =
@@ -12,7 +11,6 @@ export type MenuMobileAction =
 
 export const initialMobileState: MenuMobileState = {
   activeView: 'configure',
-  selectedOptionId: null,
 };
 
 export function menuMobileReducer(
@@ -34,7 +32,6 @@ export function menuMobileReducer(
       return {
         ...state,
         activeView: 'configure',
-        selectedOptionId: null, // clear selected option
       };
     default:
       return state;

@@ -39,23 +39,33 @@ export interface ConversationalMenuResponse {
 }
 
 // Normalized triggers mapping to their canonical trigger and primary language locale
-const TRIGGER_MAP: Record<string, { locale: LanguageCode; canonical: string }> = {
-  // PT-BR
-  'menu': { locale: 'pt-BR', canonical: 'menu' },
-  'ajuda': { locale: 'pt-BR', canonical: 'ajuda' },
-  'opcoes': { locale: 'pt-BR', canonical: 'opções' },
-  'comecar': { locale: 'pt-BR', canonical: 'começar' },
-  'inicio': { locale: 'pt-BR', canonical: 'início' },
-  
-  // EN-US
-  'help': { locale: 'en-US', canonical: 'help' },
-  'options': { locale: 'en-US', canonical: 'options' },
-  'start': { locale: 'en-US', canonical: 'start' },
-  
-  // ES-ES
-  'ayuda': { locale: 'es-ES', canonical: 'ayuda' },
-  'opciones': { locale: 'es-ES', canonical: 'opciones' },
-  'comenzar': { locale: 'es-ES', canonical: 'comenzar' },
+const MENU_TRIGGERS_BY_LOCALE: Readonly<Record<LanguageCode, Readonly<Record<string, string>>>> = {
+  'pt-BR': {
+    'menu': 'menu',
+    'ajuda': 'ajuda',
+    'opcoes': 'opções',
+    'comecar': 'começar',
+    'inicio': 'início',
+    '0': '0',
+    '#': '#'
+  },
+  'en-US': {
+    'menu': 'menu',
+    'help': 'help',
+    'options': 'options',
+    'start': 'start',
+    '0': '0',
+    '#': '#'
+  },
+  'es-ES': {
+    'menu': 'menu',
+    'ayuda': 'ayuda',
+    'opciones': 'opciones',
+    'comenzar': 'comenzar',
+    'inicio': 'inicio',
+    '0': '0',
+    '#': '#'
+  }
 };
 
 export function normalizeMenuTrigger(input: string): string {
@@ -69,32 +79,43 @@ export function normalizeMenuTrigger(input: string): string {
   return normalized;
 }
 
-export function matchMenuTrigger(input: string): MenuTriggerMatch | null {
+export function matchMenuTrigger(input: string, preferredLocale: LanguageCode): MenuTriggerMatch | null {
   const normalizedInput = normalizeMenuTrigger(input);
   if (!normalizedInput) {
     return null;
   }
 
-  // Exact matches
-  const mapping = TRIGGER_MAP[normalizedInput];
-  if (mapping) {
+  // Prefer the preferredLocale first
+  const preferredMap = MENU_TRIGGERS_BY_LOCALE[preferredLocale];
+  if (preferredMap && preferredMap[normalizedInput]) {
     return {
-      locale: mapping.locale,
-      canonicalTrigger: mapping.canonical,
-      normalizedInput,
+      locale: preferredLocale,
+      canonicalTrigger: preferredMap[normalizedInput],
+      normalizedInput
     };
   }
 
-  // Specific shortcuts
-  if (normalizedInput === '0' || normalizedInput === '#') {
-    return {
-      locale: 'pt-BR', // fallback language, can be adjusted based on active locale
-      canonicalTrigger: normalizedInput,
-      normalizedInput,
-    };
+  // Fallback to other locales
+  for (const locale of Object.keys(MENU_TRIGGERS_BY_LOCALE) as LanguageCode[]) {
+    if (locale === preferredLocale) continue;
+    const map = MENU_TRIGGERS_BY_LOCALE[locale];
+    if (map[normalizedInput]) {
+      return {
+        locale,
+        canonicalTrigger: map[normalizedInput],
+        normalizedInput
+      };
+    }
   }
 
   return null;
+}
+
+export function hasCompleteProtectedMenuContract(option: MenuOptionDefinition): boolean {
+  if (option.category === 'protected') {
+    return option.requiresActiveMembership === true && !!option.appId && !!option.toolName;
+  }
+  return true; // Public options don't need this contract
 }
 
 export const staticOptionDefinitions: MenuOptionDefinition[] = [
@@ -235,7 +256,7 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     },
     opt_pub_5: {
       title: 'Falar com atendente',
-      description: 'Transfere este atendimento para a equipe humana.',
+      description: 'Simula a solicitação de transferência para atendimento humano.',
       badge: 'Humano',
     },
     opt_pub_6: {
@@ -276,8 +297,8 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
       badge: 'Global',
     },
     opt_ms_8: {
-      title: 'Falar com suporte do louvor',
-      description: 'Encaminha para a liderança direta do seu ministério.',
+      title: 'Falar com Suporte Específico',
+      description: 'Simula o encaminhamento para a liderança direta do seu departamento.',
     },
   },
   'en-US': {
@@ -300,7 +321,7 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     },
     opt_pub_5: {
       title: 'Talk to an Agent',
-      description: 'Transfers this conversation to the human team.',
+      description: 'Simulates a request to transfer to human support.',
       badge: 'Human',
     },
     opt_pub_6: {
@@ -341,8 +362,8 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
       badge: 'Global',
     },
     opt_ms_8: {
-      title: 'Talk to Worship Support',
-      description: 'Forwards you to the direct leadership of your ministry.',
+      title: 'Talk to Specific Support',
+      description: 'Simulates forwarding to the direct leadership of your department.',
     },
   },
   'es-ES': {
@@ -365,7 +386,7 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     },
     opt_pub_5: {
       title: 'Hablar con un agente',
-      description: 'Transfiere esta conversación al equipo humano.',
+      description: 'Simula la solicitud de transferencia a atención humana.',
       badge: 'Humano',
     },
     opt_pub_6: {
@@ -406,8 +427,8 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
       badge: 'Global',
     },
     opt_ms_8: {
-      title: 'Hablar con soporte de alabanza',
-      description: 'Le redirige al liderazgo directo de su ministerio.',
+      title: 'Hablar con soporte específico',
+      description: 'Simula la redirección al liderazgo directo de su departamento.',
     },
   },
 };
@@ -423,6 +444,11 @@ export function resolveDemoMenuProjection(
   for (const opt of optionDefinitions) {
     if (opt.category === 'public') {
       results[opt.id] = { optionId: opt.id, allowed: true };
+      continue;
+    }
+
+    if (!hasCompleteProtectedMenuContract(opt)) {
+      results[opt.id] = { optionId: opt.id, allowed: false, reason: 'contract_missing' };
       continue;
     }
 

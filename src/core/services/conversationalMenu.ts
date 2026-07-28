@@ -20,19 +20,18 @@ export interface ConversationalMenuResponse {
 }
 
 export class ConversationalMenuService {
-  static isTrigger(input: string): boolean {
-    return matchMenuTrigger(input) !== null;
+  static isTrigger(input: string, locale: LanguageCode): boolean {
+    return matchMenuTrigger(input, locale) !== null;
   }
 
   static getMenu(params: {
     input: string;
     locale: LanguageCode;
-    channel: 'whatsapp' | 'instagram' | 'inapp';
     scenario: DemoIdentityScenario;
     context: EffectiveEcosystemContext;
     tools: ToolDefinition[];
   }): ConversationalMenuResponse {
-    const triggerMatch = matchMenuTrigger(params.input);
+    const triggerMatch = matchMenuTrigger(params.input, params.locale);
     const strings = menuUxCatalog[params.locale] || menuUxCatalog['pt-BR'];
 
     if (!triggerMatch) {
@@ -55,7 +54,6 @@ export class ConversationalMenuService {
 
     const publicOptions: ProjectedMenuOption[] = [];
     const musicscaleAuthOptions: ProjectedMenuOption[] = [];
-
     const localizedMap = optionsLocalizedCatalog[params.locale] || optionsLocalizedCatalog['pt-BR'];
 
     for (const opt of staticOptionDefinitions) {
@@ -74,10 +72,6 @@ export class ConversationalMenuService {
       if (opt.category === 'public') {
         publicOptions.push(projectedOpt);
       } else {
-        // Only include if allowed is true OR we want to show it as disabled in projection diagnostics
-        // Wait, the instructions state:
-        // "Quando uma permission exata estiver ausente: não incluir a opção no menu protegido, registrar somente uma razão local demonstrativa, não conceder nada."
-        // So they should not be in the menu protected list if allowed is false (i.e. omit them from the simulated list), but we can list them in the configuration/diagnostic area!
         if (projectedOpt.allowed) {
           musicscaleAuthOptions.push(projectedOpt);
         }

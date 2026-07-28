@@ -57,7 +57,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
   const menuResponse: ConversationalMenuResponse = ConversationalMenuService.getMenu({
     input: userInput,
     locale: currentLang,
-    channel,
+     
     scenario,
     context,
     tools: mockTools,
@@ -111,7 +111,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
           <div className="flex items-center gap-2 bg-[#1A2234] border border-white/10 px-4 py-2.5 rounded-xl text-xs">
             <Building className="w-4 h-4 text-cyan-400" />
             <div>
-              <span className="text-gray-400 block font-mono">ORGANIZATION:</span>
+              <span className="text-gray-400 block font-mono">{strings.organizationLabel}:</span>
               <span className="font-bold text-white">{context.activeOrganization.name}</span>
             </div>
           </div>
@@ -129,7 +129,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
         <button
           type="button"
           onClick={() => dispatchMobile({ type: 'OPEN_CONFIGURE' })}
-          className={`flex-1 py-3 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 py-3 min-h-[44px] text-xs font-semibold rounded-lg transition-all ${
             mobileState.activeView === 'configure'
               ? 'bg-indigo-600 text-white font-bold shadow'
               : 'text-gray-400 hover:text-white'
@@ -140,7 +140,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
         <button
           type="button"
           onClick={() => dispatchMobile({ type: 'OPEN_PREVIEW' })}
-          className={`flex-1 py-3 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 py-3 min-h-[44px] text-xs font-semibold rounded-lg transition-all ${
             mobileState.activeView === 'preview'
               ? 'bg-indigo-600 text-white font-bold shadow'
               : 'text-gray-400 hover:text-white'
@@ -166,7 +166,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                 👤 {strings.scenarioLegend}
               </legend>
               <div className="space-y-3">
-                <label className="flex items-start gap-3 p-3 bg-[#1A2234] border border-white/10 hover:border-white/20 rounded-xl transition">
+                <label className="flex items-start gap-3 p-3 bg-[#1A2234] border border-white/10 hover:border-white/20 rounded-xl transition min-h-[44px] cursor-pointer">
                   <input
                     type="radio"
                     name="identityScenario"
@@ -189,7 +189,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 p-3 bg-[#1A2234] border border-white/10 hover:border-white/20 rounded-xl transition">
+                <label className="flex items-start gap-3 p-3 bg-[#1A2234] border border-white/10 hover:border-white/20 rounded-xl transition min-h-[44px] cursor-pointer">
                   <input
                     type="radio"
                     name="identityScenario"
@@ -226,7 +226,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
             </p>
 
             <div className="flex flex-wrap gap-2">
-              {['menu', 'ajuda', 'opções', 'começar', 'início', '0', '#'].map((kw) => (
+              {strings.triggerExamples.map((kw) => (
                 <button
                   type="button"
                   key={kw}
@@ -345,16 +345,14 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
 
               {/* Selector of channel */}
               <fieldset className="flex bg-[#1A2234] border border-white/10 rounded-xl p-1 text-xs">
-                <legend className="sr-only">Channel Selector</legend>
+                <legend className="sr-only">{strings.channelSelectorLabel}</legend>
                 <button
                   type="button"
                   onClick={() => {
                     setChannel('whatsapp');
                     setSelectedAction(null);
                   }}
-                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[38px] ${
-                    channel === 'whatsapp' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[44px] ${ channel === 'whatsapp' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-white' }`}
                 >
                   {strings.channelWhatsapp}
                 </button>
@@ -364,8 +362,8 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                     setChannel('instagram');
                     setSelectedAction(null);
                   }}
-                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[38px] ${
-                    channel === 'instagram' ? 'bg-[#D10E65] text-white' : 'text-gray-400 hover:text-white'
+                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[44px] ${
+                      channel === 'instagram' ? 'bg-[#D10E65] text-white' : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   {strings.channelInstagram}
@@ -376,8 +374,8 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                     setChannel('inapp');
                     setSelectedAction(null);
                   }}
-                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[38px] ${
-                    channel === 'inapp' ? 'bg-[#5145CD] text-white' : 'text-gray-400 hover:text-white'
+                  className={`px-4 py-2 rounded-lg font-bold transition min-h-[44px] ${
+                      channel === 'inapp' ? 'bg-[#5145CD] text-white' : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   {strings.channelInapp}
@@ -399,7 +397,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
               
               {/* Phone Header notch mock */}
               <div className="h-6 bg-[#121824] flex items-center justify-between px-6 text-xs text-gray-500 font-mono select-none">
-                <span>12:00</span>
+                <span></span>
                 <div className="w-20 h-4 bg-black rounded-b-xl absolute left-1/2 transform -translate-x-1/2 top-0"></div>
                 <span>DEMO</span>
               </div>
@@ -411,7 +409,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                 <button
                   type="button"
                   onClick={() => dispatchMobile({ type: 'OPEN_CONFIGURE' })}
-                  className="lg:hidden flex items-center gap-1.5 px-3 py-2 bg-[#1A2234] text-xs text-gray-300 rounded-lg border border-white/15 mb-3"
+                  className="lg:hidden flex items-center gap-1.5 px-3 py-2 bg-[#1A2234] text-xs text-gray-300 rounded-lg border border-white/15 mb-3 min-h-[44px]"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>{strings.btnBack}</span>
