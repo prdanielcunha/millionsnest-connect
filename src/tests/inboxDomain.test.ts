@@ -6,7 +6,9 @@ import {
   selectActiveContact, 
   validatePendingToolContext,
   getNextFocusIndex,
-  getPreviousFocusIndex
+  getPreviousFocusIndex,
+  isElementFocusable,
+  ElementFocusDescriptor
 } from '../features/inbox/inboxDomain';
 import { Conversation, Contact, ToolDefinition } from '../types';
 import { PendingDemoToolInvocation } from '../demo/confirmations/demoToolFlow';
@@ -186,6 +188,33 @@ test('Domain: validatePendingToolContext rejects mismatched org', () => {
   checkEqual(isPendingOrgMismatch, false);
 });
 
+test('Domain: validatePendingToolContext rejects divergent args orgId', () => {
+  const mockPendingDivergent: PendingDemoToolInvocation = {
+    ...mockPending,
+    args: { organizationId: 'org_b' }
+  };
+  const isPendingDivergent = validatePendingToolContext(mockPendingDivergent, testConversations[0], 'org_a');
+  checkEqual(isPendingDivergent, false);
+});
+
+test('Domain: validatePendingToolContext rejects invalid type args orgId', () => {
+  const mockPendingInvalidType: PendingDemoToolInvocation = {
+    ...mockPending,
+    args: { organizationId: 12345 }
+  };
+  const isPendingInvalidType = validatePendingToolContext(mockPendingInvalidType, testConversations[0], 'org_a');
+  checkEqual(isPendingInvalidType, false);
+});
+
+test('Domain: validatePendingToolContext accepts undefined args orgId', () => {
+  const mockPendingUndefined: PendingDemoToolInvocation = {
+    ...mockPending,
+    args: {}
+  };
+  const isPendingUndefined = validatePendingToolContext(mockPendingUndefined, testConversations[0], 'org_a');
+  checkEqual(isPendingUndefined, true);
+});
+
 // Test 6: getNextFocusIndex & getPreviousFocusIndex
 test('Domain: getNextFocusIndex increments correctly', () => {
   checkEqual(getNextFocusIndex(0, 3), 1);
@@ -201,6 +230,157 @@ test('Domain: getPreviousFocusIndex wraps around correctly', () => {
 
 test('Domain: getPreviousFocusIndex decrements correctly', () => {
   checkEqual(getPreviousFocusIndex(1, 3), 0);
+});
+
+// Test 7: isElementFocusable
+test('Domain: isElementFocusable accepts fully visible and enabled element', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), true);
+});
+
+test('Domain: isElementFocusable rejects disabled element', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: true,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects elements with hasDisabledAttribute true', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: true,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects ariaHidden', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: 'true',
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects inert', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: true,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects hidden', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: true,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects tabindex=-1', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: -1,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects display none', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'none',
+    visibility: 'visible',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects visibility hidden', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'hidden',
+    hasClientRects: true
+  };
+  checkEqual(isElementFocusable(descriptor), false);
+});
+
+test('Domain: isElementFocusable rejects hasClientRects false', () => {
+  const descriptor: ElementFocusDescriptor = {
+    disabled: false,
+    hasDisabledAttribute: false,
+    ariaHidden: null,
+    inert: false,
+    hidden: false,
+    tabIndex: 0,
+    display: 'block',
+    visibility: 'visible',
+    hasClientRects: false
+  };
+  checkEqual(isElementFocusable(descriptor), false);
 });
 
 console.log(`\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Assertions: ${totalAssertions}`);

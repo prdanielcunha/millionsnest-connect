@@ -60,8 +60,21 @@ export function validatePendingToolContext(
   if (pendingTool.conversationId !== activeConversation.id) return false;
   if (pendingTool.organizationId !== activeOrgId) return false;
 
-  const argsOrgId = pendingTool.args && (pendingTool.args.organizationId as string);
-  if (argsOrgId && argsOrgId !== activeOrgId) return false;
+  const args = pendingTool.args;
+  if (args && typeof args === 'object' && !Array.isArray(args)) {
+    const argsRecord = args as Record<string, unknown>;
+    if ('organizationId' in argsRecord) {
+      const argsOrgId: unknown = argsRecord.organizationId;
+      if (argsOrgId !== undefined) {
+        if (typeof argsOrgId !== 'string') {
+          return false;
+        }
+        if (argsOrgId !== activeOrgId) {
+          return false;
+        }
+      }
+    }
+  }
 
   return true;
 }

@@ -154,7 +154,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
 
     setConversations((prev) =>
       prev.map((c) =>
-        c.id === activeConversation.id
+        c.id === activeConversationId
           ? { ...c, lastMessageSnippet: inputMessage, lastMessageAt: new Date().toISOString() }
           : c
       )
@@ -165,10 +165,10 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
   };
 
   const handleModeChange = (newMode: ConversationMode) => {
-    if (!activeConversation) return;
+    if (!activeConversationId) return;
     setConversations((prev) =>
       prev.map((c) =>
-        c.id === activeConversation.id ? { ...c, mode: newMode } : c
+        c.id === activeConversationId ? { ...c, mode: newMode } : c
       )
     );
   };
@@ -319,15 +319,17 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-400" />
             <h1 className="text-sm font-bold text-white">{t.title}</h1>
-            <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-mono uppercase border border-amber-500/30">
+            <span className="bg-amber-500/20 text-amber-300 text-xs px-1.5 py-0.5 rounded font-mono uppercase border border-amber-500/30">
               DEMO_MODE
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => dispatchMobile({ type: 'OPEN_FILTERS' })}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 rounded-lg text-xs text-gray-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-[#1A2234] hover:bg-[#222C42] border border-white/10 rounded-lg text-xs text-gray-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
               aria-expanded={mobileState.filtersOpen}
+              aria-controls="mobile-filters-sheet"
               aria-label={t.filters}
               aria-haspopup="dialog"
             >
@@ -389,7 +391,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
             <button
               key={ch}
               onClick={() => setChannelFilter(ch)}
-              className={`px-2 py-0.5 rounded text-[11px] uppercase font-semibold transition ${
+              className={`px-2 py-0.5 rounded text-xs uppercase font-semibold transition ${
                 channelFilter === ch ? 'bg-indigo-500/30 text-indigo-300' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
@@ -440,7 +442,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
               </div>
             ) : (
               filteredConversations.map((c) => {
-                const isActive = c.id === activeConversation.id;
+                const isActive = activeConversationId !== null && c.id === activeConversationId;
                 return (
                   <button
                     type="button"
@@ -496,7 +498,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
 
                       <div className="flex items-center gap-1.5 mt-2 overflow-x-hidden">
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono border whitespace-nowrap ${
+                          className={`px-1.5 py-0.5 rounded text-xs font-mono border whitespace-nowrap ${
                             c.mode === 'automatico'
                               ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
                               : c.mode === 'com_aprovacao'
@@ -508,7 +510,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                         </span>
 
                         {c.priority === 'alta' || c.priority === 'urgente' ? (
-                          <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/30 whitespace-nowrap">
+                          <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-semibold border border-rose-500/30 whitespace-nowrap">
                             {t.highPriority}
                           </span>
                         ) : null}
@@ -561,7 +563,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                     </h2>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-gray-400 font-numeric truncate mt-0.5">
-                    <span className="uppercase font-mono text-[10px] bg-white/5 px-1 rounded text-gray-300 shrink-0">
+                    <span className="uppercase font-mono text-xs bg-white/5 px-1 rounded text-gray-300 shrink-0">
                       {activeConversation.channel}
                     </span>
                     <span className="truncate">{activeConversation.channelIdentifier}</span>
@@ -588,7 +590,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                     type="button"
                     aria-pressed={activeConversation.mode === mode}
                     onClick={() => handleModeChange(mode)}
-                    className={`flex-1 sm:flex-none min-h-[36px] sm:min-h-[auto] px-2 py-1 text-xs font-semibold rounded-md transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    className={`flex-1 sm:flex-none min-h-[44px] sm:min-h-[auto] px-2 py-1 text-xs font-semibold rounded-md transition focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       activeConversation.mode === mode
                         ? mode === 'humano'
                           ? 'bg-rose-600 text-white shadow'
@@ -664,7 +666,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                           <span className="flex items-center gap-1.5 font-bold">
                             <Wrench className="w-4 h-4 text-cyan-400" /> Tool Gateway • {msg.toolInvocation.toolName}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-cyan-500/20 rounded border border-cyan-500/30 uppercase text-[10px]">
+                          <span className="px-1.5 py-0.5 bg-cyan-500/20 rounded border border-cyan-500/30 uppercase text-xs">
                             {msg.toolInvocation.riskLevel}
                           </span>
                         </div>
@@ -680,7 +682,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                             {msg.toolInvocation.error || t.genericFailure}
                           </div>
                         )}
-                        <div className="text-[10px] text-gray-400 mt-2 bg-white/5 p-1.5 rounded text-center">
+                        <div className="text-xs text-gray-400 mt-2 bg-white/5 p-1.5 rounded text-center">
                           {t.gatewaySimulated}
                         </div>
                       </div>
@@ -723,6 +725,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
             <button
               type="button"
               onClick={() => dispatchMobile({ type: 'OPEN_QUICK_TOOLS' })}
+              aria-expanded={mobileState.quickToolsOpen}
               aria-controls="mobile-quick-tools-sheet"
               aria-haspopup="dialog"
               className="lg:hidden w-full min-h-[44px] flex items-center justify-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-indigo-300 rounded-xl font-semibold text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -747,7 +750,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                 </span>
               </label>
 
-              <div className="bg-indigo-500/10 text-indigo-300 text-[10px] px-2 py-1 rounded border border-indigo-500/20">
+              <div className="bg-indigo-500/10 text-indigo-300 text-xs px-2 py-1 rounded border border-indigo-500/20">
                 {t.demoNotice}
               </div>
             </div>
@@ -862,7 +865,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                     <Link2 className="w-4 h-4 text-indigo-400" /> {t.bindingStatus}:
                   </span>
                   <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase font-mono border ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold uppercase font-mono border ${
                       activeContact.linkingStatus === 'vinculado'
                         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                         : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
@@ -877,14 +880,14 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                     <div className="font-semibold text-emerald-400 flex items-center gap-1">
                       <ShieldCheck className="w-4 h-4" /> {t.demoBinding}
                     </div>
-                    <div className="font-mono text-[11px] break-all">{t.localId}: {activeContact.identities[0]?.linkedUserId}</div>
-                    <div className="text-[10px] text-gray-500 mt-2">{t.scenarioOnly}</div>
+                    <div className="font-mono text-xs break-all">{t.localId}: {activeContact.identities[0]?.linkedUserId}</div>
+                    <div className="text-xs text-gray-500 mt-2">{t.scenarioOnly}</div>
                   </div>
                 ) : (
                   <div className="text-xs text-amber-200/90 bg-amber-950/30 p-3 rounded-lg border border-amber-500/20 space-y-1">
                     <div className="font-bold flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {t.authorityNotice}</div>
                     <div>{t.noBindingNotice}</div>
-                    <div className="text-[10px] opacity-70 mt-1">{t.reauthNotice}.</div>
+                    <div className="text-xs opacity-70 mt-1">{t.reauthNotice}.</div>
                   </div>
                 )}
               </div>
@@ -909,7 +912,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                       <p className="text-gray-200 leading-relaxed bg-white/5 p-3 rounded-lg text-sm">
                         {activeConversation?.aiSummary || t.serviceInProgress}
                       </p>
-                      <p className="text-[10px] text-gray-500 mt-2 text-right">{t.generatedSummary}</p>
+                      <p className="text-xs text-gray-500 mt-2 text-right">{t.generatedSummary}</p>
                     </div>
 
                     {/* Sentiment Disclaimer Warning Banner */}
