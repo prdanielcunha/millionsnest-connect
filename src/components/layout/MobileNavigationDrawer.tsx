@@ -107,7 +107,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
         <div className="pt-[env(safe-area-inset-top)] flex flex-col h-full">
           <div className="h-14 px-2 border-b border-white/10 flex items-center justify-between shrink-0">
             <div className="flex items-center pl-2">
-              <BrandLogo layout="horizontal" surface="dark" className="h-5 w-auto" />
+              <BrandLogo layout="horizontal" surface="dark" size="drawerWordmark" />
             </div>
             <button
               ref={closeBtnRef}

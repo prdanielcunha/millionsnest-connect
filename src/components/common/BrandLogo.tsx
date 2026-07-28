@@ -3,6 +3,13 @@ import React from 'react';
 export type BrandLogoLayout = 'horizontal' | 'stacked' | 'mark' | 'micro';
 export type BrandLogoSurface = 'dark' | 'light';
 export type BrandLogoColor = 'color' | 'indigo' | 'blue' | 'white' | 'black';
+export type BrandLogoSize = 'desktopWordmark' | 'drawerWordmark' | 'mobileMark';
+
+export const BRAND_LOGO_DIMENSIONS: Record<BrandLogoSize, { width: number; height: number }> = {
+  desktopWordmark: { width: 208, height: 50 },
+  drawerWordmark: { width: 184, height: 44 },
+  mobileMark: { width: 40, height: 40 },
+};
 
 interface BrandLogoProps {
   layout?: BrandLogoLayout;
@@ -10,6 +17,7 @@ interface BrandLogoProps {
   markColor?: BrandLogoColor;
   className?: string;
   decorative?: boolean;
+  size?: BrandLogoSize;
 }
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
@@ -18,6 +26,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   markColor = 'color',
   className = '',
   decorative = false,
+  size,
 }) => {
   let src = '';
   const basePath = '/brand/connect/v2/01_master_vector';
@@ -41,13 +50,24 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
     }
   }
 
+  const style: React.CSSProperties = size ? {
+    display: 'block',
+    objectFit: 'contain',
+    flexShrink: 0,
+    maxWidth: 'none',
+    width: BRAND_LOGO_DIMENSIONS[size].width,
+    height: BRAND_LOGO_DIMENSIONS[size].height,
+  } : {};
+
   return (
     <img
       src={src}
       alt={decorative ? '' : 'MillionsNest Connect'}
       aria-hidden={decorative ? 'true' : undefined}
       className={className}
-      // To ensure no layout shift, we could set typical heights. We'll use Tailwind classes passed via className.
+      style={size ? style : undefined}
+      width={size ? BRAND_LOGO_DIMENSIONS[size].width : undefined}
+      height={size ? BRAND_LOGO_DIMENSIONS[size].height : undefined}
     />
   );
 };

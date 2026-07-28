@@ -86,7 +86,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center pl-1">
-            <BrandLogo layout="horizontal" surface="dark" className="h-5 w-auto" />
+            <BrandLogo layout="mark" markColor="color" size="mobileMark" />
           </div>
         </div>
 

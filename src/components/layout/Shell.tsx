@@ -81,7 +81,7 @@ export const Shell: React.FC<ShellProps> = ({
           {/* Desktop Sidebar (Hidden on mobile/tablet) */}
           <div className="hidden lg:flex w-64 flex-col bg-[#121824] border-r border-white/10 shrink-0">
             <div className="h-14 flex items-center gap-2 px-4 border-b border-white/10">
-              <BrandLogo layout="horizontal" surface="dark" className="h-6 w-auto" />
+              <BrandLogo layout="horizontal" surface="dark" size="desktopWordmark" />
             </div>
             
             <div className="flex-1 overflow-y-auto py-4">
