@@ -34,8 +34,15 @@ export function selectToolById(
 
 export const TOOLS_RISK_VALUES: readonly RiskLevel[] = ['R0_PUBLIC', 'R1_AUTH_READ', 'R2_REVERSIBLE_WRITE', 'R3_PRIVILEGED', 'R4_CRITICAL'];
 
-export function isToolsRiskFilter(value: string): value is ToolsRiskFilter {
-  return value === 'all' || TOOLS_RISK_VALUES.includes(value as RiskLevel);
+export function isToolsRiskFilter(
+  value: string
+): value is ToolsRiskFilter {
+  return (
+    value === 'all' ||
+    TOOLS_RISK_VALUES.some(
+      (risk) => risk === value
+    )
+  );
 }
 
 export function haveSameRequiredPermissions(

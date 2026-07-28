@@ -2,7 +2,11 @@ import React, { useEffect, useRef } from 'react';
 import { PendingDemoToolInvocation } from '../../demo/confirmations/demoToolFlow';
 import { LanguageCode } from '../../types';
 import { demoConfirmationCatalog } from '../../i18n/demoConfirmationUx';
-import { getDialogFocusableElements } from '../../core/a11y/dialogFocus';
+import {
+  getDialogFocusableElements,
+  getNextDialogFocusIndex,
+  getPreviousDialogFocusIndex,
+} from '../../core/a11y/dialogFocus';
 
 export type DemoToolConfirmationDialogProps = {
   pending: PendingDemoToolInvocation | null;
@@ -73,17 +77,17 @@ export function DemoToolConfirmationDialog({
             return;
           }
 
-          const firstElement = focusableElements[0];
-          const lastElement = focusableElements[focusableElements.length - 1];
-
+          const activeIndex = focusableElements.indexOf(document.activeElement as HTMLElement);
           if (e.shiftKey) {
-            if (document.activeElement === firstElement) {
-              lastElement.focus();
+            const prevIndex = getPreviousDialogFocusIndex(activeIndex, focusableElements.length);
+            if (prevIndex !== null) {
+              focusableElements[prevIndex].focus();
               e.preventDefault();
             }
           } else {
-            if (document.activeElement === lastElement) {
-              firstElement.focus();
+            const nextIndex = getNextDialogFocusIndex(activeIndex, focusableElements.length);
+            if (nextIndex !== null) {
+              focusableElements[nextIndex].focus();
               e.preventDefault();
             }
           }

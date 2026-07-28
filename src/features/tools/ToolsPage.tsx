@@ -487,7 +487,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
                         onClick={handleTestInvocation}
                         disabled={isBlocked}
                         aria-disabled={isBlocked ? "true" : "false"}
-                        aria-describedby={isBlocked ? "simulate-status" : undefined}
+                        aria-describedby="simulate-status"
                         className={`w-full min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
                           isBlocked 
                             ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed' 

@@ -12,6 +12,13 @@ import { buildDemoToolInput } from "../features/tools/demoToolInputs";
 import { mockTools, mockEcosystemContext } from "../demo/mockData";
 import { ToolDefinition, EffectiveEcosystemContext } from "../types";
 import { PendingDemoToolInvocation } from "../demo/confirmations/demoToolFlow";
+import { toolsUxCatalog } from "../i18n/toolsUx";
+import {
+  isDialogFocusableDescriptor,
+  getNextDialogFocusIndex,
+  getPreviousDialogFocusIndex,
+  DialogFocusableDescriptor,
+} from "../core/a11y/dialogFocus";
 
 let totalTests = 0;
 let passedTests = 0;
@@ -54,6 +61,12 @@ function runTest(name: string, fn: () => void) {
       console.error(`   ${String(error)}`);
     }
   }
+}
+
+function skipTest(name: string): void {
+  totalTests += 1;
+  skippedTests += 1;
+  console.log(`⏭️ Test skipped: ${name}`);
 }
 
 // ------------------------------------------------------------------
@@ -249,7 +262,7 @@ runTest("20. addSongToLivingLibrary usa somente valores demo", () => {
 
 runTest("21. Registry desconhecido retorna null", () => {
   const input = buildDemoToolInput(
-    { name: "unknownTool123" } as unknown as ToolDefinition,
+    { name: "unknownTool123" },
     mockEcosystemContext,
   );
   checkEqual(input, null);
@@ -778,11 +791,7 @@ runTest("83. selects não usam as ToolsRiskFilter", () => {
 });
 
 runTest("84. aria-describedby sempre aponta para status", () => {
-  checkOk(
-    toolsPageTsx.includes(
-      'aria-describedby={isBlocked ? "simulate-status" : undefined}',
-    ),
-  );
+  checkOk(toolsPageTsx.includes('aria-describedby="simulate-status"'));
 });
 
 runTest("85. Textos afirmam simulação local", () => {
@@ -810,6 +819,175 @@ runTest("89. previous overflow restaurado", () => {
 
 runTest("90. previousFocusRef safe check", () => {
   checkOk(dialogTsx.includes("instanceof HTMLElement"));
+});
+
+runTest("91. Idiomas contêm simulação local exata", () => {
+  checkEqual(toolsUxCatalog["pt-BR"].simulateDirect, "Simulação direta local");
+  checkEqual(
+    toolsUxCatalog["pt-BR"].simulateRequiresConfirmation,
+    "Simulação local com confirmação",
+  );
+  checkEqual(toolsUxCatalog["en-US"].simulateDirect, "Direct local simulation");
+  checkEqual(
+    toolsUxCatalog["en-US"].simulateRequiresConfirmation,
+    "Local simulation with confirmation",
+  );
+  checkEqual(
+    toolsUxCatalog["es-ES"].simulateDirect,
+    "Simulación local directa",
+  );
+  checkEqual(
+    toolsUxCatalog["es-ES"].simulateRequiresConfirmation,
+    "Simulación local con confirmación",
+  );
+});
+
+runTest("92. isDialogFocusableDescriptor validação de regras puras", () => {
+  const normal: DialogFocusableDescriptor = {
+    disabled: false,
+    ariaHidden: false,
+    inert: false,
+    hidden: false,
+    displayNone: false,
+    visibilityHidden: false,
+    hasRenderedArea: true,
+  };
+  checkOk(
+    isDialogFocusableDescriptor(normal),
+    "Normal element should be focusable",
+  );
+
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, disabled: true }),
+    "disabled element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, ariaHidden: true }),
+    "ariaHidden element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, inert: true }),
+    "inert element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, hidden: true }),
+    "hidden element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, displayNone: true }),
+    "displayNone element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, visibilityHidden: true }),
+    "visibilityHidden element should be rejected",
+  );
+  checkOk(
+    !isDialogFocusableDescriptor({ ...normal, hasRenderedArea: false }),
+    "no rendered area element should be rejected",
+  );
+});
+
+runTest("93. getNextDialogFocusIndex e getPreviousDialogFocusIndex", () => {
+  // zero elementos
+  checkEqual(getNextDialogFocusIndex(0, 0), null);
+  checkEqual(getPreviousDialogFocusIndex(0, 0), null);
+
+  // um elemento
+  checkEqual(getNextDialogFocusIndex(0, 1), 0);
+  checkEqual(getPreviousDialogFocusIndex(0, 1), 0);
+
+  // primeiro, intermediário, último
+  checkEqual(getNextDialogFocusIndex(0, 3), 1);
+  checkEqual(getNextDialogFocusIndex(1, 3), 2);
+  // Tab no último retorna ao primeiro
+  checkEqual(getNextDialogFocusIndex(2, 3), 0);
+
+  checkEqual(getPreviousDialogFocusIndex(2, 3), 1);
+  checkEqual(getPreviousDialogFocusIndex(1, 3), 0);
+  // Shift+Tab no primeiro retorna ao último
+  checkEqual(getPreviousDialogFocusIndex(0, 3), 2);
+
+  // índices inválidos normalizam ou tratam
+  checkEqual(getNextDialogFocusIndex(-1, 3), 0);
+  checkEqual(getPreviousDialogFocusIndex(-1, 3), 2);
+});
+
+runTest("94. Inspeção estrutural do adaptador DOM", () => {
+  checkOk(
+    dialogFocusTs.includes(
+      ".closest('[hidden], [aria-hidden=\"true\"], [inert]')",
+    ),
+    "Debe verificar ancestrais via closest",
+  );
+  checkOk(
+    dialogFocusTs.includes(".getClientRects()"),
+    "Debe verificar área renderizada via getClientRects",
+  );
+  checkOk(
+    dialogFocusTs.includes("aria-disabled"),
+    "Debe verificar aria-disabled",
+  );
+});
+
+runTest("95. Compliance. Padrões proibidos de cast, ignore e any", () => {
+  const forbiddenDoubleCast = ["as", "unknown", "as", "ToolDefinition"].join(
+    " ",
+  );
+  const forbiddenSingleCast = ["as", "ToolDefinition"].join(" ");
+  const forbiddenRiskCast = ["as", "RiskLevel"].join(" ");
+  const forbiddenAsAny = ["as", "any"].join(" ");
+  const forbiddenAnyArray = ["any", "[]"].join("");
+  const forbiddenCheckOkTrue = ["checkOk", "(", "true", ")"].join("");
+  const forbiddenAssertOkTrue = ["assert", ".ok", "(", "true", ")"].join("");
+  const forbiddenTsIgnore = ["@", "ts-ignore"].join("");
+  const forbiddenTsExpect = ["@", "ts-expect-error"].join("");
+
+  const filesToCheck = [
+    "src/features/tools/toolsDomain.ts",
+    "src/features/tools/ToolsPage.tsx",
+    "src/i18n/toolsUx.ts",
+    "src/core/a11y/dialogFocus.ts",
+  ];
+
+  for (const f of filesToCheck) {
+    const content = fs.readFileSync(path.join(process.cwd(), f), "utf8");
+    checkOk(
+      !content.includes(forbiddenDoubleCast),
+      `Forbidden double cast found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenSingleCast),
+      `Forbidden single cast found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenRiskCast),
+      `Forbidden RiskLevel cast found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenAsAny),
+      `Forbidden as any found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenAnyArray),
+      `Forbidden any[] found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenCheckOkTrue),
+      `Forbidden checkOk(true) found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenAssertOkTrue),
+      `Forbidden assert.ok(true) found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenTsIgnore),
+      `Forbidden ts-ignore found in ${f}`,
+    );
+    checkOk(
+      !content.includes(forbiddenTsExpect),
+      `Forbidden ts-expect-error found in ${f}`,
+    );
+  }
 });
 
 console.log(
