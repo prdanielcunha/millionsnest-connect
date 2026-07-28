@@ -52,21 +52,26 @@ export function isConversationInActiveOrganization(
 export function isPlainUnknownRecord(
   value: unknown
 ): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+
+  return (
+    prototype === Object.prototype ||
+    prototype === null
+  );
 }
 
-export function validatePendingToolContext(
-  pendingTool: PendingDemoToolInvocation | null,
-  activeConversation: Conversation | null,
+export function validatePendingToolArgs(
+  args: unknown,
   activeOrgId: string
 ): boolean {
-  if (!pendingTool) return false;
-  if (!activeConversation) return false;
-  if (activeConversation.organizationId !== activeOrgId) return false;
-  if (pendingTool.conversationId !== activeConversation.id) return false;
-  if (pendingTool.organizationId !== activeOrgId) return false;
-
-  const args: unknown = pendingTool.args;
   if (!isPlainUnknownRecord(args)) {
     return false;
   }
@@ -84,6 +89,20 @@ export function validatePendingToolContext(
   }
 
   return true;
+}
+
+export function validatePendingToolContext(
+  pendingTool: PendingDemoToolInvocation | null,
+  activeConversation: Conversation | null,
+  activeOrgId: string
+): boolean {
+  if (!pendingTool) return false;
+  if (!activeConversation) return false;
+  if (activeConversation.organizationId !== activeOrgId) return false;
+  if (pendingTool.conversationId !== activeConversation.id) return false;
+  if (pendingTool.organizationId !== activeOrgId) return false;
+
+  return validatePendingToolArgs(pendingTool.args, activeOrgId);
 }
 
 export function createInboxFilterDraft(applied: InboxFilterDraft): InboxFilterDraft {

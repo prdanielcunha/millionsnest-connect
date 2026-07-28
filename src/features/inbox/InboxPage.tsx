@@ -25,6 +25,7 @@ import {
   X,
   MessageSquare,
   ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import {
   EffectiveEcosystemContext,
@@ -138,7 +139,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
         vinculado: t.bindingLinked,
         pendente: t.bindingPending,
         nao_vinculado: t.bindingUnlinked,
-      }[activeContact.linkingStatus] || activeContact.linkingStatus)
+      }[activeContact.linkingStatus] || t.bindingUnknown)
     : '';
 
   const currentMessages = activeConversation ? messagesMap[activeConversation.id] || [] : [];
@@ -760,13 +761,33 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
               >
                 createScheduleDraft (R2)
               </button>
-              <button
-                type="button"
-                onClick={() => handleSimulateTool('addSongToLivingLibrary')}
-                className="px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-rose-300 rounded-lg font-mono text-xs shrink-0 transition focus:outline-none focus:ring-2 focus:ring-rose-500"
-              >
-                addSongToLivingLibrary (R3)
-              </button>
+              {(() => {
+                const addSongTool = mockTools.find((tool) => tool.name === 'addSongToLivingLibrary');
+                const isAddSongBlocked = addSongTool?.confirmationPolicy === 'human_approval';
+                if (isAddSongBlocked) {
+                  return (
+                    <button
+                      type="button"
+                      disabled
+                      aria-disabled="true"
+                      title={t.humanApprovalUnavailable}
+                      className="px-3 py-1.5 bg-rose-950/20 border border-rose-500/20 text-rose-400/50 rounded-lg font-mono text-xs shrink-0 flex items-center gap-1.5 cursor-not-allowed focus:outline-none"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      addSongToLivingLibrary (R3) ({t.humanApprovalUnavailable})
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleSimulateTool('addSongToLivingLibrary')}
+                    className="px-3 py-1.5 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-rose-300 rounded-lg font-mono text-xs shrink-0 transition focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  >
+                    addSongToLivingLibrary (R3)
+                  </button>
+                );
+              })()}
             </div>
             <button
               type="button"

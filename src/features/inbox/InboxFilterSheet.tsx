@@ -134,7 +134,7 @@ export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
             onClick={handleClear}
             className="w-full min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-gray-300 bg-[#1A2234] hover:bg-[#222C42] focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
-            {t.clearDraft || 'Limpar Rascunho'}
+            {t.clearDraft}
           </button>
           <div className="flex gap-3">
             <button

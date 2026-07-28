@@ -11,7 +11,8 @@ import {
   getPreviousFocusIndex,
   isElementFocusable,
   ElementFocusDescriptor,
-  isPlainUnknownRecord
+  isPlainUnknownRecord,
+  validatePendingToolArgs
 } from '../features/inbox/inboxDomain';
 import { Conversation, Contact, ToolDefinition } from '../types';
 import { PendingDemoToolInvocation } from '../demo/confirmations/demoToolFlow';
@@ -391,9 +392,10 @@ test('Domain: validatePendingToolContext with valid args without organizationId'
   const activeConv: Conversation = {
     id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
   };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: { foo: 'bar' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  const pendingTool: PendingDemoToolInvocation = {
+    ...mockPending,
+    conversationId: 'c1', organizationId: 'org1',
+    args: { foo: 'bar' }
   };
   checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), true);
 });
@@ -402,9 +404,10 @@ test('Domain: validatePendingToolContext with valid args with correct organizati
   const activeConv: Conversation = {
     id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
   };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: { organizationId: 'org1' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  const pendingTool: PendingDemoToolInvocation = {
+    ...mockPending,
+    conversationId: 'c1', organizationId: 'org1',
+    args: { organizationId: 'org1' }
   };
   checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), true);
 });
@@ -413,9 +416,10 @@ test('Domain: validatePendingToolContext rejects divergent organizationId in arg
   const activeConv: Conversation = {
     id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
   };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: { organizationId: 'org_divergent' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  const pendingTool: PendingDemoToolInvocation = {
+    ...mockPending,
+    conversationId: 'c1', organizationId: 'org1',
+    args: { organizationId: 'org_divergent' }
   };
   checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
 });
@@ -424,71 +428,81 @@ test('Domain: validatePendingToolContext rejects numeric organizationId in args'
   const activeConv: Conversation = {
     id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
   };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: { organizationId: 123 }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  const pendingTool: PendingDemoToolInvocation = {
+    ...mockPending,
+    conversationId: 'c1', organizationId: 'org1',
+    args: { organizationId: 123 }
   };
   checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
 });
 
-test('Domain: validatePendingToolContext rejects null args', () => {
-  const activeConv: Conversation = {
-    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
-  };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: null, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
-  };
-  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+test('Domain: validatePendingToolArgs tests', () => {
+  // - validatePendingToolArgs aceita record sem organizationId;
+  checkEqual(validatePendingToolArgs({ foo: 'bar' }, 'org1'), true);
+  
+  // - aceita organizationId correto;
+  checkEqual(validatePendingToolArgs({ organizationId: 'org1' }, 'org1'), true);
+  
+  // - rejeita organizationId divergente;
+  checkEqual(validatePendingToolArgs({ organizationId: 'org_divergent' }, 'org1'), false);
+  
+  // - rejeita organizationId numérico;
+  checkEqual(validatePendingToolArgs({ organizationId: 123 }, 'org1'), false);
+  
+  // - rejeita null;
+  checkEqual(validatePendingToolArgs(null, 'org1'), false);
+  
+  // - rejeita array;
+  checkEqual(validatePendingToolArgs([1, 2], 'org1'), false);
+  
+  // - rejeita string;
+  checkEqual(validatePendingToolArgs('texto', 'org1'), false);
+  
+  // - rejeita número;
+  checkEqual(validatePendingToolArgs(42, 'org1'), false);
+  
+  // - rejeita boolean;
+  checkEqual(validatePendingToolArgs(true, 'org1'), false);
+  
+  // - rejeita Date;
+  checkEqual(validatePendingToolArgs(new Date(), 'org1'), false);
+  
+  // - rejeita Map;
+  checkEqual(validatePendingToolArgs(new Map(), 'org1'), false);
+  
+  // - rejeita instância de classe;
+  class MyClass {}
+  checkEqual(validatePendingToolArgs(new MyClass(), 'org1'), false);
 });
 
-test('Domain: validatePendingToolContext rejects array args', () => {
-  const activeConv: Conversation = {
-    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
-  };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: [1, 2, 3], requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
-  };
-  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
-});
-
-test('Domain: validatePendingToolContext rejects string args', () => {
-  const activeConv: Conversation = {
-    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
-  };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: 'some-string', requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
-  };
-  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
-});
-
-test('Domain: validatePendingToolContext rejects number args', () => {
-  const activeConv: Conversation = {
-    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
-  };
-  const pendingTool: any = {
-    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
-    args: 42, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
-  };
-  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
-});
-
-test('Domain: isPlainUnknownRecord accepts record object', () => {
+test('Domain: isPlainUnknownRecord tests', () => {
+  // - isPlainUnknownRecord aceita Object.create(null);
+  checkEqual(isPlainUnknownRecord(Object.create(null)), true);
+  
+  // - isPlainUnknownRecord aceita objeto literal;
   checkEqual(isPlainUnknownRecord({ foo: 'bar' }), true);
-});
-
-test('Domain: isPlainUnknownRecord rejects array', () => {
+  
+  // - isPlainUnknownRecord rejeita Date;
+  checkEqual(isPlainUnknownRecord(new Date()), false);
+  
+  // - isPlainUnknownRecord rejeita Map;
+  checkEqual(isPlainUnknownRecord(new Map()), false);
+  
+  // - isPlainUnknownRecord rejeita array
   checkEqual(isPlainUnknownRecord([1, 2]), false);
-});
-
-test('Domain: isPlainUnknownRecord rejects null', () => {
+  
+  // - isPlainUnknownRecord rejeita null
   checkEqual(isPlainUnknownRecord(null), false);
-});
-
-test('Domain: isPlainUnknownRecord rejects primitive string', () => {
+  
+  // - isPlainUnknownRecord rejeita primitive string
   checkEqual(isPlainUnknownRecord('hello'), false);
+  
+  // - isPlainUnknownRecord rejeita Set
+  checkEqual(isPlainUnknownRecord(new Set()), false);
+  
+  // - isPlainUnknownRecord rejeita classe
+  class MyClass {}
+  checkEqual(isPlainUnknownRecord(new MyClass()), false);
 });
 
 // Structural assertions
@@ -555,6 +569,36 @@ test('Structural: inboxMobile.test.ts declares test with strict synchronous call
 test('Structural: inboxDomain.test.ts declares test with strict synchronous callback', () => {
   const content = fs.readFileSync(path.join(process.cwd(), 'src/tests/inboxDomain.test.ts'), 'utf8');
   checkOk(content.includes('callback: () => void)'), 'test callback in inboxDomain must be strictly synchronous');
+});
+
+test('Structural: linkingStatus uses t.bindingUnknown and has no fallback', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('|| t.bindingUnknown'), 'linkingStatus must fallback to t.bindingUnknown');
+  checkEqual(content.includes('|| activeContact.linkingStatus'), false);
+});
+
+test('Structural: PT-BR and ES-ES do not contain English appAccess text', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/i18n/inboxUx.ts'), 'utf8');
+  const occurrences = content.split('appAccess missing or inactive for').length - 1;
+  checkEqual(occurrences, 1, 'English text should only appear once under en-US');
+});
+
+test('Structural: policyLabel is localized in PT-BR and ES-ES', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/i18n/inboxUx.ts'), 'utf8');
+  const occurrences = content.split('policyLabel: \'Política:\'').length - 1;
+  checkEqual(occurrences, 2, 'policyLabel: "Política:" must be defined under pt-BR and es-ES');
+});
+
+test('Structural: Filter Sheet does not contain Portuguese fallback', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxFilterSheet.tsx'), 'utf8');
+  checkEqual(content.includes('Limpar Rascunho'), false);
+});
+
+test('Structural: human_approval desktop R3 button is non-executable and has padlock', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('isAddSongBlocked'), 'Must check if R3 is blocked');
+  checkOk(content.includes('aria-disabled="true"'), 'Disabled R3 must have aria-disabled="true"');
+  checkOk(content.includes('<Lock className='), 'Disabled R3 must have a padlock icon');
 });
 
 console.log(`\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Assertions: ${totalAssertions}`);
