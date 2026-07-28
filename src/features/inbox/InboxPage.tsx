@@ -81,6 +81,8 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
   const [notice, setNotice] = useState<InboxNotice>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const contextTriggerRef = useRef<HTMLButtonElement>(null);
+  const contextHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const [pendingTool, setPendingTool] = useState<PendingDemoToolInvocation | null>(null);
 
@@ -90,11 +92,54 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
     quickToolsOpen: false,
   });
 
+  const prevViewRef = useRef<string>(mobileState.view);
+
+  useEffect(() => {
+    if (mobileState.view === 'context') {
+      const timer = setTimeout(() => {
+        if (contextHeadingRef.current) {
+          contextHeadingRef.current.focus();
+        }
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (window.matchMedia('(max-width: 1023px)').matches) {
+            e.preventDefault();
+            dispatchMobile({ type: 'OPEN_CHAT' });
+          }
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      prevViewRef.current = 'context';
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      if (prevViewRef.current === 'context') {
+        if (contextTriggerRef.current) {
+          contextTriggerRef.current.focus();
+        }
+      }
+      prevViewRef.current = mobileState.view;
+    }
+  }, [mobileState.view]);
+
   const organizationConversations = selectOrganizationConversations(conversations, context.activeOrganization.id);
 
   const activeConversation = selectActiveConversation(conversations, context.activeOrganization.id, activeConversationId);
 
   const activeContact = selectActiveContact(mockContacts, activeConversation);
+
+  const linkingStatusLabel = activeContact
+    ? ({
+        vinculado: t.bindingLinked,
+        pendente: t.bindingPending,
+        nao_vinculado: t.bindingUnlinked,
+      }[activeContact.linkingStatus] || activeContact.linkingStatus)
+    : '';
 
   const currentMessages = activeConversation ? messagesMap[activeConversation.id] || [] : [];
 
@@ -572,6 +617,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
               </div>
               
               <button
+                ref={contextTriggerRef}
                 type="button"
                 onClick={() => dispatchMobile({ type: 'OPEN_CONTEXT' })}
                 className="lg:hidden w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white bg-[#1A2234] border border-white/10 rounded-lg shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -817,14 +863,17 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
         >
           {/* Header */}
           <div className="sticky top-0 z-10 bg-[#121824]/95 backdrop-blur border-b border-white/10 p-3 flex items-center justify-between shrink-0 min-h-[60px]">
-            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2" tabIndex={-1} autoFocus={mobileState.view === 'context'}>
+            <h3 
+              ref={contextHeadingRef}
+              className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2 focus:outline-none" 
+              tabIndex={-1}
+            >
               <User className="w-4 h-4 text-indigo-400" /> {t.context}
             </h3>
             <button
               type="button"
               onClick={() => {
                 dispatchMobile({ type: 'OPEN_CHAT' });
-                // We could restore focus here if needed, but keeping it simple for now
               }}
               className="lg:hidden w-11 h-11 flex items-center justify-center text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               aria-label={t.back}
@@ -871,7 +920,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
                         : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                     }`}
                   >
-                    {activeContact.linkingStatus}
+                    {linkingStatusLabel}
                   </span>
                 </div>
 

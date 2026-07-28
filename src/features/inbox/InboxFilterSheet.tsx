@@ -75,18 +75,18 @@ export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-gray-400 uppercase">{t.responsibility}</h3>
             <div className="grid grid-cols-2 gap-2">
-              {[
+              {([
                 { id: 'all', label: t.all },
                 { id: 'mine', label: t.mine },
                 { id: 'unassigned', label: t.unassigned },
                 { id: 'waiting_human', label: t.waitingHuman },
                 { id: 'automatic', label: t.automationActive },
                 { id: 'resolved', label: t.resolved },
-              ].map((f) => (
+              ] as const satisfies ReadonlyArray<{ id: InboxFilterMode; label: string }>).map((f) => (
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setDraft(d => ({ ...d, mode: f.id as InboxFilterMode }))}
+                  onClick={() => setDraft(d => ({ ...d, mode: f.id }))}
                   className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium transition ${
                     draft.mode === f.id
                       ? 'bg-indigo-600 text-white'
@@ -105,16 +105,16 @@ export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
               <span className="text-xs text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">{t.demoDataNotice}</span>
             </div>
             <div className="flex flex-col gap-2">
-              {[
+              {([
                 { id: 'all', label: t.allChannels },
                 { id: 'whatsapp', label: t.channelWhatsappDemo },
                 { id: 'instagram', label: t.channelInstagramDemo },
                 { id: 'inapp', label: t.channelInAppDemo },
-              ].map((ch) => (
+              ] as const satisfies ReadonlyArray<{ id: InboxChannelFilter; label: string }>).map((ch) => (
                 <button
                   key={ch.id}
                   type="button"
-                  onClick={() => setDraft(d => ({ ...d, channel: ch.id as InboxChannelFilter }))}
+                  onClick={() => setDraft(d => ({ ...d, channel: ch.id }))}
                   className={`min-h-[44px] px-4 py-2 text-left rounded-lg text-sm font-medium transition ${
                     draft.channel === ch.id
                       ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'

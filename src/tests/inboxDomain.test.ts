@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { 
   selectOrganizationConversations, 
   selectInitialConversationId, 
@@ -8,7 +10,8 @@ import {
   getNextFocusIndex,
   getPreviousFocusIndex,
   isElementFocusable,
-  ElementFocusDescriptor
+  ElementFocusDescriptor,
+  isPlainUnknownRecord
 } from '../features/inbox/inboxDomain';
 import { Conversation, Contact, ToolDefinition } from '../types';
 import { PendingDemoToolInvocation } from '../demo/confirmations/demoToolFlow';
@@ -20,7 +23,7 @@ let failedTests = 0;
 let totalAssertions = 0;
 let currentAssertions = 0;
 
-function test(name: string, callback: () => void | Promise<void>) {
+function test(name: string, callback: () => void) {
   totalTests++;
   currentAssertions = 0;
   try {
@@ -381,6 +384,177 @@ test('Domain: isElementFocusable rejects hasClientRects false', () => {
     hasClientRects: false
   };
   checkEqual(isElementFocusable(descriptor), false);
+});
+
+// Runtime validation tests
+test('Domain: validatePendingToolContext with valid args without organizationId', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: { foo: 'bar' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), true);
+});
+
+test('Domain: validatePendingToolContext with valid args with correct organizationId', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: { organizationId: 'org1' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), true);
+});
+
+test('Domain: validatePendingToolContext rejects divergent organizationId in args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: { organizationId: 'org_divergent' }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: validatePendingToolContext rejects numeric organizationId in args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: { organizationId: 123 }, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: validatePendingToolContext rejects null args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: null, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: validatePendingToolContext rejects array args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: [1, 2, 3], requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: validatePendingToolContext rejects string args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: 'some-string', requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: validatePendingToolContext rejects number args', () => {
+  const activeConv: Conversation = {
+    id: 'c1', organizationId: 'org1', contactId: 'cnt1', contactName: 'A', channel: 'whatsapp', channelIdentifier: 'w1', mode: 'automatico', status: 'aberto', priority: 'media', tags: [], lastMessageSnippet: '', lastMessageAt: '', unreadCount: 0
+  };
+  const pendingTool: any = {
+    conversationId: 'c1', organizationId: 'org1', tool: { name: 't1', description: 'desc', riskLevel: 'high' },
+    args: 42, requestId: 'r1', correlationId: 'c1', appAccess: { appId: 'a1', capabilities: [] }
+  };
+  checkEqual(validatePendingToolContext(pendingTool, activeConv, 'org1'), false);
+});
+
+test('Domain: isPlainUnknownRecord accepts record object', () => {
+  checkEqual(isPlainUnknownRecord({ foo: 'bar' }), true);
+});
+
+test('Domain: isPlainUnknownRecord rejects array', () => {
+  checkEqual(isPlainUnknownRecord([1, 2]), false);
+});
+
+test('Domain: isPlainUnknownRecord rejects null', () => {
+  checkEqual(isPlainUnknownRecord(null), false);
+});
+
+test('Domain: isPlainUnknownRecord rejects primitive string', () => {
+  checkEqual(isPlainUnknownRecord('hello'), false);
+});
+
+// Structural assertions
+test('Structural: InboxPage contains contextTriggerRef', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('contextTriggerRef'), 'InboxPage must declare and use contextTriggerRef');
+});
+
+test('Structural: InboxPage contains contextHeadingRef', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('contextHeadingRef'), 'InboxPage must declare and use contextHeadingRef');
+});
+
+test('Structural: InboxPage contains Escape handler returning to chat', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes("'Escape'") && content.includes("'OPEN_CHAT'"), 'Escape key handler must trigger OPEN_CHAT');
+});
+
+test('Structural: InboxPage contains focus restoration logic to contextTriggerRef', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('contextTriggerRef.current.focus()'), 'Must restore focus to trigger element');
+});
+
+test('Structural: comment keeping it simple is removed', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkEqual(content.includes('keeping it simple'), false);
+});
+
+test('Structural: activeContact.linkingStatus is not rendered directly in InboxPage', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkEqual(content.includes('{activeContact.linkingStatus}'), false);
+});
+
+test('Structural: localized binding status t.bindingLinked is used', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('bindingLinked'), 't.bindingLinked must be referenced');
+});
+
+test('Structural: localized binding status t.bindingPending is used', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('bindingPending'), 't.bindingPending must be referenced');
+});
+
+test('Structural: localized binding status t.bindingUnlinked is used', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxPage.tsx'), 'utf8');
+  checkOk(content.includes('bindingUnlinked'), 't.bindingUnlinked must be referenced');
+});
+
+test('Structural: InboxFilterSheet does not contain as InboxFilterMode', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxFilterSheet.tsx'), 'utf8');
+  checkEqual(content.includes('as InboxFilterMode'), false);
+});
+
+test('Structural: InboxFilterSheet does not contain as InboxChannelFilter', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/InboxFilterSheet.tsx'), 'utf8');
+  checkEqual(content.includes('as InboxChannelFilter'), false);
+});
+
+test('Structural: inboxMobile.test.ts declares test with strict synchronous callback', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/tests/inboxMobile.test.ts'), 'utf8');
+  checkOk(content.includes('callback: () => void)'), 'test callback in inboxMobile must be strictly synchronous');
+});
+
+test('Structural: inboxDomain.test.ts declares test with strict synchronous callback', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/tests/inboxDomain.test.ts'), 'utf8');
+  checkOk(content.includes('callback: () => void)'), 'test callback in inboxDomain must be strictly synchronous');
 });
 
 console.log(`\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Assertions: ${totalAssertions}`);

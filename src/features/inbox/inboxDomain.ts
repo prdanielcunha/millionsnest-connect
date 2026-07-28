@@ -49,6 +49,12 @@ export function isConversationInActiveOrganization(
   return conversation !== null && conversation.organizationId === organizationId;
 }
 
+export function isPlainUnknownRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function validatePendingToolContext(
   pendingTool: PendingDemoToolInvocation | null,
   activeConversation: Conversation | null,
@@ -60,18 +66,19 @@ export function validatePendingToolContext(
   if (pendingTool.conversationId !== activeConversation.id) return false;
   if (pendingTool.organizationId !== activeOrgId) return false;
 
-  const args = pendingTool.args;
-  if (args && typeof args === 'object' && !Array.isArray(args)) {
-    const argsRecord = args as Record<string, unknown>;
-    if ('organizationId' in argsRecord) {
-      const argsOrgId: unknown = argsRecord.organizationId;
-      if (argsOrgId !== undefined) {
-        if (typeof argsOrgId !== 'string') {
-          return false;
-        }
-        if (argsOrgId !== activeOrgId) {
-          return false;
-        }
+  const args: unknown = pendingTool.args;
+  if (!isPlainUnknownRecord(args)) {
+    return false;
+  }
+
+  if ('organizationId' in args) {
+    const argsOrgId = args.organizationId;
+    if (argsOrgId !== undefined) {
+      if (typeof argsOrgId !== 'string') {
+        return false;
+      }
+      if (argsOrgId !== activeOrgId) {
+        return false;
       }
     }
   }

@@ -27,7 +27,7 @@ let failedTests = 0;
 let totalAssertions = 0;
 let currentAssertions = 0;
 
-function test(name: string, callback: () => void | Promise<void>) {
+function test(name: string, callback: () => void) {
   totalTests++;
   currentAssertions = 0;
   try {
