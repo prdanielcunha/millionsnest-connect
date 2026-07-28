@@ -49,46 +49,14 @@ export function isConversationInActiveOrganization(
   return conversation !== null && conversation.organizationId === organizationId;
 }
 
-export function isPlainUnknownRecord(
-  value: unknown
-): value is Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    Array.isArray(value)
-  ) {
-    return false;
-  }
-
-  const prototype = Object.getPrototypeOf(value);
-
-  return (
-    prototype === Object.prototype ||
-    prototype === null
-  );
-}
+export { isPlainUnknownRecord } from '../../core/validation/plainRecord';
+import { isPlainUnknownRecord, validateOrganizationScopedArgs } from '../../core/validation/plainRecord';
 
 export function validatePendingToolArgs(
   args: unknown,
   activeOrgId: string
 ): boolean {
-  if (!isPlainUnknownRecord(args)) {
-    return false;
-  }
-
-  if ('organizationId' in args) {
-    const argsOrgId = args.organizationId;
-    if (argsOrgId !== undefined) {
-      if (typeof argsOrgId !== 'string') {
-        return false;
-      }
-      if (argsOrgId !== activeOrgId) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+  return validateOrganizationScopedArgs(args, activeOrgId);
 }
 
 export function validatePendingToolContext(

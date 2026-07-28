@@ -1,6 +1,6 @@
 import { ToolDefinition, EffectiveEcosystemContext, RiskLevel } from '../../types';
 import { PendingDemoToolInvocation } from '../../demo/confirmations/demoToolFlow';
-import { isPlainUnknownRecord } from '../inbox/inboxDomain';
+import { isPlainUnknownRecord, validateOrganizationScopedArgs } from '../../core/validation/plainRecord';
 
 export type ToolsAppFilter = 'all' | string;
 export type ToolsRiskFilter = 'all' | RiskLevel;
@@ -48,13 +48,8 @@ export function validateToolsPendingContext(
   if (!pendingTool.correlationId) return false;
 
   const args: unknown = pendingTool.args;
-  if (!isPlainUnknownRecord(args)) return false;
+  if (!validateOrganizationScopedArgs(args, activeOrganizationId)) return false;
 
-  if ('organizationId' in args) {
-    const orgId = args.organizationId;
-    if (orgId !== undefined && orgId !== activeOrganizationId) return false;
-  }
-  
   return true;
 }
 
@@ -106,4 +101,19 @@ export function describeDemoToolAvailability(
     kind: 'available',
     requiresConfirmation
   };
+}
+
+export function isToolVisibleInFilteredSet(
+  filteredTools: ToolDefinition[],
+  selectedToolId: string | null
+): boolean {
+  if (!selectedToolId) return false;
+  return filteredTools.some(t => t.id === selectedToolId);
+}
+
+export function countToolsByApp(
+  tools: ToolDefinition[],
+  appId: string
+): number {
+  return tools.filter(t => t.appId === appId).length;
 }

@@ -42,7 +42,9 @@ import {
   validateToolsPendingContext, 
   describeDemoToolAvailability, 
   ToolsAppFilter, 
-  ToolsRiskFilter 
+  ToolsRiskFilter,
+  countToolsByApp,
+  isToolVisibleInFilteredSet
 } from './toolsDomain';
 import { buildDemoToolInput } from './demoToolInputs';
 import { toolsUxCatalog } from '../../i18n/toolsUx';
@@ -78,6 +80,16 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
 
   const selectedTool = selectToolById(tools, selectedToolId);
   const filteredTools = filterTools(tools, { query: searchQuery, appId: appFilter, risk: riskFilter });
+
+  useEffect(() => {
+    if (selectedToolId && !isToolVisibleInFilteredSet(filteredTools, selectedToolId)) {
+      setPendingTool(null);
+      setExecutionResult(null);
+      setNotice(null);
+      setSelectedToolId(null);
+      dispatch({ type: 'OPEN_CATALOG' });
+    }
+  }, [filteredTools, selectedToolId]);
 
   useEffect(() => {
     setPendingTool(null);
@@ -153,9 +165,18 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
   };
 
   const handleConfirmTool = () => {
-    if (!pendingTool) return;
+    if (!pendingTool || !selectedTool) return;
 
     if (!validateToolsPendingContext(pendingTool, selectedTool, context.activeOrganization.id)) {
+      setPendingTool(null);
+      setNotice({ kind: 'error', message: t.conflict });
+      return;
+    }
+    
+    const demoInput = buildDemoToolInput(selectedTool, context);
+    const availability = describeDemoToolAvailability(selectedTool, context, demoInput !== null);
+    
+    if (availability.kind !== 'available' || !availability.requiresConfirmation) {
       setPendingTool(null);
       setNotice({ kind: 'error', message: t.conflict });
       return;
@@ -244,7 +265,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
               </div>
               <p className="text-xs text-gray-400 flex-1">{app.status === 'ativo' ? t.integrationNotConnected : t.noRemoteServiceActive}</p>
               <div className="pt-2 border-t border-white/5 text-xs text-indigo-400 font-mono flex items-center justify-between">
-                <span>{app.status === 'ativo' ? app.registeredToolsCount : 0} {t.registeredTools}</span>
+                <span>{app.status === 'ativo' && countToolsByApp(tools, app.appId) > 0 ? `${countToolsByApp(tools, app.appId)} ${t.registeredTools}` : t.noToolsRegistered}</span>
               </div>
             </div>
           ))}
@@ -258,36 +279,44 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
           <div className="p-4 space-y-3 shrink-0 lg:border-b lg:border-white/10">
             {/* Filters */}
             <div className="relative">
+              <label htmlFor="searchQuery" className="sr-only">{t.searchLabel}</label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
+                id="searchQuery"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t.searchPlaceholder}
+                autoComplete="off"
                 className="w-full min-h-[44px] bg-[#1A2234] border border-white/10 rounded-xl pl-9 pr-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
               />
             </div>
             <div className="flex gap-2">
+              <label htmlFor="appFilter" className="sr-only">{t.appFilterLabel}</label>
               <select
+                id="appFilter"
                 value={appFilter}
                 onChange={(e) => setAppFilter(e.target.value as ToolsAppFilter)}
                 className="flex-1 min-h-[44px] bg-[#1A2234] border border-white/10 rounded-xl px-3 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">{t.filterAllApps}</option>
-                <option value="musicscale">MusicScale</option>
-                <option value="connect">Connect Core</option>
+                {Array.from(new Set(tools.map(t => t.appId))).map(appId => (
+                  <option key={appId} value={appId}>{appId}</option>
+                ))}
               </select>
+              <label htmlFor="riskFilter" className="sr-only">{t.riskFilterLabel}</label>
               <select
+                id="riskFilter"
                 value={riskFilter}
                 onChange={(e) => setRiskFilter(e.target.value as ToolsRiskFilter)}
                 className="flex-1 min-h-[44px] bg-[#1A2234] border border-white/10 rounded-xl px-3 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">{t.filterAllRisks}</option>
-                <option value="R0_PUBLIC">R0 Public</option>
-                <option value="R1_AUTH_READ">R1 Read</option>
-                <option value="R2_REVERSIBLE_WRITE">R2 Write</option>
-                <option value="R3_PRIVILEGED">R3 Privileged</option>
-                <option value="R4_CRITICAL">R4 Critical</option>
+                <option value="R0_PUBLIC">{t.publicRisk}</option>
+                <option value="R1_AUTH_READ">{t.authReadRisk}</option>
+                <option value="R2_REVERSIBLE_WRITE">{t.reversibleWriteRisk}</option>
+                <option value="R3_PRIVILEGED">{t.privilegedRisk}</option>
+                <option value="R4_CRITICAL">{t.criticalRisk}</option>
               </select>
             </div>
           </div>
@@ -388,6 +417,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
                   <button
                     type="button"
                     onClick={() => setNotice(null)}
+                    aria-label={t.closeNotice}
                     className="w-8 h-8 -my-1 -mr-2 flex items-center justify-center rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10"
                   >
                     <X className="w-4 h-4" />
@@ -436,14 +466,42 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
 
               {/* Test Execution Simulator */}
               <div className="pt-4 border-t border-white/10 space-y-4">
-                <button
-                  type="button"
-                  onClick={handleTestInvocation}
-                  className="w-full min-h-[44px] px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                >
-                  <Play className="w-4 h-4" />
-                  <span>{t.simulate}</span>
-                </button>
+                {(() => {
+                  const demoInput = buildDemoToolInput(selectedTool, context);
+                  const availability = describeDemoToolAvailability(selectedTool, context, demoInput !== null);
+                  const isBlocked = availability.kind === 'blocked';
+                  let blockReason = t.unknownStatus;
+                  if (isBlocked) {
+                    if (availability.reason === 'missing_app_access') blockReason = t.blockedAppAccess;
+                    if (availability.reason === 'missing_demo_input') blockReason = t.blockedMissingInput;
+                    if (availability.reason === 'human_approval') blockReason = t.blockedHumanApproval;
+                    if (availability.reason === 'strong_confirmation') blockReason = t.blockedStrong;
+                    if (availability.reason === 'critical_risk') blockReason = t.blockedCritical;
+                  }
+                  
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestInvocation}
+                        disabled={isBlocked}
+                        aria-disabled={isBlocked ? "true" : "false"}
+                        aria-describedby={isBlocked ? "simulate-status" : undefined}
+                        className={`w-full min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                          isBlocked 
+                            ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed' 
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                        }`}
+                      >
+                        {isBlocked ? <Lock className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        <span>{t.simulate}</span>
+                      </button>
+                      <p id="simulate-status" className={`text-xs text-center ${isBlocked ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {isBlocked ? blockReason : (availability.kind === 'available' && availability.requiresConfirmation) ? t.simulateRequiresConfirmation : t.simulateDirect}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {executionResult && (
                   <div className="p-4 bg-black/40 border border-white/10 rounded-xl space-y-3">
@@ -472,11 +530,24 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
                       )}
                     </div>
                     
+                    <div className="text-xs text-gray-300 space-y-1 pt-2 border-t border-white/5">
+                      <p><span className="text-gray-500">{t.requestId}:</span> <span className="font-mono">{executionResult.auditEvent?.requestId || t.unknownStatus}</span></p>
+                      <p><span className="text-gray-500">{t.correlationId}:</span> <span className="font-mono">{executionResult.auditEvent?.correlationId || t.unknownStatus}</span></p>
+                      <p><span className="text-gray-500">{t.toolName}:</span> <span className="font-mono">{executionResult.auditEvent?.toolName || selectedTool.name}</span></p>
+                      <p><span className="text-gray-500">{t.appId}:</span> <span className="font-mono">{executionResult.auditEvent?.appId || selectedTool.appId}</span></p>
+                      <p><span className="text-gray-500">{t.organization}:</span> <span className="font-mono">{executionResult.auditEvent?.organizationId || context.activeOrganization.id}</span></p>
+                      <p><span className="text-gray-500">{t.risk}:</span> <span className="font-mono">{executionResult.auditEvent?.riskLevel || selectedTool.riskLevel}</span></p>
+                      <p><span className="text-gray-500">{t.confirmation}:</span> <span className="font-mono">{executionResult.auditEvent?.confirmationState || t.unknownStatus}</span></p>
+                      <p><span className="text-gray-500">{t.humanSummary}:</span> {executionResult.result?.humanSummary || t.unknownStatus}</p>
+                    </div>
+
+                    <p className="text-xs text-indigo-300 italic">{t.localMemoryNotice}</p>
+                    
                     <details className="mt-2 group">
-                      <summary className="cursor-pointer text-xs text-indigo-400 hover:text-indigo-300 font-mono select-none outline-none group-focus-visible:ring-2 group-focus-visible:ring-indigo-500 rounded px-1 -mx-1 inline-block">
-                        View Raw JSON
+                      <summary className="min-h-[44px] flex items-center cursor-pointer text-xs text-indigo-400 hover:text-indigo-300 font-mono select-none outline-none group-focus-visible:ring-2 group-focus-visible:ring-indigo-500 rounded px-1 -mx-1">
+                        {t.rawJson}
                       </summary>
-                      <div className="mt-3 bg-[#0B0F19] p-3 rounded-lg overflow-x-auto border border-white/5">
+                      <div className="mt-1 bg-[#0B0F19] p-3 rounded-lg overflow-x-auto border border-white/5">
                         <pre className="text-xs font-mono text-gray-300 whitespace-pre">
                           {JSON.stringify(executionResult, null, 2)}
                         </pre>
@@ -492,8 +563,8 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
              <div className="w-12 h-12 rounded-full bg-[#1A2234] flex items-center justify-center">
                 <Code2 className="w-6 h-6 text-gray-500" />
               </div>
-              <h3 className="text-sm font-bold text-white">Nenhuma ferramenta selecionada</h3>
-              <p className="text-xs text-gray-400">Selecione uma ferramenta no catálogo para visualizar detalhes e simular a execução.</p>
+              <h3 className="text-sm font-bold text-white">{t.noToolSelectedTitle}</h3>
+              <p className="text-xs text-gray-400">{t.noToolSelectedDescription}</p>
           </div>
         )}
       </div>
@@ -503,6 +574,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
         isOpen={!!pendingTool}
         onConfirm={handleConfirmTool}
         onCancel={handleCancelTool}
+        currentLang={currentLang}
       />
     </div>
   );

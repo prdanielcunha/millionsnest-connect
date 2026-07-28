@@ -848,6 +848,6 @@ export const mockAppManifests: AppManifest[] = [
     iconName: 'Bot',
     description: 'Motor omnichannel, orquestração de agentes e barramento de ferramentas do MillionsNest.',
     status: 'ativo',
-    registeredToolsCount: 4,
+    registeredToolsCount: 0,
   },
 ];
