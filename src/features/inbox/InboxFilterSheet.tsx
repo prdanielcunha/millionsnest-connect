@@ -3,32 +3,21 @@ import { X } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { getInboxUxText } from '../../i18n/inboxUx';
 import { useInboxDialogA11y } from './useInboxDialogA11y';
-
-export type InboxFilterMode = 'all' | 'mine' | 'unassigned' | 'waiting_human' | 'automatic' | 'resolved';
-export type InboxChannelFilter = 'all' | 'whatsapp' | 'instagram' | 'inapp';
-
-export interface InboxFilterDraft {
-  mode: InboxFilterMode;
-  channel: InboxChannelFilter;
-}
+import { InboxFilterMode, InboxChannelFilter, InboxFilterDraft } from './inboxDomain';
 
 interface InboxFilterSheetProps {
   isOpen: boolean;
-  onClose: () => void;
   appliedFilters: InboxFilterDraft;
   onApply: (draft: InboxFilterDraft) => void;
   onCancel: () => void;
-  onClear: () => void;
   currentLang: LanguageCode;
 }
 
 export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
   isOpen,
-  onClose,
   appliedFilters,
   onApply,
   onCancel,
-  onClear,
   currentLang,
 }) => {
   const t = getInboxUxText(currentLang);
@@ -49,7 +38,6 @@ export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
 
   const handleApply = () => {
     onApply(draft);
-    onClose();
   };
 
   return (
@@ -140,21 +128,30 @@ export const InboxFilterSheet: React.FC<InboxFilterSheetProps> = ({
           </div>
         </div>
 
-        <div className="p-4 border-t border-white/10 bg-[#0B0E14] flex gap-3">
+        <div className="p-4 border-t border-white/10 bg-[#0B0E14] flex flex-col gap-3">
           <button
             type="button"
             onClick={handleClear}
-            className="flex-1 min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-gray-300 bg-[#1A2234] hover:bg-[#222C42] focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="w-full min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-gray-300 bg-[#1A2234] hover:bg-[#222C42] focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
-            {t.clearFilters}
+            {t.clearDraft || 'Limpar Rascunho'}
           </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            className="flex-1 min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {t.apply}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-gray-300 bg-[#1A2234] hover:bg-[#222C42] focus:outline-none focus:ring-2 focus:ring-gray-500"
+            >
+              {t.cancel}
+            </button>
+            <button
+              type="button"
+              onClick={handleApply}
+              className="flex-1 min-h-[44px] px-4 py-2 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {t.apply}
+            </button>
+          </div>
         </div>
       </div>
     </div>

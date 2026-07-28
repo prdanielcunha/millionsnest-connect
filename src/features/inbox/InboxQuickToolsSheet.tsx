@@ -69,26 +69,51 @@ export const InboxQuickToolsSheet: React.FC<InboxQuickToolsSheetProps> = ({
             if (!tool) return null;
             const isHumanApproval = tool.confirmationPolicy === 'human_approval';
             
+            if (isHumanApproval) {
+              return (
+                <div
+                  key={tool.name}
+                  tabIndex={0}
+                  aria-disabled="true"
+                  className="w-full text-left p-4 bg-[#1A2234] border border-white/5 rounded-xl opacity-60 cursor-not-allowed flex flex-col gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-sm font-bold text-gray-200 truncate flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-rose-400" />
+                      {tool.name}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-mono border whitespace-nowrap ${getRiskBadgeClass(tool.riskLevel)}`}>
+                      {tool.riskLevel}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 line-clamp-2">
+                    {tool.title}
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs text-gray-500 font-mono mt-1 pt-2 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span>{t.appLabel} {tool.appId}</span>
+                      <span>{t.policyLabel} {tool.confirmationPolicy}</span>
+                    </div>
+                    <div className="text-rose-400/80 mt-1">
+                      {t.humanApprovalRequired} - {t.unavailableInDemo}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <button
                 key={tool.name}
                 type="button"
-                disabled={isHumanApproval}
                 onClick={() => {
-                  if (!isHumanApproval) {
-                    onSimulateTool(tool.name);
-                    onClose();
-                  }
+                  onSimulateTool(tool.name);
+                  onClose();
                 }}
-                className={`w-full text-left p-4 bg-[#1A2234] border rounded-xl transition focus:outline-none flex flex-col gap-2 ${
-                  isHumanApproval 
-                    ? 'opacity-60 cursor-not-allowed border-white/5' 
-                    : 'border-white/5 hover:border-indigo-500/30 hover:bg-white/5 focus:ring-2 focus:ring-indigo-500'
-                }`}
+                className="w-full text-left p-4 bg-[#1A2234] border border-white/5 rounded-xl transition focus:outline-none flex flex-col gap-2 hover:border-indigo-500/30 hover:bg-white/5 focus:ring-2 focus:ring-indigo-500"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-sm font-bold text-gray-200 truncate flex items-center gap-2">
-                    {isHumanApproval && <Lock className="w-3.5 h-3.5 text-rose-400" />}
                     {tool.name}
                   </span>
                   <span className={`px-2 py-0.5 rounded text-xs font-mono border whitespace-nowrap ${getRiskBadgeClass(tool.riskLevel)}`}>
@@ -103,11 +128,6 @@ export const InboxQuickToolsSheet: React.FC<InboxQuickToolsSheetProps> = ({
                     <span>{t.appLabel} {tool.appId}</span>
                     <span>{t.policyLabel} {tool.confirmationPolicy}</span>
                   </div>
-                  {isHumanApproval && (
-                    <div className="text-rose-400/80 mt-1">
-                      {t.humanApprovalRequired} - {t.unavailableInDemo}
-                    </div>
-                  )}
                 </div>
               </button>
             );

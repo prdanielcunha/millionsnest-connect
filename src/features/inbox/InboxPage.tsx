@@ -43,9 +43,18 @@ import {
 } from '../../demo/mockData';
 import { ToolGatewayService } from '../../core/services/toolGateway';
 import { getInboxUxText } from '../../i18n/inboxUx';
-import { inboxMobileUiReducer, InboxMobileUiState } from './inboxMobileState';
+import { inboxMobileUiReducer } from './inboxMobileState';
 import { InboxFilterSheet } from './InboxFilterSheet';
 import { InboxQuickToolsSheet } from './InboxQuickToolsSheet';
+import {
+  InboxFilterMode,
+  InboxChannelFilter,
+  selectOrganizationConversations,
+  selectInitialConversationId,
+  selectActiveConversation,
+  selectActiveContact,
+  validatePendingToolContext,
+} from './inboxDomain';
 
 interface InboxPageProps {
   context: EffectiveEcosystemContext;
@@ -65,8 +74,8 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
   const [messagesMap, setMessagesMap] = useState<Record<string, UnifiedMessage[]>>(mockMessages);
   
   // Filter draft state is handled internally by sheet, these are applied filters
-  const [filterMode, setFilterMode] = useState<string>('all');
-  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [filterMode, setFilterMode] = useState<InboxFilterMode>('all');
+  const [channelFilter, setChannelFilter] = useState<InboxChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [inputMessage, setInputMessage] = useState<string>('');
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
@@ -81,17 +90,11 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
     quickToolsOpen: false,
   });
 
-  const organizationConversations = conversations.filter(
-    (c) => c.organizationId === context.activeOrganization.id
-  );
+  const organizationConversations = selectOrganizationConversations(conversations, context.activeOrganization.id);
 
-  const activeConversation = activeConversationId
-    ? organizationConversations.find((c) => c.id === activeConversationId) || null
-    : null;
+  const activeConversation = selectActiveConversation(conversations, context.activeOrganization.id, activeConversationId);
 
-  const activeContact = activeConversation
-    ? mockContacts.find((cnt) => cnt.id === activeConversation.contactId) || null
-    : null;
+  const activeContact = selectActiveContact(mockContacts, activeConversation);
 
   const currentMessages = activeConversation ? messagesMap[activeConversation.id] || [] : [];
 
@@ -101,11 +104,18 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
     setNotice(null);
     
     // Select first conversation of the new org, if any
-    const orgConversations = conversations.filter(
-      (c) => c.organizationId === context.activeOrganization.id
-    );
-    setActiveConversationId(orgConversations[0]?.id || null);
+    const initialId = selectInitialConversationId(conversations, context.activeOrganization.id);
+    setActiveConversationId(initialId);
   }, [context.activeOrganization.id]);
+
+  useEffect(() => {
+    if (pendingTool) {
+      const isValid = validatePendingToolContext(pendingTool, activeConversation, context.activeOrganization.id);
+      if (!isValid) {
+        setPendingTool(null);
+      }
+    }
+  }, [pendingTool, activeConversation, context.activeOrganization.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -226,6 +236,19 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
   const handleConfirmTool = () => {
     if (!pendingTool) return;
     
+    const isValid = validatePendingToolContext(
+      pendingTool,
+      activeConversation,
+      context.activeOrganization.id
+    );
+    
+    if (!isValid) {
+      setNotice({ kind: 'error', message: t.tenantMismatch });
+      setPendingTool(null);
+      return;
+    }
+    
+    const activeConv = activeConversation!;
     const evidence = createDemoConfirmationEvidence(
       pendingTool,
       pendingTool.tool.confirmationPolicy === 'explicit' ? 'explicit_click' : 'simple_click'
@@ -237,7 +260,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
     
     const toolMsg: UnifiedMessage = {
       id: `msg_tool_${Date.now()}`,
-      conversationId: activeConversation.id,
+      conversationId: activeConv.id,
       senderType: 'agent',
       senderName: 'Tool Gateway (Demo)',
       content: `${t.simulatedTool} **${pendingTool.tool.title}**. ${t.noExternalCall}`,
@@ -257,7 +280,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
     };
     setMessagesMap((prev) => ({
       ...prev,
-      [activeConversation.id]: [...(prev[activeConversation.id] || []), toolMsg],
+      [activeConv.id]: [...(prev[activeConv.id] || []), toolMsg],
     }));
     setPendingTool(null);
   };
@@ -930,17 +953,13 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
 
       <InboxFilterSheet 
         isOpen={mobileState.filtersOpen}
-        onClose={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
-        onCancel={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
-        appliedFilters={{ mode: filterMode as any, channel: channelFilter as any }}
+        appliedFilters={{ mode: filterMode, channel: channelFilter }}
         onApply={(draft) => {
           setFilterMode(draft.mode);
           setChannelFilter(draft.channel);
+          dispatchMobile({ type: 'CLOSE_FILTERS' });
         }}
-        onClear={() => {
-          setFilterMode('all');
-          setChannelFilter('all');
-        }}
+        onCancel={() => dispatchMobile({ type: 'CLOSE_FILTERS' })}
         currentLang={currentLang}
       />
 
