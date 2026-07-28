@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { PendingDemoToolInvocation } from '../../demo/confirmations/demoToolFlow';
 import { LanguageCode } from '../../types';
 import { demoConfirmationCatalog } from '../../i18n/demoConfirmationUx';
+import { getDialogFocusableElements } from '../../core/a11y/dialogFocus';
 
 export type DemoToolConfirmationDialogProps = {
   pending: PendingDemoToolInvocation | null;
@@ -25,17 +26,28 @@ export function DemoToolConfirmationDialog({
 
   const t = demoConfirmationCatalog[currentLang] || demoConfirmationCatalog['pt-BR'];
 
-  const handleCancel = useCallback(() => {
-    onCancel();
+  const onCancelRef = useRef(onCancel);
+  const onConfirmRef = useRef(onConfirm);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
   }, [onCancel]);
 
-  const handleConfirm = useCallback(() => {
-    onConfirm();
+  useEffect(() => {
+    onConfirmRef.current = onConfirm;
   }, [onConfirm]);
+
+  const handleCancel = () => onCancelRef.current();
+  const handleConfirm = () => onConfirmRef.current();
 
   useEffect(() => {
     if (isOpen) {
-      previousFocusRef.current = document.activeElement as HTMLElement;
+      if (document.activeElement instanceof HTMLElement) {
+        previousFocusRef.current = document.activeElement;
+      } else {
+        previousFocusRef.current = null;
+      }
+      const previousOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       
       const timer = setTimeout(() => {
@@ -43,24 +55,35 @@ export function DemoToolConfirmationDialog({
       }, 50);
       
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') handleCancel();
+        if (e.key === 'Escape') {
+          onCancelRef.current();
+          return;
+        }
         
         if (e.key === 'Tab') {
           if (!dialogRef.current) return;
-          const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
+          const focusableElements = getDialogFocusableElements(dialogRef.current);
+          if (focusableElements.length === 0) {
+            e.preventDefault();
+            return;
+          }
+          if (focusableElements.length === 1) {
+            e.preventDefault();
+            focusableElements[0].focus();
+            return;
+          }
+
           const firstElement = focusableElements[0];
           const lastElement = focusableElements[focusableElements.length - 1];
 
           if (e.shiftKey) {
             if (document.activeElement === firstElement) {
-              lastElement?.focus();
+              lastElement.focus();
               e.preventDefault();
             }
           } else {
             if (document.activeElement === lastElement) {
-              firstElement?.focus();
+              firstElement.focus();
               e.preventDefault();
             }
           }
@@ -71,13 +94,13 @@ export function DemoToolConfirmationDialog({
       return () => {
         clearTimeout(timer);
         document.removeEventListener('keydown', handleKeyDown);
-        document.body.style.overflow = '';
+        document.body.style.overflow = previousOverflow;
         if (previousFocusRef.current) {
           previousFocusRef.current.focus();
         }
       };
     }
-  }, [isOpen, handleCancel]);
+  }, [isOpen]);
 
   if (!isOpen || !pending) return null;
 

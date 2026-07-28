@@ -32,6 +32,25 @@ export function selectToolById(
   return tools.find((t) => t.id === selectedToolId) || null;
 }
 
+export const TOOLS_RISK_VALUES: readonly RiskLevel[] = ['R0_PUBLIC', 'R1_AUTH_READ', 'R2_REVERSIBLE_WRITE', 'R3_PRIVILEGED', 'R4_CRITICAL'];
+
+export function isToolsRiskFilter(value: string): value is ToolsRiskFilter {
+  return value === 'all' || TOOLS_RISK_VALUES.includes(value as RiskLevel);
+}
+
+export function haveSameRequiredPermissions(
+  left: readonly string[],
+  right: readonly string[]
+): boolean {
+  if (left.length !== right.length) return false;
+  const leftSorted = [...left].sort();
+  const rightSorted = [...right].sort();
+  for (let i = 0; i < leftSorted.length; i++) {
+    if (leftSorted[i] !== rightSorted[i]) return false;
+  }
+  return true;
+}
+
 export function validateToolsPendingContext(
   pendingTool: PendingDemoToolInvocation | null,
   selectedTool: ToolDefinition | null,
@@ -41,6 +60,11 @@ export function validateToolsPendingContext(
   if (!selectedTool) return false;
   if (pendingTool.tool.id !== selectedTool.id) return false;
   if (pendingTool.tool.appId !== selectedTool.appId) return false;
+  if (pendingTool.tool.riskLevel !== selectedTool.riskLevel) return false;
+  if (pendingTool.tool.confirmationPolicy !== selectedTool.confirmationPolicy) return false;
+  if (pendingTool.tool.version !== selectedTool.version) return false;
+  if (!haveSameRequiredPermissions(pendingTool.tool.requiredPermissions, selectedTool.requiredPermissions)) return false;
+  
   if (pendingTool.organizationId !== activeOrganizationId) return false;
   if (pendingTool.conversationId !== `tools-lab:${activeOrganizationId}`) return false;
   

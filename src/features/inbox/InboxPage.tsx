@@ -1048,6 +1048,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({ context, currentLang, onNa
         isOpen={!!pendingTool}
         onConfirm={handleConfirmTool}
         onCancel={handleCancelTool}
+        currentLang={currentLang}
       />
     </div>
   );

@@ -44,7 +44,8 @@ import {
   ToolsAppFilter, 
   ToolsRiskFilter,
   countToolsByApp,
-  isToolVisibleInFilteredSet
+  isToolVisibleInFilteredSet,
+  isToolsRiskFilter
 } from './toolsDomain';
 import { buildDemoToolInput } from './demoToolInputs';
 import { toolsUxCatalog } from '../../i18n/toolsUx';
@@ -237,7 +238,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {mockAppManifests.map((app) => (
             <div
               key={app.appId}
@@ -308,7 +309,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
               <select
                 id="riskFilter"
                 value={riskFilter}
-                onChange={(e) => setRiskFilter(e.target.value as ToolsRiskFilter)}
+                onChange={(e) => setRiskFilter(isToolsRiskFilter(e.target.value) ? e.target.value : 'all')}
                 className="flex-1 min-h-[44px] bg-[#1A2234] border border-white/10 rounded-xl px-3 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">{t.filterAllRisks}</option>
@@ -418,7 +419,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
                     type="button"
                     onClick={() => setNotice(null)}
                     aria-label={t.closeNotice}
-                    className="w-8 h-8 -my-1 -mr-2 flex items-center justify-center rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10"
+                    className="w-11 h-11 shrink-0 flex items-center justify-center rounded-lg opacity-70 hover:opacity-100 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -443,7 +444,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ context, currentLang }) =>
                 </div>
                 <div className="p-3 bg-[#1A2234] border border-white/5 rounded-xl space-y-1">
                   <span className="text-gray-500 text-xs uppercase font-mono block">{t.organizationScoped}</span>
-                  <span className="text-purple-300 font-semibold font-mono break-words">{selectedTool.organizationScoped ? 'true' : 'false'}</span>
+                  <span className="text-purple-300 font-semibold font-mono break-words">{selectedTool.organizationScoped ? t.yes : t.no}</span>
                   <span className="text-xs text-gray-500 block mt-1">
                     {selectedTool.organizationScoped ? t.activeOrganizationContext : t.globalScopeDeclared}
                   </span>
