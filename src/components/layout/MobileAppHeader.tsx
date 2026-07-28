@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Menu, Search, Bell, Building2, ChevronDown, ChevronUp } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { getUxText } from '../../i18n/mobileUx';
+import { BrandLogo } from '../common/BrandLogo';
 
 interface MobileAppHeaderProps {
   context: EffectiveEcosystemContext;
@@ -84,11 +85,8 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div className="flex items-center gap-2 pl-1">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-[10px]">
-              MN
-            </div>
-            <span className="font-bold text-sm text-white">Connect</span>
+          <div className="flex items-center pl-1">
+            <BrandLogo layout="horizontal" surface="dark" className="h-5 w-auto" />
           </div>
         </div>
 

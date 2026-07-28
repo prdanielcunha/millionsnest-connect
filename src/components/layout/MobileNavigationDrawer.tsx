@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { getUxText } from '../../i18n/mobileUx';
+import { BrandLogo } from '../common/BrandLogo';
 
 interface MobileNavigationDrawerProps {
   isOpen: boolean;
@@ -105,11 +106,8 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
         {/* Header - added pt-[env(safe-area-inset-top)] if needed, but usually safe area is outside. Let's add it to the wrapper if needed, but typically browsers handle top safe area on fixed full-height elements. Let's just add safe-area insets. */}
         <div className="pt-[env(safe-area-inset-top)] flex flex-col h-full">
           <div className="h-14 px-2 border-b border-white/10 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2 pl-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-[10px]">
-                MN
-              </div>
-              <span className="font-bold text-sm text-white">Connect</span>
+            <div className="flex items-center pl-2">
+              <BrandLogo layout="horizontal" surface="dark" className="h-5 w-auto" />
             </div>
             <button
               ref={closeBtnRef}

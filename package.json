@@ -13,7 +13,8 @@
     "test:mobile-layout": "tsx src/tests/mobileLayout.test.ts",
     "test:inbox-mobile": "tsx src/tests/inboxMobile.test.ts && npm run test:inbox-domain",
     "test:inbox-domain": "tsx src/tests/inboxDomain.test.ts",
-    "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts"
+    "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
+    "test:menu-mobile": "tsx src/tests/menuMobile.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

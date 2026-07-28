@@ -57,7 +57,12 @@ export default function App() {
           />
         );
       case 'menu':
-        return <ConversationalMenuPage />;
+        return (
+          <ConversationalMenuPage
+            context={context}
+            currentLang={currentLang}
+          />
+        );
       case 'contacts':
         return <ContactsPage />;
       case 'agents':

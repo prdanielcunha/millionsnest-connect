@@ -5,6 +5,7 @@ import {
   Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
+import { BrandLogo } from '../common/BrandLogo';
 import { DemoBanner } from '../common/DemoBanner';
 import { CommandPalette } from './CommandPalette';
 import { MobileAppHeader } from './MobileAppHeader';
@@ -80,10 +81,7 @@ export const Shell: React.FC<ShellProps> = ({
           {/* Desktop Sidebar (Hidden on mobile/tablet) */}
           <div className="hidden lg:flex w-64 flex-col bg-[#121824] border-r border-white/10 shrink-0">
             <div className="h-14 flex items-center gap-2 px-4 border-b border-white/10">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
-                MN
-              </div>
-              <span className="font-bold text-sm text-white">Connect</span>
+              <BrandLogo layout="horizontal" surface="dark" className="h-6 w-auto" />
             </div>
             
             <div className="flex-1 overflow-y-auto py-4">
