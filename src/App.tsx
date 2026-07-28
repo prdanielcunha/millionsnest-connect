@@ -67,7 +67,7 @@ export default function App() {
       case 'automations':
         return <AutomationsPage />;
       case 'tools':
-        return <ToolsPage context={context} />;
+        return <ToolsPage context={context} currentLang={currentLang} />;
       case 'channels':
         return <ChannelsPage />;
       case 'analytics':
