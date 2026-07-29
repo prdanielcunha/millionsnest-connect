@@ -949,12 +949,14 @@ runTest('livingLibrary.manage policies', () => {
   cPerm.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
   
   // Immutability test setup for cPerm
-  const cPermPermissionsBefore = cPerm.memberships[0].permissions.length;
+  const cPermPermissionsReference = cPerm.memberships[0].permissions;
+  const cPermPermissionsSnapshot = [...cPermPermissionsReference];
   
   const resPerm = resolveDemoMenuProjection(cPerm, 'linked_demo', [optionDef], [tool]);
   checkEqual(resPerm['opt_test_ll'].allowed, false);
   checkEqual(resPerm['opt_test_ll'].reason, 'global_policy_unavailable');
-  checkEqual(cPerm.memberships[0].permissions.length, cPermPermissionsBefore, 'cPerm immutability failed');
+  checkEqual(cPerm.memberships[0].permissions, cPermPermissionsReference, 'cPerm permissions reference changed');
+  checkEqual(JSON.stringify(cPerm.memberships[0].permissions), JSON.stringify(cPermPermissionsSnapshot), 'cPerm permissions content changed');
 
   // With capability in appAccess
   const cCap = cloneContext(testBaseContext);
@@ -962,12 +964,14 @@ runTest('livingLibrary.manage policies', () => {
   cCap.appAccess = [{ appId: 'musicscale', access: true, capabilities: ['livingLibrary.manage'] }];
   
   // Immutability test setup for cCap
-  const cCapCapabilitiesBefore = cCap.appAccess[0].capabilities.length;
+  const cCapCapabilitiesReference = cCap.appAccess[0].capabilities;
+  const cCapCapabilitiesSnapshot = [...cCapCapabilitiesReference];
   
   const resCap = resolveDemoMenuProjection(cCap, 'linked_demo', [optionDef], [tool]);
   checkEqual(resCap['opt_test_ll'].allowed, false);
   checkEqual(resCap['opt_test_ll'].reason, 'global_policy_unavailable');
-  checkEqual(cCap.appAccess[0].capabilities.length, cCapCapabilitiesBefore, 'cCap immutability failed');
+  checkEqual(cCap.appAccess[0].capabilities, cCapCapabilitiesReference, 'cCap capabilities reference changed');
+  checkEqual(JSON.stringify(cCap.appAccess[0].capabilities), JSON.stringify(cCapCapabilitiesSnapshot), 'cCap capabilities content changed');
 });
 runTest('Structural checks and hardcoded removals', () => {
   const pageTsx = fs.readFileSync('src/features/menu/ConversationalMenuPage.tsx', 'utf8');
@@ -984,15 +988,15 @@ runTest('Structural checks and hardcoded removals', () => {
   checkEqual(pageTsx.includes('notch mock'), false, 'notch mock still exists');
 
   // New structural and policy checks
-  checkOk(pageTsx.includes('strings.menuPreviewLabel'), 'menuPreviewLabel not used');
-  checkOk(pageTsx.includes('<section'), 'section tag not used');
+  checkOk(/<section[^>]*aria-label=\{strings\.menuPreviewLabel\}/.test(pageTsx), 'menuPreviewLabel not semantically used in section');
   checkOk(pageTsx.includes('strings.actionNotExecuted'), 'actionNotExecuted not used');
-  checkEqual((pageTsx.match(/strings\.inputPlaceholder/g) || []).length, 1, 'inputPlaceholder used in more places than just the input');
+  checkEqual((pageTsx.match(/placeholder=\{strings\.inputPlaceholder\}/g) || []).length, 1, 'inputPlaceholder not properly assigned to placeholder attribute');
+  checkEqual((pageTsx.match(/strings\.inputPlaceholder/g) || []).length, 1, 'inputPlaceholder used in more places than just the input attribute');
   checkEqual(pageTsx.includes('proj.reason ==='), false, 'proj.reason === still used');
   checkEqual(pageTsx.includes('Blocked:'), false, 'Blocked: fallback still used');
   checkEqual(pageTsx.includes('as MenuProjectionReason'), false, 'as MenuProjectionReason still used');
   checkEqual(pageTsx.includes('MenuProjectionReason'), false, 'MenuProjectionReason imported or used in page');
-  checkOk(pageTsx.includes('getProjectionReasonText(proj.reason, strings)'), 'getProjectionReasonText not used properly');
+  checkEqual((pageTsx.match(/getProjectionReasonText\(proj\.reason, strings\)/g) || []).length, 1, 'Exactly one getProjectionReasonText call expected');
 
   // Search script check
   checkEqual(fs.existsSync('search_checks.sh'), false, 'search_checks.sh still exists');
