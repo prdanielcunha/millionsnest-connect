@@ -52,17 +52,29 @@ function checkOk(condition: boolean, msg = 'Condition not satisfied'): void {
   }
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function checkEqual<T>(actual: T, expected: T, msg = ''): void {
   totalAssertions++;
-  if (actual !== expected) {
-    throw new Error(`${msg ? msg + ': ' : ''}Expected ${JSON.stringify(expected)}, but got ${JSON.stringify(actual)}`);
-  }
-  totalAssertions++;
   currentAssertions++;
+
+  if (actual !== expected) {
+    throw new Error(
+      `${msg ? `${msg}: ` : ''}Expected ${JSON.stringify(expected)}, but got ${JSON.stringify(actual)}`
+    );
+  }
 }
 
 // ------------------------------------------------------------------
 // TEST DATA FOR PROJECTIONS
+// ------------------------------------------------------------------
+
+const cloneContext = (context: EffectiveEcosystemContext): EffectiveEcosystemContext => {
+  return structuredClone(context) as EffectiveEcosystemContext;
+};
+
 // ------------------------------------------------------------------
 const testBaseContext: EffectiveEcosystemContext = {
   mode: 'DEMO_MODE',
@@ -143,7 +155,7 @@ const testTools: ToolDefinition[] = [
     requiredPermissions: ['musicscale.schedules.manage'],
     organizationScoped: true,
     riskLevel: 'R2_REVERSIBLE_WRITE',
-    confirmationPolicy: 'explicit',
+    confirmationPolicy: 'human_approval',
     readOnly: false,
     idempotencyPolicy: 'required',
     supportsPreview: true,
@@ -163,7 +175,7 @@ const testTools: ToolDefinition[] = [
     requiredPermissions: ['livingLibrary.manage'],
     organizationScoped: false,
     riskLevel: 'R3_PRIVILEGED',
-    confirmationPolicy: 'explicit',
+    confirmationPolicy: 'human_approval',
     readOnly: false,
     idempotencyPolicy: 'required',
     supportsPreview: false,
@@ -843,8 +855,8 @@ runTest('livingLibrary.manage policies', () => {
     id: 't_ll',
     version: '1.0',
     title: 'Test',
-    inputSchema: {},
-    outputSchema: {},
+    inputSchema: { type: 'object' },
+    outputSchema: { type: 'object' },
     appId: 'musicscale',
     name: 'addSongToLivingLibrary',
     description: 'Add a song',
@@ -860,53 +872,97 @@ runTest('livingLibrary.manage policies', () => {
     auditEventType: 'test'
   };
 
-  const optionDef: any = {
+  const optionDef: MenuOptionDefinition = {
     id: 'opt_test_ll',
     category: 'protected',
     numberKey: '9',
     actionPayload: 'test',
-    title: 'Test',
     requiresActiveMembership: true,
     appId: 'musicscale',
     toolName: 'addSongToLivingLibrary'
   };
 
-  const c1 = JSON.parse(JSON.stringify(testBaseContext));
+  // 1. Without permission
+  const c1 = cloneContext(testBaseContext);
   c1.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
   c1.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
-  
   const r1 = resolveDemoMenuProjection(c1, 'linked_demo', [optionDef], [tool]);
   checkEqual(r1['opt_test_ll'].allowed, false);
   checkEqual(r1['opt_test_ll'].reason, 'permission_missing');
 
-  const roles = ['owner', 'admin', 'global_admin', 'founder', 'ecosystem_owner'];
-  for (const r of roles) {
-    const cRoles = JSON.parse(JSON.stringify(testBaseContext));
-    cRoles.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
-    cRoles.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
-    const resRoles = resolveDemoMenuProjection(cRoles, 'linked_demo', [optionDef], [tool]);
-    checkEqual(resRoles['opt_test_ll'].allowed, false);
-    checkEqual(resRoles['opt_test_ll'].reason, 'permission_missing');
-  }
+  // Matrix of roles without permission
+  // Owner
+  const cOwner = cloneContext(testBaseContext);
+  cOwner.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [], organizationRole: 'owner' }];
+  cOwner.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resOwner = resolveDemoMenuProjection(cOwner, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resOwner['opt_test_ll'].allowed, false);
+  checkEqual(resOwner['opt_test_ll'].reason, 'permission_missing');
 
-  const cPerm = JSON.parse(JSON.stringify(testBaseContext));
+  // Admin
+  const cAdmin = cloneContext(testBaseContext);
+  cAdmin.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [], organizationRole: 'admin' }];
+  cAdmin.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resAdmin = resolveDemoMenuProjection(cAdmin, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resAdmin['opt_test_ll'].allowed, false);
+  checkEqual(resAdmin['opt_test_ll'].reason, 'permission_missing');
+
+  // ceo
+  const cCeo = cloneContext(testBaseContext);
+  cCeo.user = { ...cCeo.user, systemRole: 'ceo' };
+  cCeo.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
+  cCeo.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resCeo = resolveDemoMenuProjection(cCeo, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resCeo['opt_test_ll'].allowed, false);
+  checkEqual(resCeo['opt_test_ll'].reason, 'permission_missing');
+
+  // global_admin
+  const cGlobalAdmin = cloneContext(testBaseContext);
+  cGlobalAdmin.user = { ...cGlobalAdmin.user, systemRole: 'global_admin' };
+  cGlobalAdmin.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
+  cGlobalAdmin.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resGlobalAdmin = resolveDemoMenuProjection(cGlobalAdmin, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resGlobalAdmin['opt_test_ll'].allowed, false);
+  checkEqual(resGlobalAdmin['opt_test_ll'].reason, 'permission_missing');
+
+  // ecosystem_owner
+  const cEcosystemOwner = cloneContext(testBaseContext);
+  cEcosystemOwner.user = { ...cEcosystemOwner.user, systemRole: 'ecosystem_owner' };
+  cEcosystemOwner.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
+  cEcosystemOwner.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resEcosystemOwner = resolveDemoMenuProjection(cEcosystemOwner, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resEcosystemOwner['opt_test_ll'].allowed, false);
+  checkEqual(resEcosystemOwner['opt_test_ll'].reason, 'permission_missing');
+
+  // founder
+  const cFounder = cloneContext(testBaseContext);
+  cFounder.user = { ...cFounder.user, systemRole: 'founder' };
+  cFounder.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
+  cFounder.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  const resFounder = resolveDemoMenuProjection(cFounder, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resFounder['opt_test_ll'].allowed, false);
+  checkEqual(resFounder['opt_test_ll'].reason, 'permission_missing');
+
+  // With permission in membership
+  const cPerm = cloneContext(testBaseContext);
   cPerm.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: ['livingLibrary.manage'] }];
   cPerm.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
   const resPerm = resolveDemoMenuProjection(cPerm, 'linked_demo', [optionDef], [tool]);
   checkEqual(resPerm['opt_test_ll'].allowed, false);
   checkEqual(resPerm['opt_test_ll'].reason, 'global_policy_unavailable');
 
-  const cCap = JSON.parse(JSON.stringify(testBaseContext));
+  // With capability in appAccess
+  const cCap = cloneContext(testBaseContext);
   cCap.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
   cCap.appAccess = [{ appId: 'musicscale', access: true, capabilities: ['livingLibrary.manage'] }];
   const resCap = resolveDemoMenuProjection(cCap, 'linked_demo', [optionDef], [tool]);
   checkEqual(resCap['opt_test_ll'].allowed, false);
   checkEqual(resCap['opt_test_ll'].reason, 'global_policy_unavailable');
+  
+  // Immutability test
+  checkEqual(cCap.memberships[0].permissions.length, 0);
+  checkEqual(cCap.appAccess[0].capabilities.length, 1);
 });
-
-
-// MOBILE STATE TESTS (57-61)
-
 runTest('Structural checks and hardcoded removals', () => {
   const pageTsx = fs.readFileSync('src/features/menu/ConversationalMenuPage.tsx', 'utf8');
   const serviceTs = fs.readFileSync('src/core/services/conversationalMenu.ts', 'utf8');
@@ -944,12 +1000,10 @@ runTest('Structural checks and hardcoded removals', () => {
 
 runTest('opt_ms_8 returns contract_missing', () => {
   const proj = resolveDemoMenuProjection(testBaseContext, 'linked_demo', staticOptionDefinitions, []);
-  if (proj['opt_ms_8']) {
-    checkEqual(proj['opt_ms_8'].allowed, false);
-    checkEqual(proj['opt_ms_8'].reason, 'contract_missing');
-  } else {
-    checkOk(true);
-  }
+  const result = proj['opt_ms_8'];
+  checkOk(result !== undefined);
+  checkEqual(result.allowed, false);
+  checkEqual(result.reason, 'contract_missing');
 });
 
 runTest('57. Initial state is "configure"', () => {
@@ -1109,8 +1163,8 @@ runTest('87. Harness guard prevents zero assertions', () => {
   let threw = false;
   try {
     ensureTestHasAssertions(0);
-  } catch (e: any) {
-    if (e.message.includes('0 assertions')) {
+  } catch (error: unknown) {
+    if (getErrorMessage(error).includes('0 assertions')) {
       threw = true;
     }
   }

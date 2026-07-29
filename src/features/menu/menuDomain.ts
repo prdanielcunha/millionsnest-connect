@@ -285,12 +285,12 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     opt_ms_1: {
       title: 'Ver próximas escalas',
       description: 'Consulte datas, horários e instrumentos em que você está escalado.',
-      badge: 'Membro Vinculado',
+      badge: 'Projeção vinculada',
     },
     opt_ms_2: {
       title: 'Ver detalhes de uma escala',
       description: 'Lista de músicas, tons, horários de ensaio e confirmações.',
-      badge: 'Membro Vinculado',
+      badge: 'Projeção vinculada',
     },
     opt_ms_3: {
       title: 'Criar rascunho de escala',
@@ -350,12 +350,12 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     opt_ms_1: {
       title: 'View Upcoming Schedules',
       description: 'Check dates, times, and instruments for your scheduled worships.',
-      badge: 'Linked Member',
+      badge: 'Linked projection',
     },
     opt_ms_2: {
       title: 'View Schedule Details',
       description: 'List of songs, keys, rehearsal times, and confirmations.',
-      badge: 'Linked Member',
+      badge: 'Linked projection',
     },
     opt_ms_3: {
       title: 'Create Schedule Draft',
@@ -415,12 +415,12 @@ export const optionsLocalizedCatalog: Record<LanguageCode, Record<string, Option
     opt_ms_1: {
       title: 'Ver próximas escalas',
       description: 'Consulte fechas, horarios e instrumentos en los que está programado.',
-      badge: 'Miembro Vinculado',
+      badge: 'Proyección vinculada',
     },
     opt_ms_2: {
       title: 'Ver detalles de una escala',
       description: 'Lista de canciones, tonos, horarios de ensayo y confirmaciones.',
-      badge: 'Miembro Vinculado',
+      badge: 'Proyección vinculada',
     },
     opt_ms_3: {
       title: 'Crear borrador de escala',
@@ -551,4 +551,36 @@ export function resolveDemoMenuProjection(
   }
 
   return results;
+}
+
+export type MenuProjectionReason =
+  | 'unlinked'
+  | 'context_incomplete'
+  | 'membership_missing'
+  | 'membership_inactive'
+  | 'app_access_missing'
+  | 'app_access_disabled'
+  | 'tool_missing'
+  | 'permission_missing'
+  | 'contract_missing'
+  | 'global_policy_unavailable';
+
+export function getProjectionReasonText(
+  reason: MenuProjectionReason | string | undefined,
+  strings: any
+): string | null {
+  if (!reason) return null;
+  switch (reason) {
+    case 'unlinked': return strings.reasonUnlinked;
+    case 'context_incomplete': return strings.reasonContextIncomplete;
+    case 'membership_missing': return strings.reasonMembershipMissing;
+    case 'membership_inactive': return strings.reasonMembershipInactive;
+    case 'app_access_missing': return strings.reasonAppAccessMissing;
+    case 'app_access_disabled': return strings.reasonAppAccessDisabled;
+    case 'tool_missing': return strings.reasonToolMissing;
+    case 'permission_missing': return strings.reasonPermissionMissing;
+    case 'contract_missing': return strings.contractMissingReason;
+    case 'global_policy_unavailable': return strings.reasonGlobalPolicyUnavailable;
+    default: return null;
+  }
 }

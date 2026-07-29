@@ -22,7 +22,9 @@ import {
   staticOptionDefinitions,
   optionsLocalizedCatalog,
   resolveDemoMenuProjection,
-  ProjectedMenuOption
+  ProjectedMenuOption,
+  getProjectionReasonText,
+  MenuProjectionReason
 } from './menuDomain';
 import {
   menuMobileReducer,
@@ -317,7 +319,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                              : proj.reason === 'context_incomplete' ? strings.reasonContextIncomplete
                              : proj.reason === 'contract_missing' ? strings.contractMissingReason
                              : proj.reason === 'global_policy_unavailable' ? strings.reasonGlobalPolicyUnavailable
-                             : `Blocked: ${proj.reason}`}
+                             : getProjectionReasonText(proj.reason as MenuProjectionReason, strings) || 'Blocked: ' + proj.reason}
                           </span>
                         )}
                       </div>
