@@ -68,6 +68,12 @@ const MENU_TRIGGERS_BY_LOCALE: Readonly<Record<LanguageCode, Readonly<Record<str
   }
 };
 
+export const SUPPORTED_MENU_LOCALES: readonly LanguageCode[] = [
+  'pt-BR',
+  'en-US',
+  'es-ES',
+];
+
 export function normalizeMenuTrigger(input: string): string {
   let normalized = input.trim().toLowerCase();
   // String normalize NFD & remove diacritics
@@ -95,8 +101,10 @@ export function matchMenuTrigger(input: string, preferredLocale: LanguageCode): 
     };
   }
 
-  // Fallback to other locales
-  for (const locale of Object.keys(MENU_TRIGGERS_BY_LOCALE) as LanguageCode[]) {
+
+
+  // Fallback to other locales in explicit order
+  for (const locale of SUPPORTED_MENU_LOCALES) {
     if (locale === preferredLocale) continue;
     const map = MENU_TRIGGERS_BY_LOCALE[locale];
     if (map[normalizedInput]) {
@@ -111,12 +119,23 @@ export function matchMenuTrigger(input: string, preferredLocale: LanguageCode): 
   return null;
 }
 
-export function hasCompleteProtectedMenuContract(option: MenuOptionDefinition): boolean {
+
+export type CompleteProtectedMenuOptionDefinition = MenuOptionDefinition & {
+  category: 'protected';
+  requiresActiveMembership: true;
+  appId: string;
+  toolName: string;
+};
+
+export function hasCompleteProtectedMenuContract(
+  option: MenuOptionDefinition
+): option is CompleteProtectedMenuOptionDefinition {
   if (option.category === 'protected') {
-    return option.requiresActiveMembership === true && !!option.appId && !!option.toolName;
+    return option.requiresActiveMembership === true && typeof option.appId === 'string' && typeof option.toolName === 'string';
   }
-  return true; // Public options don't need this contract
+  return false;
 }
+
 
 export const staticOptionDefinitions: MenuOptionDefinition[] = [
   // Public
@@ -485,48 +504,43 @@ export function resolveDemoMenuProjection(
     }
 
     // 5. appAccess correspondente existe, 6. appAccess.access === true
-    if (opt.appId) {
-      const appAccess = context.appAccess.find((a) => a.appId === opt.appId);
-      if (!appAccess) {
-        results[opt.id] = { optionId: opt.id, allowed: false, reason: 'app_access_missing' };
-        continue;
-      }
-      if (appAccess.access !== true) {
-        results[opt.id] = { optionId: opt.id, allowed: false, reason: 'app_access_disabled' };
-        continue;
-      }
+    const appAccess = context.appAccess.find((a) => a.appId === opt.appId);
+    if (!appAccess) {
+      results[opt.id] = { optionId: opt.id, allowed: false, reason: 'app_access_missing' };
+      continue;
+    }
+    if (appAccess.access !== true) {
+      results[opt.id] = { optionId: opt.id, allowed: false, reason: 'app_access_disabled' };
+      continue;
     }
 
-    // 7. ToolDefinition correspondente existe se toolName declarado
-    if (opt.toolName) {
-      const tool = tools.find((t) => t.name === opt.toolName && t.appId === opt.appId);
-      if (!tool) {
-        results[opt.id] = { optionId: opt.id, allowed: false, reason: 'tool_missing' };
+    // 7. ToolDefinition correspondente existe
+    const tool = tools.find((t) => t.name === opt.toolName && t.appId === opt.appId);
+    if (!tool) {
+      results[opt.id] = { optionId: opt.id, allowed: false, reason: 'tool_missing' };
+      continue;
+    }
+
+    // 8. requiredPermissions da ferramenta atendidas exatamente por:
+    // - membership.permissions ou appAccess.capabilities
+    const required = tool.requiredPermissions || [];
+    if (required.length > 0) {
+      const userPerms = membership.permissions || [];
+      const userCaps = appAccess.capabilities || [];
+
+      const hasAll = required.every(
+        (p) => userPerms.includes(p) || userCaps.includes(p)
+      );
+
+      if (!hasAll) {
+        results[opt.id] = { optionId: opt.id, allowed: false, reason: 'permission_missing' };
         continue;
       }
 
-      // 8. requiredPermissions da ferramenta atendidas exatamente por:
-      // - membership.permissions ou appAccess.capabilities
-      const required = tool.requiredPermissions || [];
-      if (required.length > 0) {
-        const userPerms = membership.permissions || [];
-        
-        let userCaps: string[] = [];
-        if (opt.appId) {
-          const appAccess = context.appAccess.find((a) => a.appId === opt.appId);
-          if (appAccess) {
-            userCaps = appAccess.capabilities || [];
-          }
-        }
-
-        const hasAll = required.every(
-          (p) => userPerms.includes(p) || userCaps.includes(p)
-        );
-
-        if (!hasAll) {
-          results[opt.id] = { optionId: opt.id, allowed: false, reason: 'permission_missing' };
-          continue;
-        }
+      // Se livingLibrary.manage estiver presente e exigida, bloqueia por política global
+      if (required.includes('livingLibrary.manage')) {
+        results[opt.id] = { optionId: opt.id, allowed: false, reason: 'global_policy_unavailable' };
+        continue;
       }
     }
 

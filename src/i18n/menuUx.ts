@@ -60,6 +60,7 @@ export interface MenuUxStrings {
   notApplicable: string;
   localPreviewHeader: string;
   contractMissingReason: string;
+  reasonGlobalPolicyUnavailable: string;
   actionNotExecuted: string;
   menuPreviewLabel: string;
 }
@@ -75,6 +76,7 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     notApplicable: 'N/A',
     localPreviewHeader: 'Prévia Local Simulada',
     contractMissingReason: 'Bloqueado: Contrato de opção protegida incompleto.',
+    reasonGlobalPolicyUnavailable: 'Bloqueado: a política global canônica da Biblioteca Viva não está disponível nesta projeção local.',
     actionNotExecuted: 'Nenhuma ação executada',
     menuPreviewLabel: 'Prévia do Menu',
     scenarioLinked: 'Cenário de vínculo demonstrativo',
@@ -138,6 +140,7 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     notApplicable: 'N/A',
     localPreviewHeader: 'Simulated Local Preview',
     contractMissingReason: 'Blocked: Protected option contract incomplete.',
+    reasonGlobalPolicyUnavailable: 'Blocked: the canonical Living Library global policy is unavailable in this local projection.',
     actionNotExecuted: 'No action executed',
     menuPreviewLabel: 'Menu Preview',
     scenarioLinked: 'Demonstrative linked scenario',
@@ -201,6 +204,7 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     notApplicable: 'N/A',
     localPreviewHeader: 'Vista Previa Local Simulada',
     contractMissingReason: 'Bloqueado: Contrato de opción protegida incompleto.',
+    reasonGlobalPolicyUnavailable: 'Bloqueado: la política global canónica de la Biblioteca Viva no está disponible en esta proyección local.',
     actionNotExecuted: 'Ninguna acción ejecutada',
     menuPreviewLabel: 'Vista Previa del Menú',
     scenarioLinked: 'Escenario de vínculo demostrativo',

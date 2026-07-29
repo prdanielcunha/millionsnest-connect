@@ -1,7 +1,6 @@
 import React, { useState, useReducer, useEffect } from 'react';
 import {
   Smartphone,
-  CheckCircle2,
   Lock,
   Send,
   Sparkles,
@@ -9,10 +8,8 @@ import {
   UserCheck,
   Building,
   ArrowLeft,
-  Settings,
   Info,
   ShieldCheck,
-  XCircle,
   AlertCircle
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
@@ -29,8 +26,7 @@ import {
 } from './menuDomain';
 import {
   menuMobileReducer,
-  initialMobileState,
-  MenuMobileView
+  initialMobileState
 } from './menuMobileState';
 
 interface ConversationalMenuPageProps {
@@ -66,8 +62,12 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
   // Recalculate or reset state when organization changes
   useEffect(() => {
     dispatchMobile({ type: 'CHANGE_ORG' });
-    setSelectedAction(null);
   }, [context.activeOrganization.id]);
+
+  // Limpar selectedAction obsoleto quando o contexto base ou input mudar
+  useEffect(() => {
+    setSelectedAction(null);
+  }, [userInput, currentLang, scenario, context.activeOrganization.id, channel]);
 
   const handleTestTrigger = (triggerText: string) => {
     setUserInput(triggerText);
@@ -302,19 +302,22 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                     {opt.category === 'protected' && (
                       <div className="text-xs text-gray-400 space-y-0.5">
                         <span className="block">
-                          App: <code className="text-gray-300">{opt.appId}</code> | Tool:{' '}
-                          <code className="text-gray-300">{opt.toolName || 'N/A'}</code>
+                          {strings.appLabel}: <code className="text-gray-300">{opt.appId}</code> | {strings.toolLabel}:{' '}
+                          <code className="text-gray-300">{opt.toolName || strings.notApplicable}</code>
                         </span>
                         {!proj.allowed && proj.reason && (
                           <span className="text-rose-300 font-medium block">
-                            {proj.reason === 'unlinked' && strings.reasonUnlinked}
-                            {proj.reason === 'membership_missing' && strings.reasonMembershipMissing}
-                            {proj.reason === 'membership_inactive' && strings.reasonMembershipInactive}
-                            {proj.reason === 'app_access_missing' && strings.reasonAppAccessMissing}
-                            {proj.reason === 'app_access_disabled' && strings.reasonAppAccessDisabled}
-                            {proj.reason === 'tool_missing' && strings.reasonToolMissing}
-                            {proj.reason === 'permission_missing' && strings.reasonPermissionMissing}
-                            {proj.reason === 'context_incomplete' && strings.reasonContextIncomplete}
+                            {proj.reason === 'unlinked' ? strings.reasonUnlinked
+                             : proj.reason === 'membership_missing' ? strings.reasonMembershipMissing
+                             : proj.reason === 'membership_inactive' ? strings.reasonMembershipInactive
+                             : proj.reason === 'app_access_missing' ? strings.reasonAppAccessMissing
+                             : proj.reason === 'app_access_disabled' ? strings.reasonAppAccessDisabled
+                             : proj.reason === 'tool_missing' ? strings.reasonToolMissing
+                             : proj.reason === 'permission_missing' ? strings.reasonPermissionMissing
+                             : proj.reason === 'context_incomplete' ? strings.reasonContextIncomplete
+                             : proj.reason === 'contract_missing' ? strings.contractMissingReason
+                             : proj.reason === 'global_policy_unavailable' ? strings.reasonGlobalPolicyUnavailable
+                             : `Blocked: ${proj.reason}`}
                           </span>
                         )}
                       </div>
@@ -395,11 +398,10 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
             {/* Simulated Smartphone Screen Wrapper */}
             <div className="max-w-md mx-auto bg-[#07090E] border-4 border-[#1A2234] rounded-[36px] overflow-hidden shadow-2xl relative">
               
-              {/* Phone Header notch mock */}
-              <div className="h-6 bg-[#121824] flex items-center justify-between px-6 text-xs text-gray-500 font-mono select-none">
-                <span></span>
-                <div className="w-20 h-4 bg-black rounded-b-xl absolute left-1/2 transform -translate-x-1/2 top-0"></div>
-                <span>DEMO</span>
+              {/* Simulated Preview Header */}
+              <div className="bg-[#121824] flex flex-col items-center justify-center p-3 text-xs text-gray-400 font-mono select-none border-b border-white/5">
+                <span className="font-bold text-gray-300">{strings.localPreviewHeader}</span>
+                <span className="opacity-70 mt-1">{strings.demoMode}</span>
               </div>
 
               {/* Chat Canvas area */}
@@ -572,7 +574,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                       {selectedAction.title}
                     </span>
                     <span className="text-xs text-gray-400 font-mono">
-                      ID: {selectedAction.id}
+                      {strings.technicalIdLabel}: {selectedAction.id}
                     </span>
                   </div>
 
@@ -585,7 +587,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                     </code>
                     {selectedAction.toolName && (
                       <span className="block text-xs text-gray-400 mt-1">
-                        Tool: <code className="text-gray-200">{selectedAction.toolName}</code> | App:{' '}
+                        {strings.toolLabel}: <code className="text-gray-200">{selectedAction.toolName}</code> | {strings.appLabel}:{' '}
                         <code className="text-gray-200">{selectedAction.appId}</code>
                       </span>
                     )}
