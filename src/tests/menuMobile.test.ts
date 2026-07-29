@@ -947,9 +947,27 @@ runTest('livingLibrary.manage policies', () => {
   const cPerm = cloneContext(testBaseContext);
   cPerm.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: ['livingLibrary.manage'] }];
   cPerm.appAccess = [{ appId: 'musicscale', access: true, capabilities: [] }];
+  
+  // Immutability test setup for cPerm
+  const cPermPermissionsBefore = cPerm.memberships[0].permissions.length;
+  
   const resPerm = resolveDemoMenuProjection(cPerm, 'linked_demo', [optionDef], [tool]);
   checkEqual(resPerm['opt_test_ll'].allowed, false);
   checkEqual(resPerm['opt_test_ll'].reason, 'global_policy_unavailable');
+  checkEqual(cPerm.memberships[0].permissions.length, cPermPermissionsBefore, 'cPerm immutability failed');
+
+  // With capability in appAccess
+  const cCap = cloneContext(testBaseContext);
+  cCap.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
+  cCap.appAccess = [{ appId: 'musicscale', access: true, capabilities: ['livingLibrary.manage'] }];
+  
+  // Immutability test setup for cCap
+  const cCapCapabilitiesBefore = cCap.appAccess[0].capabilities.length;
+  
+  const resCap = resolveDemoMenuProjection(cCap, 'linked_demo', [optionDef], [tool]);
+  checkEqual(resCap['opt_test_ll'].allowed, false);
+  checkEqual(resCap['opt_test_ll'].reason, 'global_policy_unavailable');
+  checkEqual(cCap.appAccess[0].capabilities.length, cCapCapabilitiesBefore, 'cCap immutability failed');
 });
 runTest('Structural checks and hardcoded removals', () => {
   const pageTsx = fs.readFileSync('src/features/menu/ConversationalMenuPage.tsx', 'utf8');
@@ -965,9 +983,32 @@ runTest('Structural checks and hardcoded removals', () => {
   checkEqual(pageTsx.includes('<span></span>'), false, 'Empty span still exists');
   checkEqual(pageTsx.includes('notch mock'), false, 'notch mock still exists');
 
-  // New translation usage
-  checkOk(pageTsx.includes('strings.contractMissingReason'), 'contractMissingReason not used');
-  checkOk(pageTsx.includes('strings.reasonGlobalPolicyUnavailable') || pageTsx.includes('strings.reasonGlobalPolicyUnavailable'), 'reasonGlobalPolicyUnavailable not used');
+  // New structural and policy checks
+  checkOk(pageTsx.includes('strings.menuPreviewLabel'), 'menuPreviewLabel not used');
+  checkOk(pageTsx.includes('<section'), 'section tag not used');
+  checkOk(pageTsx.includes('strings.actionNotExecuted'), 'actionNotExecuted not used');
+  checkEqual((pageTsx.match(/strings\.inputPlaceholder/g) || []).length, 1, 'inputPlaceholder used in more places than just the input');
+  checkEqual(pageTsx.includes('proj.reason ==='), false, 'proj.reason === still used');
+  checkEqual(pageTsx.includes('Blocked:'), false, 'Blocked: fallback still used');
+  checkEqual(pageTsx.includes('as MenuProjectionReason'), false, 'as MenuProjectionReason still used');
+  checkEqual(pageTsx.includes('MenuProjectionReason'), false, 'MenuProjectionReason imported or used in page');
+  checkOk(pageTsx.includes('getProjectionReasonText(proj.reason, strings)'), 'getProjectionReasonText not used properly');
+
+  // Search script check
+  checkEqual(fs.existsSync('search_checks.sh'), false, 'search_checks.sh still exists');
+
+  // Domain structure checks
+  const domainTs = fs.readFileSync('src/features/menu/menuDomain.ts', 'utf8');
+  checkOk(domainTs.includes('reason?: MenuProjectionReason;'), 'ProjectedMenuOption.reason is not correctly typed');
+  checkOk(domainTs.includes('reason: MenuProjectionReason | undefined'), 'getProjectionReasonText reason param not correctly typed');
+  checkOk(domainTs.includes('strings: MenuUxStrings'), 'getProjectionReasonText strings param not correctly typed');
+  checkEqual(domainTs.includes('any'), false, 'menuDomain.ts contains any');
+  
+  // Ux checks
+  const uxTs = fs.readFileSync('src/i18n/menuUx.ts', 'utf8');
+  checkOk(uxTs.includes('Datos técnicos de la acción:'), 'es-ES selectedActionPayload missing');
+  checkEqual(uxTs.includes('Payload técnico da ação:'), true, 'pt-BR payload missing'); // ensure we didn't remove the pt-BR one
+  checkEqual((uxTs.match(/Payload técnico da ação:/g) || []).length, 1, 'Too many Payload técnico da ação'); // Should be 1
   
   // Effect invalidating selectedAction
   checkOk(pageTsx.includes('setSelectedAction(null)'), 'setSelectedAction(null) not used in effect');
@@ -1158,6 +1199,24 @@ runTest('87. Harness guard prevents zero assertions', () => {
   }
   checkEqual(threw, true);
   ensureTestHasAssertions(1); // Should not throw
+});
+
+runTest('testTools R1, R2, R3 policies', () => {
+  const t1 = testTools.find(t => t.id === 't1');
+  const t2 = testTools.find(t => t.id === 't2');
+  const t99 = testTools.find(t => t.id === 't99');
+
+  checkOk(!!t1, 't1 not found');
+  checkEqual(t1.riskLevel, 'R1_AUTH_READ');
+  checkEqual(t1.confirmationPolicy, 'none');
+
+  checkOk(!!t2, 't2 not found');
+  checkEqual(t2.riskLevel, 'R2_REVERSIBLE_WRITE');
+  checkEqual(t2.confirmationPolicy, 'explicit');
+
+  checkOk(!!t99, 't99 not found');
+  checkEqual(t99.riskLevel, 'R3_PRIVILEGED');
+  checkEqual(t99.confirmationPolicy, 'human_approval');
 });
 
 console.log(`\nTests completed: ${passedTests} passed, ${failedTests} failed, ${skippedTests} skipped. Total tests: ${totalTests}. Total assertions: ${totalAssertions}`);

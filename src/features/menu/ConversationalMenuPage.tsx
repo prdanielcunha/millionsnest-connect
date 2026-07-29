@@ -23,8 +23,7 @@ import {
   optionsLocalizedCatalog,
   resolveDemoMenuProjection,
   ProjectedMenuOption,
-  getProjectionReasonText,
-  MenuProjectionReason
+  getProjectionReasonText
 } from './menuDomain';
 import {
   menuMobileReducer,
@@ -282,6 +281,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
               {staticOptionDefinitions.map((opt) => {
                 const loc = localizedMap[opt.id];
                 const proj = diagnosticProjection[opt.id] || { allowed: false, reason: undefined };
+                const projectionReasonText = getProjectionReasonText(proj.reason, strings);
                 return (
                   <div
                     key={opt.id}
@@ -307,19 +307,9 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                           {strings.appLabel}: <code className="text-gray-300">{opt.appId}</code> | {strings.toolLabel}:{' '}
                           <code className="text-gray-300">{opt.toolName || strings.notApplicable}</code>
                         </span>
-                        {!proj.allowed && proj.reason && (
+                        {!proj.allowed && projectionReasonText && (
                           <span className="text-rose-300 font-medium block">
-                            {proj.reason === 'unlinked' ? strings.reasonUnlinked
-                             : proj.reason === 'membership_missing' ? strings.reasonMembershipMissing
-                             : proj.reason === 'membership_inactive' ? strings.reasonMembershipInactive
-                             : proj.reason === 'app_access_missing' ? strings.reasonAppAccessMissing
-                             : proj.reason === 'app_access_disabled' ? strings.reasonAppAccessDisabled
-                             : proj.reason === 'tool_missing' ? strings.reasonToolMissing
-                             : proj.reason === 'permission_missing' ? strings.reasonPermissionMissing
-                             : proj.reason === 'context_incomplete' ? strings.reasonContextIncomplete
-                             : proj.reason === 'contract_missing' ? strings.contractMissingReason
-                             : proj.reason === 'global_policy_unavailable' ? strings.reasonGlobalPolicyUnavailable
-                             : getProjectionReasonText(proj.reason, strings)}
+                            {projectionReasonText}
                           </span>
                         )}
                       </div>
