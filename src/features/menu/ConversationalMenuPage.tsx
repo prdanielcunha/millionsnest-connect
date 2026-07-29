@@ -281,7 +281,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {staticOptionDefinitions.map((opt) => {
                 const loc = localizedMap[opt.id];
-                const proj = diagnosticProjection[opt.id] || { allowed: false, reason: 'unknown' };
+                const proj = diagnosticProjection[opt.id] || { allowed: false, reason: undefined };
                 return (
                   <div
                     key={opt.id}
@@ -319,7 +319,7 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                              : proj.reason === 'context_incomplete' ? strings.reasonContextIncomplete
                              : proj.reason === 'contract_missing' ? strings.contractMissingReason
                              : proj.reason === 'global_policy_unavailable' ? strings.reasonGlobalPolicyUnavailable
-                             : getProjectionReasonText(proj.reason as MenuProjectionReason, strings) || 'Blocked: ' + proj.reason}
+                             : getProjectionReasonText(proj.reason, strings)}
                           </span>
                         )}
                       </div>
@@ -332,7 +332,8 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
         </div>
 
         {/* Right pane: Preview (visible on lg OR when mobileState is 'preview') */}
-        <div
+        <section
+          aria-label={strings.menuPreviewLabel}
           className={`space-y-6 lg:col-span-7 ${
             mobileState.activeView === 'preview' ? 'block' : 'hidden lg:block'
           }`}
@@ -627,13 +628,13 @@ export const ConversationalMenuPage: React.FC<ConversationalMenuPageProps> = ({
                 </div>
               ) : (
                 <span className="text-xs text-gray-500 block italic">
-                  {strings.inputPlaceholder}
+                  {strings.actionNotExecuted}
                 </span>
               )}
             </div>
 
           </div>
-        </div>
+        </section>
 
       </div>
     </div>

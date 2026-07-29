@@ -239,7 +239,7 @@ export const menuUxCatalog: Record<LanguageCode, MenuUxStrings> = {
     subtitleUnlinked: '¡Hola! ¿Cómo podemos ayudarte hoy en el ecosistema MillionsNest?',
     footerNote: 'Responda con el número o escriba "Menú" en cualquier momento.',
     selectedActionTitle: 'Acción Seleccionada Localmente',
-    selectedActionPayload: 'Payload técnico da ação:',
+    selectedActionPayload: 'Datos técnicos de la acción:',
     noExternalAction: 'Este simulador no ha activado ninguna acción externa.',
     humanTransferTitle: 'Transferencia a Agente Humano',
     humanTransferDesc: 'En producción, este comando pausará por completo la automatización de IA para este contacto.',

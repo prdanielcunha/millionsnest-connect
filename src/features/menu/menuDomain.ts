@@ -1,4 +1,5 @@
 import { LanguageCode, EffectiveEcosystemContext, ToolDefinition } from '../../types';
+import type { MenuUxStrings } from '../../i18n/menuUx';
 
 export type DemoIdentityScenario = 'unlinked_demo' | 'linked_demo';
 
@@ -9,6 +10,18 @@ export type MenuTriggerMatch = {
 };
 
 export type MenuOptionCategory = 'public' | 'protected';
+
+export type MenuProjectionReason =
+  | 'unlinked'
+  | 'context_incomplete'
+  | 'membership_missing'
+  | 'membership_inactive'
+  | 'app_access_missing'
+  | 'app_access_disabled'
+  | 'tool_missing'
+  | 'permission_missing'
+  | 'contract_missing'
+  | 'global_policy_unavailable';
 
 export interface MenuOptionDefinition {
   id: string;
@@ -25,7 +38,7 @@ export interface ProjectedMenuOption extends MenuOptionDefinition {
   description: string;
   badge?: string;
   allowed: boolean;
-  reason?: string;
+  reason?: MenuProjectionReason;
 }
 
 export interface ConversationalMenuResponse {
@@ -457,8 +470,8 @@ export function resolveDemoMenuProjection(
   scenario: DemoIdentityScenario,
   optionDefinitions: MenuOptionDefinition[],
   tools: ToolDefinition[]
-): Record<string, { optionId: string; allowed: boolean; reason?: string }> {
-  const results: Record<string, { optionId: string; allowed: boolean; reason?: string }> = {};
+): Record<string, { optionId: string; allowed: boolean; reason?: MenuProjectionReason }> {
+  const results: Record<string, { optionId: string; allowed: boolean; reason?: MenuProjectionReason }> = {};
 
   for (const opt of optionDefinitions) {
     if (opt.category === 'public') {
@@ -553,21 +566,9 @@ export function resolveDemoMenuProjection(
   return results;
 }
 
-export type MenuProjectionReason =
-  | 'unlinked'
-  | 'context_incomplete'
-  | 'membership_missing'
-  | 'membership_inactive'
-  | 'app_access_missing'
-  | 'app_access_disabled'
-  | 'tool_missing'
-  | 'permission_missing'
-  | 'contract_missing'
-  | 'global_policy_unavailable';
-
 export function getProjectionReasonText(
-  reason: MenuProjectionReason | string | undefined,
-  strings: any
+  reason: MenuProjectionReason | undefined,
+  strings: MenuUxStrings
 ): string | null {
   if (!reason) return null;
   switch (reason) {
@@ -581,6 +582,5 @@ export function getProjectionReasonText(
     case 'permission_missing': return strings.reasonPermissionMissing;
     case 'contract_missing': return strings.contractMissingReason;
     case 'global_policy_unavailable': return strings.reasonGlobalPolicyUnavailable;
-    default: return null;
   }
 }

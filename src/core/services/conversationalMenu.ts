@@ -58,7 +58,7 @@ export class ConversationalMenuService {
 
     for (const opt of staticOptionDefinitions) {
       const loc = localizedMap[opt.id];
-      const projection = projectionResults[opt.id] || { allowed: false, reason: 'unknown' };
+      const projection = projectionResults[opt.id] || { allowed: false, reason: undefined };
 
       const projectedOpt: ProjectedMenuOption = {
         ...opt,

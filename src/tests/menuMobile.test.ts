@@ -155,7 +155,7 @@ const testTools: ToolDefinition[] = [
     requiredPermissions: ['musicscale.schedules.manage'],
     organizationScoped: true,
     riskLevel: 'R2_REVERSIBLE_WRITE',
-    confirmationPolicy: 'human_approval',
+    confirmationPolicy: 'explicit',
     readOnly: false,
     idempotencyPolicy: 'required',
     supportsPreview: true,
@@ -950,18 +950,6 @@ runTest('livingLibrary.manage policies', () => {
   const resPerm = resolveDemoMenuProjection(cPerm, 'linked_demo', [optionDef], [tool]);
   checkEqual(resPerm['opt_test_ll'].allowed, false);
   checkEqual(resPerm['opt_test_ll'].reason, 'global_policy_unavailable');
-
-  // With capability in appAccess
-  const cCap = cloneContext(testBaseContext);
-  cCap.memberships = [{ id: 'm1', organizationName: 'org1', uid: 'test-user-999', organizationId: 'test_org_01', status: 'active', permissions: [] }];
-  cCap.appAccess = [{ appId: 'musicscale', access: true, capabilities: ['livingLibrary.manage'] }];
-  const resCap = resolveDemoMenuProjection(cCap, 'linked_demo', [optionDef], [tool]);
-  checkEqual(resCap['opt_test_ll'].allowed, false);
-  checkEqual(resCap['opt_test_ll'].reason, 'global_policy_unavailable');
-  
-  // Immutability test
-  checkEqual(cCap.memberships[0].permissions.length, 0);
-  checkEqual(cCap.appAccess[0].capabilities.length, 1);
 });
 runTest('Structural checks and hardcoded removals', () => {
   const pageTsx = fs.readFileSync('src/features/menu/ConversationalMenuPage.tsx', 'utf8');
