@@ -39,6 +39,14 @@ export const DEMO_TOOL_INPUT_FACTORIES: Readonly<Record<string, DemoToolInputFac
     artist: 'Artista Demo',
     key: 'G'
   }),
+  
+  searchSongs: () => ({ title: 'Fictícia' }),
+  getSongChart: () => ({ songId: 'song_demo_01' }),
+  getScheduleSongCharts: () => ({ scheduleId: 'sch_2026_07_28' }),
+  transposeSongChart: () => ({ songId: 'song_demo_01', requestedKey: 'D' }),
+  renderSongChartDocument: () => ({ songId: 'song_demo_01' }),
+  renderScheduleSongbook: () => ({ scheduleId: 'sch_2026_07_28' }),
+
   searchLivingLibrary: () => ({
     query: 'Canção Demo'
   }),

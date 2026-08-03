@@ -13,6 +13,8 @@ import {
 } from '../../types';
 import { DemoPolicySimulator } from '../../demo/policies/demoPolicySimulator';
 import { mockAuditEvents } from '../../demo/mockData';
+import { evaluateZeroCostPolicy, ZeroCostState, defaultZeroCostState } from '../policies/zeroCost/zeroCostPolicy';
+import { resolveSongChart, generateChartDelivery, generateScheduleSongbook } from './chartDelivery';
 
 type DemoIdempotencyRecord<T = unknown> = {
   result: ToolInvocationResult<T>;
@@ -36,6 +38,7 @@ export function createDemoIdempotencyFingerprint(value: string): string {
 
 export class ToolGatewayService {
   private static auditLogs: AuditEvent[] = [...mockAuditEvents];
+  static zeroCostState: ZeroCostState = defaultZeroCostState;
   
   // In-memory store for idempotency in DEMO_MODE
   private static idempotencyStore = new Map<string, DemoIdempotencyRecord>();
@@ -172,6 +175,38 @@ export class ToolGatewayService {
           auditId: auditEvent.id,
         },
         auditEvent,
+      };
+    }
+
+    
+    const zcDecision = evaluateZeroCostPolicy(tool.appId + '.' + tool.name, ToolGatewayService.zeroCostState);
+    if (zcDecision.status === 'blocked' || zcDecision.status === 'paused') {
+      const blockedEvent: AuditEvent = {
+        id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+        eventType: 'policy_denied',
+        requestId: invocationContext.requestId,
+        correlationId: invocationContext.correlationId,
+        actor: invocationContext.actor.uid,
+        organizationId: invocationContext.organization.id,
+        appId: tool.appId,
+        channel: invocationContext.channel.type,
+        toolId: tool.id,
+        toolName: tool.name,
+        confirmationState: 'blocked',
+        result: 'negado',
+        details: `Zero Cost Policy Block: ${zcDecision.reason}`,
+        timestamp,
+        isDemoMode: true,
+      };
+      this.auditLogs.unshift(blockedEvent);
+      return {
+        decision,
+        result: {
+          status: 'denied',
+          humanSummary: `Bloqueado pela Política de Custo Zero: ${zcDecision.reason}`,
+          auditId: blockedEvent.id,
+        },
+        auditEvent: blockedEvent,
       };
     }
 
