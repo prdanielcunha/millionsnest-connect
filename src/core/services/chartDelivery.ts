@@ -60,7 +60,7 @@ export function generateChartDelivery(
   let finalKey = projection.key;
   
   if (targetKey && originalKey && targetKey !== originalKey && projection.rights.allowTransposition) {
-    finalChords = transposeChartContent(projection.chords, originalKey, targetKey);
+    finalChords = transposeChartContent(projection.chords, originalKey, targetKey, true);
     finalKey = targetKey;
   }
 

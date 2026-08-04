@@ -180,6 +180,7 @@ export class ToolGatewayService {
 
     
     const zcDecision = evaluateZeroCostPolicy(tool.appId + '.' + tool.name, ToolGatewayService.zeroCostState);
+
     if (zcDecision.status === 'blocked' || zcDecision.status === 'paused') {
       const blockedEvent: AuditEvent = {
         id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
@@ -207,6 +208,40 @@ export class ToolGatewayService {
           auditId: blockedEvent.id,
         },
         auditEvent: blockedEvent,
+      };
+    }
+
+    if (zcDecision.status === 'near_limit' && !invocationContext.demoConfirmation) {
+      const pendingEvent: AuditEvent = {
+        id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+        eventType: 'confirmation_pending',
+        requestId: invocationContext.requestId,
+        correlationId: invocationContext.correlationId,
+        actor: invocationContext.actor.uid,
+        organizationId: invocationContext.organization.id,
+        appId: tool.appId,
+        channel: invocationContext.channel.type,
+        toolId: tool.id,
+        toolName: tool.name,
+        confirmationState: 'pending',
+        result: 'pendente',
+        details: `Zero Cost Policy: ${zcDecision.reason} (needs confirmation)`,
+        timestamp,
+        isDemoMode: true,
+      };
+      this.auditLogs.unshift(pendingEvent);
+      
+      decision.status = 'needs_confirmation';
+      decision.reason = `Limite gratuito próximo: ${zcDecision.reason}`;
+      
+      return {
+        decision,
+        result: {
+          status: 'needs_confirmation',
+          humanSummary: `Confirme o uso da ferramenta ${tool.name} (limite gratuito próximo).`,
+          auditId: pendingEvent.id,
+        },
+        auditEvent: pendingEvent,
       };
     }
 
@@ -247,6 +282,18 @@ export class ToolGatewayService {
         status: 'HOMOLOGADO_BIBLIOTECA_VIVA',
         message: 'Música homologada no acervo global compartilhada com todo o ecossistema MillionsNest.',
       };
+    } else if (tool.name === 'getSongChart' || tool.name === 'transposeSongChart' || tool.name === 'renderSongChartDocument') {
+      const projectionResult = resolveSongChart((typedInput?.songId as string) || 'song_demo_01');
+      
+      if (projectionResult && !('ambiguity' in projectionResult)) {
+        const targetKey = (typedInput?.requestedKey as string) || projectionResult.key || 'C';
+        simulatedData = generateChartDelivery(projectionResult, targetKey);
+      } else {
+        simulatedData = { error: 'Song not found or ambiguous', details: projectionResult };
+      }
+    } else if (tool.name === 'getScheduleSongCharts' || tool.name === 'renderScheduleSongbook') {
+      const scheduleId = (typedInput?.scheduleId as string) || 'sch_2026_07_28';
+      simulatedData = generateScheduleSongbook(scheduleId, invocationContext.organization.id);
     } else {
       simulatedData = {
         message: `Execução simulada com sucesso da ferramenta ${tool.name}.`,

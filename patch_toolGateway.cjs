@@ -1,96 +1,47 @@
 const fs = require('fs');
+const file = 'src/core/services/toolGateway.ts';
+let data = fs.readFileSync(file, 'utf8');
 
-let content = fs.readFileSync('src/core/services/toolGateway.ts', 'utf8');
-
-// Add imports
-if (!content.includes('evaluateZeroCostPolicy')) {
-  content = content.replace(
-    "import { mockAuditEvents } from '../../demo/mockData';",
-    "import { mockAuditEvents } from '../../demo/mockData';\nimport { evaluateZeroCostPolicy, ZeroCostState, defaultZeroCostState } from '../policies/zeroCost/zeroCostPolicy';\nimport { resolveSongChart, generateChartDelivery, generateScheduleSongbook } from './chartDelivery';"
-  );
-}
-
-// Add state property
-if (!content.includes('zeroCostState')) {
-  content = content.replace(
-    'static auditLogs: AuditEvent[] = [...mockAuditEvents];',
-    'static auditLogs: AuditEvent[] = [...mockAuditEvents];\n  static zeroCostState: ZeroCostState = defaultZeroCostState;'
-  );
-}
-
-// Evaluate zero cost
-const executionLogic = `
-    const zcDecision = evaluateZeroCostPolicy(tool.appId + '.' + tool.name, ToolGatewayService.zeroCostState);
-    if (zcDecision.status === 'blocked' || zcDecision.status === 'paused') {
-      const blockedEvent: AuditEvent = {
-        id: \`aud_\${Math.floor(1000 + Math.random() * 9000)}\`,
-        eventType: 'policy_denied',
-        requestId: invocationContext.requestId,
-        correlationId: invocationContext.correlationId,
-        actor: invocationContext.actor.uid,
+const newLogic = `
+    } else if (tool.name === 'getSongChart' || tool.name === 'transposeSongChart' || tool.name === 'renderSongChartDocument') {
+      const { resolveSongChart, generateChartDelivery } = require('./chartDelivery');
+      const projection = resolveSongChart(typedInput?.songId || 'song_demo_01');
+      let mode = 'full_text';
+      if (tool.name === 'renderSongChartDocument') mode = 'document_stub';
+      
+      const targetKey = typedInput?.requestedKey || projection?.key || 'C';
+      
+      if (projection) {
+        simulatedData = generateChartDelivery(projection, mode, targetKey);
+      } else {
+        simulatedData = { error: 'Song not found' };
+      }
+    } else if (tool.name === 'getScheduleSongCharts' || tool.name === 'renderScheduleSongbook') {
+      const { generateScheduleSongbook, resolveSongChart } = require('./chartDelivery');
+      const s1 = resolveSongChart('song_demo_01');
+      const s2 = resolveSongChart('song_demo_02');
+      const songs = [];
+      if (s1) songs.push(s1);
+      if (s2) songs.push(s2);
+      
+      const scheduleProj = {
+        scheduleId: typedInput?.scheduleId || 'sch_2026_07_28',
         organizationId: invocationContext.organization.id,
-        appId: tool.appId,
-        channel: invocationContext.channel.type,
-        toolId: tool.id,
-        toolName: tool.name,
-        confirmationState: 'blocked',
-        result: 'negado',
-        details: \`Zero Cost Policy Block: \${zcDecision.reason}\`,
-        timestamp,
-        isDemoMode: true,
+        title: 'Culto Demo',
+        date: '2026-08-02',
+        time: '19:00',
+        songs,
+        documentStatus: tool.name === 'renderScheduleSongbook' ? 'available_stub' : 'unavailable'
       };
-      this.auditLogs.unshift(blockedEvent);
-      return {
-        decision,
-        result: {
-          status: 'denied',
-          humanSummary: \`Bloqueado pela Política de Custo Zero: \${zcDecision.reason}\`,
-          auditId: blockedEvent.id,
-        },
-        auditEvent: blockedEvent,
-      };
-    }
+      
+      simulatedData = generateScheduleSongbook(scheduleProj);
 `;
 
-if (!content.includes('evaluateZeroCostPolicy(tool.appId')) {
-  content = content.replace(
-    '// Simulated execution payload for mock tools',
-    executionLogic + '\n    // Simulated execution payload for mock tools'
-  );
-}
-
-// Add simulated data cases
-const mockCases = `
-    } else if (tool.name === 'searchSongs') {
-      const res = resolveSongChart(typedInput?.songId as string || '', typedInput?.title as string || '', typedInput?.version as string || '');
-      simulatedData = { results: res ? (Array.isArray((res as any).ambiguity) ? (res as any).ambiguity : [res]) : [] };
-    } else if (tool.name === 'getSongChart') {
-      const res = resolveSongChart(typedInput?.songId as string || '', typedInput?.title as string || '', typedInput?.version as string || '');
-      if (res && !(res as any).ambiguity) {
-        simulatedData = generateChartDelivery(res as any, typedInput?.requestedKey as string);
-      } else {
-        simulatedData = { error: 'Not found or ambiguous' };
-      }
-    } else if (tool.name === 'getScheduleSongCharts') {
-      simulatedData = generateScheduleSongbook(typedInput?.scheduleId as string || 'test_schedule', invocationContext.organization.id);
-    } else if (tool.name === 'transposeSongChart') {
-      const res = resolveSongChart(typedInput?.songId as string || '', typedInput?.title as string || '', typedInput?.version as string || '');
-      if (res && !(res as any).ambiguity) {
-        simulatedData = generateChartDelivery(res as any, typedInput?.requestedKey as string);
-      } else {
-        simulatedData = { error: 'Not found or ambiguous' };
-      }
-    } else if (tool.name === 'renderSongChartDocument') {
-      simulatedData = { documentUrl: 'blob:demo/song_chart_pdf', status: 'available' };
-    } else if (tool.name === 'renderScheduleSongbook') {
-      simulatedData = { documentUrl: 'blob:demo/schedule_songbook_pdf', status: 'available' };
-`;
-
-if (!content.includes('tool.name === \'searchSongs\'')) {
-  content = content.replace(
-    "} else {      simulatedData = {        message: `Execução simulada com sucesso da ferramenta ${tool.name}.`,",
-    mockCases + "\n    } else {      simulatedData = {        message: `Execução simulada com sucesso da ferramenta ${tool.name}.`,"
-  );
-}
-
-fs.writeFileSync('src/core/services/toolGateway.ts', content);
+data = data.replace(/    } else if \(tool\.name === 'addSongToLivingLibrary'\) \{[\s\S]*?message: '.*?',\n      \};\n    \}/, `    } else if (tool.name === 'addSongToLivingLibrary') {
+      simulatedData = {
+        globalSongId: \`g_song_\${Math.random().toString(36).substring(2, 8)}\`,
+        title: typedInput?.title || 'Música Nova',
+        status: 'HOMOLOGADO_BIBLIOTECA_VIVA',
+        message: 'Música homologada no acervo global compartilhada com todo o ecossistema MillionsNest.',
+      };${newLogic}`);
+fs.writeFileSync(file, data);
