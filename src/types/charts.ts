@@ -50,6 +50,29 @@ export interface SongChartChunk {
   content: string;
 }
 
+export interface SongSearchResult {
+  songId: string;
+  title: string;
+  artist?: string;
+  version?: string;
+  key?: string;
+  originalKey?: string;
+  selectedKey?: string;
+  bpm?: number;
+  source: SongChartProjection['source'];
+  rightsStatus: SongChartRightsStatus;
+  organizationScoped: boolean;
+}
+
+export interface SongChartAmbiguityOption {
+  songId: string;
+  title: string;
+  artist?: string;
+  version?: string;
+  key?: string;
+  bpm?: number;
+}
+
 export type SongChartDeliveryMode = 'full_text' | 'auto_chunked' | 'document_stub' | 'musician_mode_stub' | 'blocked';
 
 export interface SongChartDelivery {
@@ -59,7 +82,7 @@ export interface SongChartDelivery {
   chunks: SongChartChunk[];
   chunkCount: number;
   automaticContinuation: boolean;
-  ambiguityOptions?: { songId: string; title: string; version?: string }[];
+  ambiguityOptions?: SongChartAmbiguityOption[];
   blockedReason?: string;
   supplementaryActions: string[];
 }

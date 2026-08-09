@@ -1,37 +1,108 @@
-import { SongChartProjection, SongChartDelivery, ScheduleSongbookProjection, ScheduleDocumentStatus } from '../../types';
+import { SongChartProjection, SongChartDelivery, ScheduleSongbookProjection, ScheduleDocumentStatus, SongSearchResult, SongChartAmbiguityOption } from '../../types';
 import { chunkTextByLines, mockChartDataset } from '../../demo/chartDataset';
 import { transposeChartContent } from './transposition';
 
+export function normalizeSongSearchText(value: string): string {
+  if (!value) return '';
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+export function isSongVisibleToOrganization(
+  song: SongChartProjection,
+  organizationId?: string
+): boolean {
+  if (song.organizationId) {
+    return song.organizationId === organizationId;
+  }
+  return true;
+}
+
+export function searchSongCharts(
+  query: string,
+  organizationId?: string
+): SongSearchResult[] {
+  const normalizedQuery = normalizeSongSearchText(query);
+  if (!normalizedQuery) return [];
+
+  const visibleSongs = mockChartDataset.filter(song => isSongVisibleToOrganization(song, organizationId));
+
+  const matches = visibleSongs.filter(s => {
+    const titleMatch = normalizeSongSearchText(s.title).includes(normalizedQuery);
+    const artistMatch = s.artist ? normalizeSongSearchText(s.artist).includes(normalizedQuery) : false;
+    const versionMatch = s.version ? normalizeSongSearchText(s.version).includes(normalizedQuery) : false;
+    return titleMatch || artistMatch || versionMatch;
+  });
+
+  return matches.map(s => ({
+    songId: s.songId,
+    title: s.title,
+    artist: s.artist,
+    version: s.version,
+    key: s.key,
+    originalKey: s.originalKey,
+    selectedKey: s.selectedKey,
+    bpm: s.bpm,
+    source: s.source,
+    rightsStatus: s.rights.status,
+    organizationScoped: !!s.organizationId
+  }));
+}
+
 export function resolveSongChart(
-  songId: string, 
+  songId: string,
   titleQuery?: string,
-  versionQuery?: string
-): SongChartProjection | { ambiguity: { songId: string; title: string; version?: string }[] } | null {
-  
+  versionQuery?: string,
+  organizationId?: string
+): SongChartProjection | { ambiguity: SongChartAmbiguityOption[] } | null {
   if (songId) {
     const found = mockChartDataset.find(s => s.songId === songId);
-    return found || null;
+    if (found && isSongVisibleToOrganization(found, organizationId)) {
+      return { ...found };
+    }
+    return null;
   }
-  
+
   if (titleQuery) {
-    const matches = mockChartDataset.filter(s => s.title.toLowerCase().includes(titleQuery.toLowerCase()) || (s.artist && s.artist.toLowerCase().includes(titleQuery.toLowerCase())));
+    const normalizedTitle = normalizeSongSearchText(titleQuery);
+    const visibleSongs = mockChartDataset.filter(s => isSongVisibleToOrganization(s, organizationId));
     
+    const matches = visibleSongs.filter(s => {
+      const titleMatch = normalizeSongSearchText(s.title).includes(normalizedTitle);
+      const artistMatch = s.artist ? normalizeSongSearchText(s.artist).includes(normalizedTitle) : false;
+      return titleMatch || artistMatch;
+    });
+
     if (matches.length === 0) return null;
-    
+
     if (matches.length === 1) {
-      return matches[0];
+      return { ...matches[0] };
     }
-    
+
     if (versionQuery) {
-      const versionMatch = matches.find(s => s.version?.toLowerCase() === versionQuery.toLowerCase());
-      if (versionMatch) return versionMatch;
+      const normalizedVersion = normalizeSongSearchText(versionQuery);
+      const versionMatches = matches.filter(s => s.version && normalizeSongSearchText(s.version) === normalizedVersion);
+      if (versionMatches.length === 1) {
+        return { ...versionMatches[0] };
+      }
     }
-    
+
     return {
-      ambiguity: matches.map(m => ({ songId: m.songId, title: m.title, version: m.version }))
+      ambiguity: matches.map(m => ({
+        songId: m.songId,
+        title: m.title,
+        artist: m.artist,
+        version: m.version,
+        key: m.key,
+        bpm: m.bpm
+      }))
     };
   }
-  
+
   return null;
 }
 
@@ -79,7 +150,6 @@ export function generateChartDelivery(
   const rawChunks = chunkTextByLines(mergedContent, 30);
   
   const mode = rawChunks.length > 1 ? 'auto_chunked' : 'full_text';
-
   const chunks = rawChunks.map((content, idx) => ({
     index: idx + 1,
     total: rawChunks.length,
