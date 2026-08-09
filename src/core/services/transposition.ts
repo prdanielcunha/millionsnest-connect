@@ -41,13 +41,8 @@ export function transposeChord(chord: string, steps: number): string {
 export function transposeChartContent(
   chordsText: string, 
   originalKey: string, 
-  newKey: string,
-  forceMusicScaleIntegration?: boolean
+  newKey: string
 ): string {
-  if (forceMusicScaleIntegration !== true) {
-    throw new Error('Transposition requires active MusicScale integration in this demo environment.');
-  }
-
   const origIndex = getNoteIndex(originalKey);
   const newIndex = getNoteIndex(newKey);
   
