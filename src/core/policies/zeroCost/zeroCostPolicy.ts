@@ -18,16 +18,25 @@ export interface ZeroCostResourcePolicy {
 }
 
 export const DEMO_RESOURCE_CATALOG: ZeroCostResourcePolicy[] = [
-  { resourceId: 'musicscale.searchSongs', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
-  { resourceId: 'musicscale.getSongChart', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
-  { resourceId: 'musicscale.getScheduleSongCharts', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
-  { resourceId: 'musicscale.transposeSongChart', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
-  { resourceId: 'musicscale.renderSongChartDocument', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
-  { resourceId: 'musicscale.renderScheduleSongbook', provider: 'musicscale', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.searchSongs', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free', freeLimit: 100, safetyMargin: 10 },
+  { resourceId: 'musicscale.getSongChart', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.getScheduleSongCharts', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.transposeSongChart', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.renderSongChartDocument', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.renderScheduleSongbook', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.listSchedules', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.getSchedule', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.createScheduleDraft', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.cloneSchedule', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.listMembers', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.addMember', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.listRepertoire', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.addSongToRepertoire', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.searchLivingLibrary', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
+  { resourceId: 'musicscale.addSongToLivingLibrary', provider: 'local_demo', enabled: true, billingAllowed: false, costClassification: 'free' },
   { resourceId: 'meta.whatsapp', provider: 'meta', enabled: true, billingAllowed: false, costClassification: 'paid' },
   { resourceId: 'google.gemini', provider: 'google', enabled: true, billingAllowed: false, costClassification: 'billing_required' },
-  { resourceId: 'external.pdf', provider: 'external', enabled: true, billingAllowed: false, costClassification: 'unknown_cost' },
-  { resourceId: 'freemium.service', provider: 'freemium', enabled: true, billingAllowed: false, costClassification: 'free', freeLimit: 100, safetyMargin: 10 },
+  { resourceId: 'external.pdf', provider: 'external', enabled: true, billingAllowed: false, costClassification: 'unknown_cost' }
 ];
 
 export interface ZeroCostState {
@@ -36,11 +45,15 @@ export interface ZeroCostState {
   measuredUsages: Record<string, number>;
 }
 
-export const defaultZeroCostState: ZeroCostState = {
-  globalKillSwitch: false,
-  resourceKillSwitches: {},
-  measuredUsages: {},
-};
+export function createDefaultZeroCostState(): ZeroCostState {
+  return {
+    globalKillSwitch: false,
+    resourceKillSwitches: {},
+    measuredUsages: {},
+  };
+}
+
+export const defaultZeroCostState: ZeroCostState = createDefaultZeroCostState();
 
 export function evaluateZeroCostPolicy(
   resourceId: string,

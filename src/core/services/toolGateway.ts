@@ -13,7 +13,7 @@ import {
 } from '../../types';
 import { DemoPolicySimulator } from '../../demo/policies/demoPolicySimulator';
 import { mockAuditEvents } from '../../demo/mockData';
-import { evaluateZeroCostPolicy, ZeroCostState, defaultZeroCostState } from '../policies/zeroCost/zeroCostPolicy';
+import { evaluateZeroCostPolicy, ZeroCostState, defaultZeroCostState, createDefaultZeroCostState } from '../policies/zeroCost/zeroCostPolicy';
 import { resolveSongChart, generateChartDelivery, generateScheduleSongbook } from './chartDelivery';
 
 type DemoIdempotencyRecord<T = unknown> = {
@@ -38,7 +38,7 @@ export function createDemoIdempotencyFingerprint(value: string): string {
 
 export class ToolGatewayService {
   private static auditLogs: AuditEvent[] = [...mockAuditEvents];
-  static zeroCostState: ZeroCostState = defaultZeroCostState;
+  static zeroCostState: ZeroCostState = createDefaultZeroCostState();
   
   // In-memory store for idempotency in DEMO_MODE
   private static idempotencyStore = new Map<string, DemoIdempotencyRecord>();
@@ -50,6 +50,7 @@ export class ToolGatewayService {
   static resetDemoState() {
     this.auditLogs = [...mockAuditEvents];
     this.idempotencyStore.clear();
+    this.zeroCostState = createDefaultZeroCostState();
   }
 
   static invokeTool<TInput, TOutput>(
@@ -211,40 +212,6 @@ export class ToolGatewayService {
       };
     }
 
-    if (zcDecision.status === 'near_limit' && !invocationContext.demoConfirmation) {
-      const pendingEvent: AuditEvent = {
-        id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
-        eventType: 'confirmation_pending',
-        requestId: invocationContext.requestId,
-        correlationId: invocationContext.correlationId,
-        actor: invocationContext.actor.uid,
-        organizationId: invocationContext.organization.id,
-        appId: tool.appId,
-        channel: invocationContext.channel.type,
-        toolId: tool.id,
-        toolName: tool.name,
-        confirmationState: 'pending',
-        result: 'pendente',
-        details: `Zero Cost Policy: ${zcDecision.reason} (needs confirmation)`,
-        timestamp,
-        isDemoMode: true,
-      };
-      this.auditLogs.unshift(pendingEvent);
-      
-      decision.status = 'needs_confirmation';
-      decision.reason = `Limite gratuito próximo: ${zcDecision.reason}`;
-      
-      return {
-        decision,
-        result: {
-          status: 'needs_confirmation',
-          humanSummary: `Confirme o uso da ferramenta ${tool.name} (limite gratuito próximo).`,
-          auditId: pendingEvent.id,
-        },
-        auditEvent: pendingEvent,
-      };
-    }
-
     // Simulated execution payload for mock tools
     let simulatedData: unknown = null;
     const typedInput = input as Record<string, unknown>;
@@ -303,6 +270,10 @@ export class ToolGatewayService {
     
     const confirmationState: AuditEvent['confirmationState'] = invocationContext.demoConfirmation ? 'confirmed' : 'not_required';
 
+    const auditEventDetails = zcDecision.status === 'near_limit'
+      ? `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso. Aviso: status near_limit; resourceId=${zcDecision.resource}; measuredUsage=${zcDecision.measuredUsage}; freeLimit=${zcDecision.freeLimit}; financialCostBrl=0.`
+      : `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`;
+
     const auditEvent: AuditEvent = {
       id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
       eventType: 'tool_execution',
@@ -321,11 +292,10 @@ export class ToolGatewayService {
       confirmationPolicy: tool.confirmationPolicy,
       confirmationState,
       result: 'sucesso',
-      details: `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`,
+      details: auditEventDetails,
       timestamp,
       isDemoMode: true,
     };
-
     this.auditLogs.unshift(auditEvent);
 
     const invocationResult: ToolInvocationResult<TOutput> = {
@@ -334,6 +304,13 @@ export class ToolGatewayService {
       humanSummary: `Execução da ferramenta ${tool.title} (${tool.name}) com sucesso em DEMO_MODE.`,
       auditId: auditEvent.id,
     };
+
+    if (zcDecision.status === 'near_limit') {
+      invocationResult.warnings = [
+        ...(invocationResult.warnings || []),
+        'Recurso próximo do limite gratuito. A execução permaneceu dentro da política de custo zero.'
+      ];
+    }
 
     if (cacheKey) {
       this.idempotencyStore.set(cacheKey, {
