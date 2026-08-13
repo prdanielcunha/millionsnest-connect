@@ -14,6 +14,7 @@
     "test:transposition": "tsx src/tests/transposition.test.ts",
     "test:chartdelivery": "tsx src/tests/chartDelivery.test.ts",
     "test:gatewayzc": "tsx src/tests/toolGatewayZeroCost.test.ts",
+    "test:gatewaytenant": "tsx src/tests/toolGatewayTenantBoundary.test.ts",
     "test:authority": "tsx src/tests/authorityModel.test.ts",
     "test:mobile-layout": "tsx src/tests/mobileLayout.test.ts",
     "test:inbox-mobile": "tsx src/tests/inboxMobile.test.ts && npm run test:inbox-domain",
