@@ -7,7 +7,7 @@ export type PendingDemoToolInvocation = {
   requestId: string;
   correlationId: string;
   idempotencyKey?: string;
-  actorUid: string;
+  actorUid?: string;
   organizationId: string;
   conversationId: string;
   channelType: string;
@@ -88,6 +88,10 @@ export function createDemoConfirmationEvidence(
   method: DemoConfirmationMethod,
   now?: Date
 ): DemoConfirmationEvidence {
+  if (!pending.actorUid) {
+    throw new Error('A invocação pendente não possui ator vinculado para confirmação.');
+  }
+
   const policy = pending.tool.confirmationPolicy === 'explicit' ? 'explicit' : 'simple';
   return {
     confirmationId: `conf_${Date.now()}`,
