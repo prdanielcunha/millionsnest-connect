@@ -125,6 +125,72 @@ function createMockTool(riskLevel: ToolDefinition['riskLevel'], confirmationPoli
   };
 }
 
+function evaluateMockPermission(
+  context: EffectiveEcosystemContext,
+  tool: ToolDefinition = createMockTool('R1_AUTH_READ', 'none')
+) {
+  const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_membership');
+  if (!pending) throw new Error('pending failed');
+  const invocationContext = buildDemoToolInvocationContext(pending, context);
+  return DemoPolicySimulator.evaluateToolPermission(context, tool, invocationContext);
+}
+
+// =====================================
+// TENANT-SCOPED MEMBERSHIP TESTS
+// =====================================
+
+test('membership da organização ativa vinculada ao usuário atual autoriza', () => {
+  const context = createMockContext();
+  const tool = createMockTool('R1_AUTH_READ', 'none');
+  tool.requiredPermissions = ['write'];
+
+  checkEqual(evaluateMockPermission(context, tool).status, 'allowed');
+});
+
+test('membership da organização ativa vinculada a outro UID não autoriza', () => {
+  const context = createMockContext();
+  context.memberships[0].uid = 'other_user';
+
+  checkEqual(evaluateMockPermission(context).status, 'denied');
+});
+
+test('membership válida do usuário atual em outra organização não autoriza a organização ativa', () => {
+  const context = createMockContext();
+  context.memberships = [
+    { ...context.memberships[0], uid: 'other_user' },
+    { ...context.memberships[0], id: 'mem_2', uid: context.user.uid, organizationId: 'org_2' },
+  ];
+
+  checkEqual(evaluateMockPermission(context).status, 'denied');
+});
+
+test('ausência de membership válida para o UID atual permanece negada', () => {
+  const context = createMockContext();
+  context.memberships[0].status = 'suspended';
+
+  checkEqual(evaluateMockPermission(context).status, 'denied');
+});
+
+test('system roles não ignoram o vínculo da membership ao UID atual', () => {
+  for (const systemRole of ['ceo', 'global_admin', 'ecosystem_owner', 'founder', 'support'] as const) {
+    const context = createMockContext();
+    context.user.systemRole = systemRole;
+    context.memberships[0].uid = 'other_user';
+
+    checkEqual(evaluateMockPermission(context).status, 'denied');
+  }
+});
+
+test('owner e admin como organizationRole não ignoram o vínculo da membership ao UID atual', () => {
+  for (const organizationRole of ['owner', 'admin']) {
+    const context = createMockContext();
+    context.memberships[0].uid = 'other_user';
+    context.memberships[0].organizationRole = organizationRole;
+
+    checkEqual(evaluateMockPermission(context).status, 'denied');
+  }
+});
+
 // =====================================
 // HELPER DEMO_TOOL_FLOW TESTS
 // =====================================
