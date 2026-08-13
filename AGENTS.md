@@ -58,6 +58,7 @@ Comandos estritamente existentes no projeto (ver `package.json`):
 * **Lint / Typecheck**: `npm run lint` (roda `tsc --noEmit`)
 * **Build**: `npm run build`
 * **Testes**: Executáveis isoladamente (ex: `npm run test:chartdelivery`, `npm run test:inbox-domain`, `npm run test:zerocost`, etc). Não tente executar um utilitário global de testes (como `jest` puro) se ele não estiver no arquivo de scripts.
+  * Fronteira tenant do Tool Gateway: `npm run test:gatewaytenant`.
 
 ## Testing Requirements
 As seguintes verificações **devem** ser realizadas antes da conclusão de uma tarefa de alteração de código:
