@@ -3,7 +3,8 @@ import {
   generateChartDelivery, 
   normalizeSongSearchText, 
   isSongVisibleToOrganization, 
-  searchSongCharts 
+  searchSongCharts,
+  generateScheduleSongbook
 } from '../core/services/chartDelivery';
 import { mockChartDataset } from '../demo/chartDataset';
 import { SongChartProjection } from '../types';
@@ -196,5 +197,30 @@ const initialChords = songToResolve.chords;
 const res8 = resolveSongChart('song_demo_01') as SongChartProjection;
 res8.chords = 'mutated';
 checkEqual(mockChartDataset.find(s => s.songId === 'song_demo_01')!.chords, initialChords, 'original dataset is not mutated');
+
+// SECURITY FIX 01: songbooks preserve rights and tenant visibility boundaries.
+const londrinaSongbook = generateScheduleSongbook('schedule_londrina', 'org_londrina_01');
+checkOk(londrinaSongbook.songs.some(s => s.songId === 'song_demo_01'), 'global song visible in Londrina songbook');
+checkOk(londrinaSongbook.songs.some(s => s.songId === 'song_demo_02'), 'Londrina song visible in Londrina songbook');
+checkEqual(londrinaSongbook.songs.some(s => s.songId === 'song_demo_other_org'), false, 'Curitiba song NOT visible in Londrina songbook');
+
+const curitibaSongbook = generateScheduleSongbook('schedule_curitiba', 'org_curitiba_02');
+checkOk(curitibaSongbook.songs.some(s => s.songId === 'song_demo_01'), 'global song visible in Curitiba songbook');
+checkOk(curitibaSongbook.songs.some(s => s.songId === 'song_demo_other_org'), 'Curitiba song visible in Curitiba songbook');
+checkEqual(curitibaSongbook.songs.some(s => s.songId === 'song_demo_02'), false, 'Londrina song NOT visible in Curitiba songbook');
+
+const unknownSong: SongChartProjection = {
+  ...mockChartDataset[0],
+  songId: 'song_demo_unknown_test',
+  rights: { ...mockChartDataset[0].rights, status: 'unknown' }
+};
+mockChartDataset.push(unknownSong);
+try {
+  const rightsSongbook = generateScheduleSongbook('schedule_rights', 'org_londrina_01');
+  checkEqual(rightsSongbook.songs.some(s => s.rights.status === 'restricted'), false, 'restricted song NOT included in songbook');
+  checkEqual(rightsSongbook.songs.some(s => s.rights.status === 'unknown'), false, 'unknown song NOT included in songbook');
+} finally {
+  mockChartDataset.pop();
+}
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
