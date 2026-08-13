@@ -71,6 +71,18 @@ export class ToolGatewayService {
       tool,
       invocationContext
     );
+
+    if (tool.organizationScoped && input !== null && typeof input === 'object' && Object.prototype.hasOwnProperty.call(input, 'organizationId')) {
+      const inputOrganizationId = (input as Record<string, unknown>).organizationId;
+
+      if (typeof inputOrganizationId !== 'string' || inputOrganizationId.trim().length === 0) {
+        decision.status = 'denied';
+        decision.reason = 'O organizationId informado no input é um seletor de tenant inválido.';
+      } else if (inputOrganizationId !== invocationContext.organization.id) {
+        decision.status = 'denied';
+        decision.reason = 'O organizationId informado no input diverge do tenant efetivo da invocação.';
+      }
+    }
     
     const fp = invocationContext.idempotencyKey 
       ? createDemoIdempotencyFingerprint(invocationContext.idempotencyKey)

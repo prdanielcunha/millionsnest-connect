@@ -58,6 +58,7 @@ O projeto possui scripts de testes individuais e independentes. Alguns dos princ
 * `npm run test:inbox-mobile`
 * `npm run test:zerocost`
 * `npm run test:gatewayzc`
+* `npm run test:gatewaytenant`
 * `npm run test:authority`
 * `npm run test:menu-mobile`
 * `npm run test:tools-mobile`
