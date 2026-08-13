@@ -218,6 +218,9 @@ export class DemoPolicySimulator {
     }
 
     if (tool.riskLevel === 'R2_REVERSIBLE_WRITE') {
+       if (tool.confirmationPolicy === 'human_approval' || tool.confirmationPolicy === 'strong') {
+         return needsConfirmation(`Ferramenta R2 (REVERSIBLE_WRITE): Requer ${tool.confirmationPolicy}. O simulador não finge aprovação humana ou forte.`);
+       }
        if (tool.confirmationPolicy === 'explicit' || tool.confirmationPolicy === 'simple') {
          if (!confirmationMatchesPolicy) {
            return needsConfirmation(`Ferramenta R2 (REVERSIBLE_WRITE): Requer confirmação ${tool.confirmationPolicy} compatível antes da execução.`);
