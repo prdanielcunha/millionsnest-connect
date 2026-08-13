@@ -178,7 +178,11 @@ export function generateScheduleSongbook(
     title: 'Escala de Domingo',
     date: '2026-08-09',
     time: '18:00',
-    songs: mockChartDataset.filter(s => s.rights.status !== 'restricted' && s.rights.status !== 'unknown'),
+    songs: mockChartDataset.filter(s =>
+      isSongVisibleToOrganization(s, organizationId)
+      && s.rights.status !== 'restricted'
+      && s.rights.status !== 'unknown'
+    ),
     documentStatus: 'available_stub'
   };
 }
