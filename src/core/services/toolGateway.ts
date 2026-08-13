@@ -12,6 +12,7 @@ import {
   DemoPolicyDecision
 } from '../../types';
 import { DemoPolicySimulator } from '../../demo/policies/demoPolicySimulator';
+import { createDemoConfirmationIntentFingerprint } from '../../demo/confirmations/demoConfirmationIntent';
 import { mockAuditEvents } from '../../demo/mockData';
 import { evaluateZeroCostPolicy, ZeroCostState, defaultZeroCostState, createDefaultZeroCostState } from '../policies/zeroCost/zeroCostPolicy';
 import { resolveSongChart, generateChartDelivery, generateScheduleSongbook } from './chartDelivery';
@@ -71,6 +72,22 @@ export class ToolGatewayService {
       tool,
       invocationContext
     );
+
+    if (decision.status === 'allowed' && invocationContext.demoConfirmation) {
+      const expectedIntentFingerprint = createDemoConfirmationIntentFingerprint({
+        actorUid: invocationContext.actor.uid,
+        requestId: invocationContext.requestId,
+        toolId: tool.id,
+        organizationId: invocationContext.organization.id,
+        args: input,
+        idempotencyKey: invocationContext.idempotencyKey,
+      });
+
+      if (invocationContext.demoConfirmation.intentFingerprint !== expectedIntentFingerprint) {
+        decision.status = 'denied';
+        decision.reason = 'A confirmação não corresponde ao intent atual da invocação.';
+      }
+    }
 
     if (tool.organizationScoped && input !== null && typeof input === 'object' && Object.prototype.hasOwnProperty.call(input, 'organizationId')) {
       const inputOrganizationId = (input as Record<string, unknown>).organizationId;

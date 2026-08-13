@@ -15,6 +15,7 @@
 ## Confirmação por Risco
 - A confirmação nunca pode ser inferida pelo frontend no fluxo automático.
 - Ferramentas R2 e R3 exigem uma evidência de confirmação (`DemoConfirmationEvidence`) com cliques simples ou explícitos (`simple_click`, `explicit_click`).
+- Em `DEMO_MODE`, a evidência é vinculada ao intent confirmado (ator, request, ferramenta, organização, argumentos e chave de idempotência); ela não pode autorizar outro payload, outra chave ou outro ator, enquanto retries idênticos continuam compatíveis com a reutilização idempotente.
 
 ## Idempotência Demonstrativa
 - No modo demonstração (DEMO_MODE), a idempotência é mantida baseada em representações ofuscadas da chave (`idempotencyKeyFingerprint`). Em produção, previne falhas de rede de executar transações repetidas sem vazar a chave original aos analistas.
