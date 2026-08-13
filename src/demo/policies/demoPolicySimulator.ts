@@ -117,7 +117,9 @@ export class DemoPolicySimulator {
       }
 
       activeMembership = context.memberships.find(
-        (m) => m.organizationId === context.activeOrganization.id
+        (m) =>
+          m.organizationId === context.activeOrganization.id &&
+          m.uid === context.user.uid
       );
 
       if (!activeMembership) {
