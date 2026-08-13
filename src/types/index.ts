@@ -239,6 +239,7 @@ export interface DemoConfirmationEvidence {
   organizationId: string;
   policy: 'simple' | 'explicit';
   method: DemoConfirmationMethod;
+  intentFingerprint: string;
   confirmedAt: string;
 }
 
