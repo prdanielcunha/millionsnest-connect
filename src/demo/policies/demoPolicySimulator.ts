@@ -191,6 +191,14 @@ export class DemoPolicySimulator {
       hasValidConfirmation = true;
     }
 
+    const confirmationMatchesPolicy = hasValidConfirmation && (
+      tool.confirmationPolicy === 'explicit'
+        ? demoConfirmation!.policy === 'explicit' && demoConfirmation!.method === 'explicit_click'
+        : tool.confirmationPolicy === 'simple'
+          ? demoConfirmation!.policy === 'simple' && demoConfirmation!.method === 'simple_click'
+          : true
+    );
+
     if (tool.riskLevel === 'R4_CRITICAL') {
        return needsConfirmation('Ferramenta R4 (CRITICAL): Requer human_approval ou strong confirmation. O simulador bloqueia por padrão sem evidência real.');
     }
@@ -200,9 +208,9 @@ export class DemoPolicySimulator {
          return needsConfirmation(`Ferramenta R3 (PRIVILEGED): Requer ${tool.confirmationPolicy}. O simulador não finge aprovação humana ou forte.`);
        }
        
-       if (tool.confirmationPolicy === 'explicit') {
-         if (!hasValidConfirmation || demoConfirmation!.method !== 'explicit_click') {
-           return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação explícita (explicit_click).');
+       if (tool.confirmationPolicy === 'explicit' || tool.confirmationPolicy === 'simple') {
+         if (!confirmationMatchesPolicy) {
+           return needsConfirmation(`Ferramenta R3 (PRIVILEGED): Requer confirmação ${tool.confirmationPolicy} compatível antes da execução.`);
          }
        } else if (!hasValidConfirmation) {
          return needsConfirmation('Ferramenta R3 (PRIVILEGED): Requer confirmação antes da execução.');
@@ -210,7 +218,11 @@ export class DemoPolicySimulator {
     }
 
     if (tool.riskLevel === 'R2_REVERSIBLE_WRITE') {
-       if (!hasValidConfirmation) {
+       if (tool.confirmationPolicy === 'explicit' || tool.confirmationPolicy === 'simple') {
+         if (!confirmationMatchesPolicy) {
+           return needsConfirmation(`Ferramenta R2 (REVERSIBLE_WRITE): Requer confirmação ${tool.confirmationPolicy} compatível antes da execução.`);
+         }
+       } else if (!hasValidConfirmation) {
          return needsConfirmation('Ferramenta R2 (REVERSIBLE_WRITE): Requer confirmação antes da execução.');
        }
     }
