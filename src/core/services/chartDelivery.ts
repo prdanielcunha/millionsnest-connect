@@ -2,6 +2,43 @@ import { SongChartProjection, SongChartDelivery, ScheduleSongbookProjection, Sch
 import { chunkTextByLines, mockChartDataset } from '../../demo/chartDataset';
 import { transposeChartContent } from './transposition';
 
+export type ChartDeliveryPurpose = 'full_display' | 'whatsapp_text' | 'document';
+
+function getChartRightsBlockReason(
+  projection: SongChartProjection,
+  purpose: ChartDeliveryPurpose
+): string | undefined {
+  const { rights } = projection;
+
+  if (rights.status === 'restricted' || rights.status === 'unknown') {
+    return rights.attribution
+      ? `Conteúdo protegido por direitos autorais: ${rights.attribution}`
+      : 'Conteúdo restrito ou com direitos desconhecidos.';
+  }
+
+  if (rights.licenseExpiresAt) {
+    const expiresAt = Date.parse(rights.licenseExpiresAt);
+    if (!Number.isFinite(expiresAt)) {
+      return 'Conteúdo bloqueado porque a vigência da licença não pôde ser comprovada.';
+    }
+    if (expiresAt <= Date.now()) {
+      return 'Conteúdo bloqueado porque a licença expirou.';
+    }
+  }
+
+  if (!rights.allowFullDisplay) {
+    return 'A exibição integral deste conteúdo não é permitida.';
+  }
+  if (purpose === 'whatsapp_text' && !rights.allowWhatsAppText) {
+    return 'A entrega integral deste conteúdo por WhatsApp não é permitida.';
+  }
+  if (purpose === 'document' && !rights.allowDocument) {
+    return 'A entrega integral deste conteúdo em documento não é permitida.';
+  }
+
+  return undefined;
+}
+
 export function normalizeSongSearchText(value: string): string {
   if (!value) return '';
   return value
@@ -108,18 +145,17 @@ export function resolveSongChart(
 
 export function generateChartDelivery(
   projection: SongChartProjection,
-  requestedKey?: string
+  requestedKey?: string,
+  purpose: ChartDeliveryPurpose = 'full_display'
 ): SongChartDelivery {
-  if (projection.rights.status === 'restricted' || projection.rights.status === 'unknown') {
+  const blockedReason = getChartRightsBlockReason(projection, purpose);
+  if (blockedReason) {
     return {
       mode: 'blocked',
-      resolvedSong: projection,
       chunks: [],
       chunkCount: 0,
       automaticContinuation: false,
-      blockedReason: projection.rights.attribution 
-        ? `Conteúdo protegido por direitos autorais: ${projection.rights.attribution}`
-        : 'Conteúdo restrito ou com direitos desconhecidos.',
+      blockedReason,
       supplementaryActions: []
     };
   }
@@ -169,7 +205,8 @@ export function generateChartDelivery(
 
 export function generateScheduleSongbook(
   scheduleId: string,
-  organizationId: string
+  organizationId: string,
+  purpose: ChartDeliveryPurpose = 'document'
 ): ScheduleSongbookProjection {
   // Demo just returns all available charts
   return {
@@ -180,8 +217,7 @@ export function generateScheduleSongbook(
     time: '18:00',
     songs: mockChartDataset.filter(s =>
       isSongVisibleToOrganization(s, organizationId)
-      && s.rights.status !== 'restricted'
-      && s.rights.status !== 'unknown'
+      && !getChartRightsBlockReason(s, purpose)
     ),
     documentStatus: 'available_stub'
   };

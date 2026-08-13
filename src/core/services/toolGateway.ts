@@ -266,13 +266,19 @@ export class ToolGatewayService {
       
       if (projectionResult && !('ambiguity' in projectionResult)) {
         const targetKey = (typedInput?.requestedKey as string) || projectionResult.key || 'C';
-        simulatedData = generateChartDelivery(projectionResult, targetKey);
+        const purpose = tool.name === 'renderSongChartDocument'
+          ? 'document'
+          : invocationContext.channel.type === 'whatsapp' ? 'whatsapp_text' : 'full_display';
+        simulatedData = generateChartDelivery(projectionResult, targetKey, purpose);
       } else {
         simulatedData = { error: 'Song not found or ambiguous', details: projectionResult };
       }
     } else if (tool.name === 'getScheduleSongCharts' || tool.name === 'renderScheduleSongbook') {
       const scheduleId = (typedInput?.scheduleId as string) || 'sch_2026_07_28';
-      simulatedData = generateScheduleSongbook(scheduleId, invocationContext.organization.id);
+      const purpose = tool.name === 'renderScheduleSongbook'
+        ? 'document'
+        : invocationContext.channel.type === 'whatsapp' ? 'whatsapp_text' : 'full_display';
+      simulatedData = generateScheduleSongbook(scheduleId, invocationContext.organization.id, purpose);
     } else {
       simulatedData = {
         message: `Execução simulada com sucesso da ferramenta ${tool.name}.`,
