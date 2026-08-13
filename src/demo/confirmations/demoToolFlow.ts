@@ -1,4 +1,5 @@
 import { ToolDefinition, EffectiveEcosystemContext, DemoConfirmationEvidence, DemoConfirmationMethod } from '../../types';
+import { createDemoConfirmationIntentFingerprint } from './demoConfirmationIntent';
 
 export type PendingDemoToolInvocation = {
   tool: ToolDefinition;
@@ -6,6 +7,7 @@ export type PendingDemoToolInvocation = {
   requestId: string;
   correlationId: string;
   idempotencyKey?: string;
+  actorUid: string;
   organizationId: string;
   conversationId: string;
   channelType: string;
@@ -54,6 +56,7 @@ export function prepareDemoToolInvocation(
     requestId: `req_${Date.now()}_${Math.random().toString(36).substring(7)}`,
     correlationId: `corr_${Date.now()}`,
     idempotencyKey: `idempotency_${Date.now()}`,
+    actorUid: context.user.uid,
     organizationId: context.activeOrganization.id,
     conversationId,
     channelType,
@@ -93,6 +96,14 @@ export function createDemoConfirmationEvidence(
     organizationId: pending.organizationId,
     policy,
     method,
+    intentFingerprint: createDemoConfirmationIntentFingerprint({
+      actorUid: pending.actorUid,
+      requestId: pending.requestId,
+      toolId: pending.tool.id,
+      organizationId: pending.organizationId,
+      args: pending.args,
+      idempotencyKey: pending.idempotencyKey,
+    }),
     confirmedAt: (now || new Date()).toISOString(),
   };
 }
@@ -122,7 +133,12 @@ export function buildDemoToolInvocationContext(pending: PendingDemoToolInvocatio
 
 export function isDemoConfirmationCompatible(tool: ToolDefinition, evidence: DemoConfirmationEvidence) {
   if (evidence.toolId !== tool.id) return false;
-  if (tool.confirmationPolicy === 'explicit' && evidence.method !== 'explicit_click') return false;
+  if (tool.confirmationPolicy === 'explicit') {
+    return evidence.policy === 'explicit' && evidence.method === 'explicit_click';
+  }
+  if (tool.confirmationPolicy === 'simple') {
+    return evidence.policy === 'simple' && evidence.method === 'simple_click';
+  }
   if (tool.confirmationPolicy === 'strong' || tool.confirmationPolicy === 'human_approval') return false;
-  return true;
+  return tool.confirmationPolicy === 'none';
 }
