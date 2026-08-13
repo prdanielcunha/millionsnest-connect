@@ -8,6 +8,8 @@ import {
 } from '../core/services/chartDelivery';
 import { mockChartDataset } from '../demo/chartDataset';
 import { SongChartProjection } from '../types';
+import { ToolGatewayService } from '../core/services/toolGateway';
+import { mockEcosystemContext, mockTools } from '../demo/mockData';
 
 let passed = 0;
 let total = 0;
@@ -221,6 +223,128 @@ try {
   checkEqual(rightsSongbook.songs.some(s => s.rights.status === 'unknown'), false, 'unknown song NOT included in songbook');
 } finally {
   mockChartDataset.pop();
+}
+
+// SECURITY FIX 05: rights are enforced for every delivery purpose before content creation.
+const rightsFixture = (songId: string, rights: Partial<SongChartProjection['rights']>): SongChartProjection => ({
+  ...mockChartDataset[0],
+  songId,
+  lyrics: `LYRIC_UNICA_${songId}`,
+  chords: `CHORD_UNICO_${songId}`,
+  rights: {
+    ...mockChartDataset[0].rights,
+    status: 'licensed',
+    allowFullDisplay: true,
+    allowWhatsAppText: true,
+    allowDocument: true,
+    ...rights
+  }
+});
+
+const noFullDisplay = rightsFixture('rights_no_full', {
+  allowFullDisplay: false,
+  allowWhatsAppText: true,
+  allowDocument: true
+});
+const blockedNoFull = generateChartDelivery(noFullDisplay, undefined, 'full_display');
+checkEqual(blockedNoFull.mode, 'blocked', 'allowFullDisplay=false blocks full display');
+checkEqual(blockedNoFull.chunks.length, 0, 'blocked delivery has no chunks');
+checkEqual(blockedNoFull.chunkCount, 0, 'blocked delivery has zero chunkCount');
+checkEqual(blockedNoFull.automaticContinuation, false, 'blocked delivery has no automatic continuation');
+checkEqual(blockedNoFull.resolvedSong, undefined, 'blocked delivery omits resolvedSong');
+const serializedBlocked = JSON.stringify(blockedNoFull);
+checkEqual(serializedBlocked.includes('LYRIC_UNICA_rights_no_full'), false, 'blocked payload omits protected lyrics');
+checkEqual(serializedBlocked.includes('CHORD_UNICO_rights_no_full'), false, 'blocked payload omits protected chords');
+
+const noWhatsApp = rightsFixture('rights_no_whatsapp', { allowWhatsAppText: false });
+checkOk(generateChartDelivery(noWhatsApp, undefined, 'full_display').mode !== 'blocked', 'full display does not require WhatsApp right');
+checkEqual(generateChartDelivery(noWhatsApp, undefined, 'whatsapp_text').mode, 'blocked', 'WhatsApp text requires WhatsApp right');
+
+const noDocument = rightsFixture('rights_no_document', { allowDocument: false });
+checkOk(generateChartDelivery(noDocument, undefined, 'full_display').mode !== 'blocked', 'full display does not require document right');
+checkEqual(generateChartDelivery(noDocument, undefined, 'document').mode, 'blocked', 'document requires document right');
+
+const expired = rightsFixture('rights_expired', { licenseExpiresAt: '2000-01-01T00:00:00Z' });
+checkEqual(generateChartDelivery(expired, undefined, 'full_display').mode, 'blocked', 'expired license blocks full display');
+checkEqual(generateChartDelivery(expired, undefined, 'whatsapp_text').mode, 'blocked', 'expired license blocks WhatsApp text');
+checkEqual(generateChartDelivery(expired, undefined, 'document').mode, 'blocked', 'expired license blocks document');
+
+const futureLicense = rightsFixture('rights_future', { licenseExpiresAt: '2999-01-01T00:00:00Z' });
+checkOk(generateChartDelivery(futureLicense, undefined, 'document').mode !== 'blocked', 'future valid license permits eligible delivery');
+const invalidLicense = rightsFixture('rights_invalid', { licenseExpiresAt: 'invalid-date' });
+checkEqual(generateChartDelivery(invalidLicense).mode, 'blocked', 'invalid license date fails closed');
+
+const unknownRights = rightsFixture('rights_unknown', { status: 'unknown' });
+checkEqual(generateChartDelivery(unknownRights).mode, 'blocked', 'unknown status remains blocked');
+checkEqual(generateChartDelivery(restrictedSong).resolvedSong, undefined, 'restricted blocked delivery omits resolvedSong');
+
+const originalDatasetLength = mockChartDataset.length;
+const songbookFixtures = [
+  rightsFixture('book_no_document', { allowDocument: false }),
+  rightsFixture('book_no_whatsapp', { allowWhatsAppText: false }),
+  expired,
+  { ...rightsFixture('book_other_tenant', {}), organizationId: 'org_curitiba_02' },
+  { ...rightsFixture('book_valid_tenant', {}), organizationId: 'org_londrina_01' }
+];
+mockChartDataset.push(...songbookFixtures);
+try {
+  const documentBook = generateScheduleSongbook('rights_document', 'org_londrina_01', 'document');
+  checkEqual(documentBook.songs.some(s => s.songId === 'book_no_document'), false, 'document songbook excludes allowDocument=false');
+  checkEqual(documentBook.songs.some(s => s.songId === 'rights_expired'), false, 'songbook excludes expired license');
+  checkEqual(documentBook.songs.some(s => s.songId === 'book_other_tenant'), false, 'songbook still excludes another tenant');
+  checkOk(documentBook.songs.some(s => s.songId === 'book_valid_tenant'), 'songbook includes valid tenant song');
+
+  const whatsAppBook = generateScheduleSongbook('rights_whatsapp', 'org_londrina_01', 'whatsapp_text');
+  checkEqual(whatsAppBook.songs.some(s => s.songId === 'book_no_whatsapp'), false, 'WhatsApp songbook excludes allowWhatsAppText=false');
+  const displayBook = generateScheduleSongbook('rights_display', 'org_londrina_01', 'full_display');
+  checkOk(displayBook.songs.some(s => s.songId === 'book_no_whatsapp'), 'full display songbook permits allowWhatsAppText=false');
+} finally {
+  mockChartDataset.splice(originalDatasetLength);
+}
+
+const gatewayFixtures = [noWhatsApp, noDocument];
+const gatewayDatasetLength = mockChartDataset.length;
+const getSongChartTool = mockTools.find(tool => tool.name === 'getSongChart')!;
+const renderDocumentTool = mockTools.find(tool => tool.name === 'renderSongChartDocument')!;
+const baseInvocationContext = {
+  requestId: 'req_rights_inapp',
+  correlationId: 'corr_rights',
+  actor: { uid: 'demo-user-001' },
+  organization: { id: 'org_londrina_01' },
+  appAccess: { appId: 'musicscale', capabilities: [] },
+  channel: { type: 'inapp', conversationId: 'conv_rights' },
+  locale: 'pt-BR'
+};
+mockChartDataset.push(...gatewayFixtures);
+try {
+  ToolGatewayService.resetDemoState();
+  const inAppResult = ToolGatewayService.invokeTool(mockEcosystemContext, getSongChartTool, { songId: noWhatsApp.songId }, baseInvocationContext);
+  checkEqual(inAppResult.result.status, 'success', 'in-app chart gateway invocation succeeds');
+  checkOk((inAppResult.result.data as any).mode !== 'blocked', 'in-app getSongChart uses full display');
+  checkOk(JSON.stringify(inAppResult.result.data).includes(noWhatsApp.lyrics), 'in-app eligible content is delivered');
+
+  const whatsAppResult = ToolGatewayService.invokeTool(
+    mockEcosystemContext,
+    getSongChartTool,
+    { songId: noWhatsApp.songId },
+    { ...baseInvocationContext, requestId: 'req_rights_whatsapp', channel: { ...baseInvocationContext.channel, type: 'whatsapp' } }
+  );
+  checkEqual((whatsAppResult.result.data as any).mode, 'blocked', 'WhatsApp getSongChart uses WhatsApp text purpose');
+  checkEqual(JSON.stringify(whatsAppResult.result.data).includes(noWhatsApp.lyrics), false, 'WhatsApp blocked gateway payload omits lyrics');
+  checkEqual(JSON.stringify(whatsAppResult.result.data).includes(noWhatsApp.chords), false, 'WhatsApp blocked gateway payload omits chords');
+
+  const documentResult = ToolGatewayService.invokeTool(
+    mockEcosystemContext,
+    renderDocumentTool,
+    { songId: noDocument.songId },
+    { ...baseInvocationContext, requestId: 'req_rights_document' }
+  );
+  checkEqual((documentResult.result.data as any).mode, 'blocked', 'renderSongChartDocument uses document purpose');
+  checkEqual(JSON.stringify(documentResult.result.data).includes(noDocument.lyrics), false, 'blocked document gateway payload omits lyrics');
+  checkEqual(JSON.stringify(documentResult.result.data).includes(noDocument.chords), false, 'blocked document gateway payload omits chords');
+} finally {
+  mockChartDataset.splice(gatewayDatasetLength);
+  ToolGatewayService.resetDemoState();
 }
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
