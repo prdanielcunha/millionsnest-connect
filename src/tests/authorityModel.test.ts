@@ -125,6 +125,10 @@ function createMockTool(riskLevel: ToolDefinition['riskLevel'], confirmationPoli
   };
 }
 
+function createGatewayMockTool(riskLevel: ToolDefinition['riskLevel'], confirmationPolicy: ToolDefinition['confirmationPolicy']): ToolDefinition {
+  return { ...createMockTool(riskLevel, confirmationPolicy), name: 'searchSongs' };
+}
+
 function evaluateMockPermission(
   context: EffectiveEcosystemContext,
   tool: ToolDefinition = createMockTool('R1_AUTH_READ', 'none')
@@ -333,7 +337,7 @@ test('29. R2 sem evidência retorna needs_confirmation', () => {
 });
 
 test('30. R2 com evidência válida executa', () => {
-  const tool = createMockTool('R2_REVERSIBLE_WRITE', 'simple');
+  const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
   const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
@@ -354,7 +358,7 @@ test('31. R3 explicit sem evidência retorna needs_confirmation', () => {
 });
 
 test('32. R3 explicit com evidência válida executa', () => {
-  const tool = createMockTool('R3_PRIVILEGED', 'explicit');
+  const tool = createGatewayMockTool('R3_PRIVILEGED', 'explicit');
   const context = createMockContext();
   const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
@@ -385,7 +389,7 @@ test('34. human_approval não executa', () => {
 });
 
 test('35. idempotência preserva entidade', () => {
-  const tool = createMockTool('R2_REVERSIBLE_WRITE', 'simple');
+  const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
   const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
@@ -399,7 +403,7 @@ test('35. idempotência preserva entidade', () => {
 });
 
 test('36. idempotência preserva auditId original', () => {
-  const tool = createMockTool('R2_REVERSIBLE_WRITE', 'simple');
+  const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
   const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
@@ -411,7 +415,7 @@ test('36. idempotência preserva auditId original', () => {
 });
 
 test('37. idempotency_reuse está nos logs', () => {
-  const tool = createMockTool('R2_REVERSIBLE_WRITE', 'simple');
+  const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
   const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
