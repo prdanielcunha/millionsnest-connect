@@ -89,49 +89,6 @@ export class ToolGatewayService {
       cacheKey = `${tool.appId}:${tool.name}:${invocationContext.organization.id}:${invocationContext.idempotencyKey}`;
     }
 
-    if (cacheKey && decision.status === 'allowed' && this.idempotencyStore.has(cacheKey)) {
-      // Reutilização de resultado idempotente
-      const record = this.idempotencyStore.get(cacheKey)!;
-      const cachedResult = record.result as ToolInvocationResult<TOutput>;
-      
-      const auditEvent: AuditEvent = {
-        id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
-        eventType: 'idempotency_reuse',
-        requestId: invocationContext.requestId,
-        correlationId: invocationContext.correlationId,
-        idempotencyKeyFingerprint: fp,
-        originalExecutionAuditId: record.originalExecutionAuditId,
-        actor: invocationContext.actor.uid,
-        organizationId: invocationContext.organization.id,
-        appId: tool.appId,
-        channel: invocationContext.channel.type,
-        conversationId: invocationContext.channel.conversationId,
-        toolId: tool.id,
-        toolName: tool.name,
-        riskLevel: tool.riskLevel,
-        requiredPermission: tool.requiredPermissions.join(', '),
-        confirmationPolicy: tool.confirmationPolicy,
-        confirmationState: record.originalConfirmationState,
-        result: 'sucesso',
-        details: `Resultado reutilizado por idempotência. Ação original auditada sob ID ${record.originalExecutionAuditId}`,
-        timestamp,
-        isDemoMode: true,
-      };
-
-      this.auditLogs.unshift(auditEvent);
-
-      return {
-        decision,
-        result: {
-           ...cachedResult,
-           auditId: record.originalExecutionAuditId, // preserva apontamento para o evento original no retorno client
-           humanSummary: `${cachedResult.humanSummary} (Resultado reutilizado via idempotência)`,
-           warnings: [...(cachedResult.warnings || []), 'Resultado reutilizado por idempotência demonstrativa.'],
-        },
-        auditEvent
-      };
-    }
-
     if (decision.status !== 'allowed') {
       let confirmationState: AuditEvent['confirmationState'] = 'blocked';
       let resultStatus: AuditEvent['result'] = 'negado';
@@ -209,6 +166,49 @@ export class ToolGatewayService {
           auditId: blockedEvent.id,
         },
         auditEvent: blockedEvent,
+      };
+    }
+
+    if (cacheKey && this.idempotencyStore.has(cacheKey)) {
+      // Reutilização de resultado idempotente após revalidar a política Zero Cost atual
+      const record = this.idempotencyStore.get(cacheKey)!;
+      const cachedResult = record.result as ToolInvocationResult<TOutput>;
+
+      const auditEvent: AuditEvent = {
+        id: `aud_${Math.floor(1000 + Math.random() * 9000)}`,
+        eventType: 'idempotency_reuse',
+        requestId: invocationContext.requestId,
+        correlationId: invocationContext.correlationId,
+        idempotencyKeyFingerprint: fp,
+        originalExecutionAuditId: record.originalExecutionAuditId,
+        actor: invocationContext.actor.uid,
+        organizationId: invocationContext.organization.id,
+        appId: tool.appId,
+        channel: invocationContext.channel.type,
+        conversationId: invocationContext.channel.conversationId,
+        toolId: tool.id,
+        toolName: tool.name,
+        riskLevel: tool.riskLevel,
+        requiredPermission: tool.requiredPermissions.join(', '),
+        confirmationPolicy: tool.confirmationPolicy,
+        confirmationState: record.originalConfirmationState,
+        result: 'sucesso',
+        details: `Resultado reutilizado por idempotência. Ação original auditada sob ID ${record.originalExecutionAuditId}`,
+        timestamp,
+        isDemoMode: true,
+      };
+
+      this.auditLogs.unshift(auditEvent);
+
+      return {
+        decision,
+        result: {
+           ...cachedResult,
+           auditId: record.originalExecutionAuditId, // preserva apontamento para o evento original no retorno client
+           humanSummary: `${cachedResult.humanSummary} (Resultado reutilizado via idempotência)`,
+           warnings: [...(cachedResult.warnings || []), 'Resultado reutilizado por idempotência demonstrativa.'],
+        },
+        auditEvent
       };
     }
 
