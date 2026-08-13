@@ -262,7 +262,12 @@ export class ToolGatewayService {
         message: 'Música homologada no acervo global compartilhada com todo o ecossistema MillionsNest.',
       };
     } else if (tool.name === 'getSongChart' || tool.name === 'transposeSongChart' || tool.name === 'renderSongChartDocument') {
-      const projectionResult = resolveSongChart((typedInput?.songId as string) || 'song_demo_01');
+      const projectionResult = resolveSongChart(
+        (typedInput?.songId as string) || 'song_demo_01',
+        undefined,
+        undefined,
+        invocationContext.organization.id
+      );
       
       if (projectionResult && !('ambiguity' in projectionResult)) {
         const targetKey = (typedInput?.requestedKey as string) || projectionResult.key || 'C';
