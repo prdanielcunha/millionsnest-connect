@@ -391,12 +391,13 @@ test('34. human_approval não executa', () => {
 test('35. idempotência preserva entidade', () => {
   const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
-  const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
+  const input = {a: 1};
+  const pending = prepareDemoToolInvocation(context, tool, input, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
   const evidence = createDemoConfirmationEvidence(pending, 'simple_click');
   const invokeCtx = buildDemoToolInvocationContext(pending, context, evidence);
-  const result1 = ToolGatewayService.invokeTool(context, tool, {a: 1}, invokeCtx);
-  const result2 = ToolGatewayService.invokeTool(context, tool, {a: 1}, invokeCtx);
+  const result1 = ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
+  const result2 = ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
   checkEqual(result1.result.status, 'success');
   checkEqual(result2.result.status, 'success');
   checkEqual(result1.result.data, result2.result.data);
@@ -405,24 +406,26 @@ test('35. idempotência preserva entidade', () => {
 test('36. idempotência preserva auditId original', () => {
   const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
-  const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
+  const input = {a: 2};
+  const pending = prepareDemoToolInvocation(context, tool, input, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
   const evidence = createDemoConfirmationEvidence(pending, 'simple_click');
   const invokeCtx = buildDemoToolInvocationContext(pending, context, evidence);
-  const result1 = ToolGatewayService.invokeTool(context, tool, {a: 2}, invokeCtx);
-  const result2 = ToolGatewayService.invokeTool(context, tool, {a: 2}, invokeCtx);
+  const result1 = ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
+  const result2 = ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
   checkEqual(result1.result.auditId, result2.result.auditId);
 });
 
 test('37. idempotency_reuse está nos logs', () => {
   const tool = createGatewayMockTool('R2_REVERSIBLE_WRITE', 'simple');
   const context = createMockContext();
-  const pending = prepareDemoToolInvocation(context, tool, {}, 'inapp', 'cnv_1');
+  const input = {a: 3};
+  const pending = prepareDemoToolInvocation(context, tool, input, 'inapp', 'cnv_1');
   if (!pending) throw new Error('pending failed');
   const evidence = createDemoConfirmationEvidence(pending, 'simple_click');
   const invokeCtx = buildDemoToolInvocationContext(pending, context, evidence);
-  ToolGatewayService.invokeTool(context, tool, {a: 3}, invokeCtx);
-  const result2 = ToolGatewayService.invokeTool(context, tool, {a: 3}, invokeCtx);
+  ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
+  const result2 = ToolGatewayService.invokeTool(context, tool, input, invokeCtx);
   checkEqual(result2.auditEvent.eventType, 'idempotency_reuse');
 });
 
