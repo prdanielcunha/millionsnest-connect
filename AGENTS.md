@@ -53,7 +53,7 @@ As seguintes áreas são consideradas de **Alto Risco** e exigem extremo rigor e
 
 ## Commands
 Comandos estritamente existentes no projeto (ver `package.json`):
-* **Install**: `bun install` ou `npm install`
+* **Install**: `npm ci` (use `npm install` somente ao atualizar dependências e o `package-lock.json`)
 * **Development**: `npm run dev`
 * **Lint / Typecheck**: `npm run lint` (roda `tsc --noEmit`)
 * **Build**: `npm run build`

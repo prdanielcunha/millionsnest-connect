@@ -22,16 +22,12 @@ O **MillionsNest Connect** é a camada omnichannel de atendimento, relacionament
 
 ## Pré-requisitos
 * Node.js (v22 recomendado)
-* Gerenciador de pacotes: O repositório contém um `bun.lock`, sugerindo o uso do `bun`, mas o `package.json` suporta instaladores padrão como `npm`.
+* Gerenciador de pacotes: npm, com `package-lock.json` versionado para instalações reproduzíveis.
 
 ## Instalação
-Utilizando bun:
+Instalação reproduzível a partir do lockfile:
 ```bash
-bun install
-```
-Ou utilizando npm:
-```bash
-npm install
+npm ci
 ```
 
 ## Desenvolvimento
