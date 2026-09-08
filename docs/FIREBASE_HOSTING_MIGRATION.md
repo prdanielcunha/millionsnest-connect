@@ -6,7 +6,7 @@ MillionsNest Connect is currently a client-only React/Vite application running i
 
 - Firebase project: `millionsnest`
 - Hosting target: `connect`
-- Hosting site: `millionsnest-connect`
+- Hosting site: `mn-connect-555464791734`
 - Public domain after cutover: `connect.millionsnest.com`
 
 ## Safety

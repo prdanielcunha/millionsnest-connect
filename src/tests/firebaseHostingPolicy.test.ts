@@ -9,7 +9,7 @@ assert.deepEqual(firebase?.hosting?.rewrites, [{ source: "**", destination: "/in
 const rc = JSON.parse(fs.readFileSync(".firebaserc", "utf8"));
 assert.deepEqual(
   rc?.targets?.millionsnest?.hosting?.connect,
-  ["millionsnest-connect"],
+  ["mn-connect-555464791734"],
   "Connect must deploy only to its dedicated Firebase Hosting site"
 );
 
