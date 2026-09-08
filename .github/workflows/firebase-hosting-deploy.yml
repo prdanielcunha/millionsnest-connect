@@ -47,3 +47,11 @@ jobs:
         run: npm run build
       - name: Deploy Hosting
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project millionsnest --non-interactive
+      - name: Smoke test Firebase Hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "https://mn-connect-555464791734.web.app/" -o /tmp/firebase-index.html
+          grep -Eiq '<!doctype html|<html' /tmp/firebase-index.html
+          test -s /tmp/firebase-index.html
+          echo "FIREBASE_HOSTING_SMOKE_OK=Connect"
