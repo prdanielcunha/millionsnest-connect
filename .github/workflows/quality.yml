@@ -24,15 +24,11 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
-      - run: npx tsx src/tests/connectCoreRuntime.test.ts
-      - run: npx tsx src/tests/hubSessionContextAdapter.test.ts
-      - run: npx tsx src/tests/hubSessionContextHttpProvider.test.ts
-      - run: npx tsx src/tests/musicScaleNextScheduleHttpTool.test.ts
-      - run: npx tsx src/tests/connectCoreHttpHandler.test.ts
-      - run: npx tsx src/tests/structuredCoreAudit.test.ts
+      - run: npm run test:core-http
       - run: npm run test:zerocost
       - run: npm run test:gatewaytenant
       - run: npm run test:authority
       - run: npm run test:chartdelivery
       - run: npm run test:firebase-hosting
       - run: npm run build
+      - run: npm run build:core
