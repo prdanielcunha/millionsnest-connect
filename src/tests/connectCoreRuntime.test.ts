@@ -36,7 +36,7 @@ function createResolvedContextProvider(overrides?: {
           globalAccess: overrides?.globalAccess ?? false,
           organizationId: overrides?.organizationId ?? 'org_01',
           organizationRole: 'member',
-          permissions: overrides?.permissions ?? ['musicscale.schedules.view'],
+          permissions: overrides?.permissions ?? ['scales.read'],
           capabilities: overrides?.capabilities ?? [],
           appAccess: { musicscale: overrides?.musicscaleAccess ?? true },
         },
@@ -59,9 +59,9 @@ function createToolPort(counter: { calls: number }): MusicScaleReadToolPort {
     async getNextSchedule(input) {
       counter.calls++;
       checkEqual(
-        input.requiredPermission,
-        'musicscale.schedules.view',
-        'Core forwards the canonical required permission to Tool Gateway port',
+        input.requiredCapability,
+        'scales.read',
+        'Core forwards the canonical MusicScale read capability to Tool Gateway port',
       );
       return {
         status: 'success',
