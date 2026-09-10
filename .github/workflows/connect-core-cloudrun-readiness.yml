@@ -1,35 +1,20 @@
-name: Connect Core Cloud Run Readiness
+name: Connect Core Container Readiness
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - "Dockerfile.core"
-      - ".dockerignore"
-      - "server.ts"
-      - "src/core/runtime/**"
-      - "src/server/**"
-      - "package.json"
-      - ".github/workflows/connect-core-cloudrun-readiness.yml"
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
-  group: connect-core-cloudrun-readiness-${{ github.event.pull_request.number || github.ref }}
+  group: connect-core-container-readiness
   cancel-in-progress: true
 
 env:
-  PROJECT_ID: millionsnest
-  REGION: us-central1
-  SERVICE: connect-api
   IMAGE: connect-api:readiness
 
 jobs:
   readiness:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/connect-core-musicscale-real-01' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -69,33 +54,3 @@ jobs:
           done
           docker logs connect-core-readiness
           exit 1
-
-      - name: Authenticate with MillionsNest production WIF
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
-          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
-
-      - name: Read-only infrastructure discovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "CLOUD_RUN_SERVICES:"
-          gcloud run services list \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --format='table(metadata.name,status.url)' || true
-
-          echo "CONNECT_API_CURRENT_STATE:"
-          gcloud run services describe "$SERVICE" \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --format='table(metadata.name,status.url,status.conditions[0].type,status.conditions[0].status)' || true
-
-          echo "ARTIFACT_REPOSITORY_STATE:"
-          gcloud artifacts repositories describe millionsnest-web \
-            --project "$PROJECT_ID" \
-            --location "$REGION" \
-            --format='table(name,format,location)' || true
-
-          echo "READ_ONLY_CONNECT_CORE_READINESS_OK"
