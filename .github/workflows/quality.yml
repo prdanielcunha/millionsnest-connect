@@ -26,6 +26,7 @@ jobs:
       - run: npm run lint
       - run: npx tsx src/tests/connectCoreRuntime.test.ts
       - run: npx tsx src/tests/hubSessionContextAdapter.test.ts
+      - run: npx tsx src/tests/hubSessionContextHttpProvider.test.ts
       - run: npm run test:zerocost
       - run: npm run test:gatewaytenant
       - run: npm run test:authority
