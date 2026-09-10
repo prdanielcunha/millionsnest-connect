@@ -84,7 +84,7 @@ console.log('--- Running MusicScale Next Schedule HTTP Tool Tests ---');
   checkEqual('X-Capabilities' in seenHeaders, false, 'Connect-side capabilities are not forwarded as authority');
   checkEqual(result.status, 'success', 'valid response maps to success');
   checkEqual(result.auditId, 'audit-ms-1', 'MusicScale audit id is preserved');
-  checkEqual(result.deepLink, '/scales/scale-1', 'MusicScale deep link is preserved');
+  checkEqual(result.status === 'success' ? result.deepLink : undefined, '/scales/scale-1', 'MusicScale deep link is preserved');
 }
 
 {
@@ -187,7 +187,7 @@ console.log('--- Running MusicScale Next Schedule HTTP Tool Tests ---');
 
   const result = await tool.getNextSchedule(input());
   checkEqual(result.status, 'failed', 'MusicScale 5xx maps to failed');
-  checkEqual(result.retryable, true, 'MusicScale 5xx is retryable');
+  checkEqual(result.status === 'failed' ? result.retryable : undefined, true, 'MusicScale 5xx is retryable');
 }
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
