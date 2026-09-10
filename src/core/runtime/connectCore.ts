@@ -61,8 +61,11 @@ export interface MusicScaleReadToolPort {
    * This port represents the real server-side Tool Gateway boundary.
    * The adapter MUST revalidate identity, tenant and requiredCapability.
    * Connect Core passes canonical context as evidence; it does not grant authority.
+   * The bearer is forwarded transiently only so MusicScale can independently
+   * revalidate the same user identity. It must never be persisted or audited.
    */
   getNextSchedule(input: {
+    authToken: string;
     actorUid: string;
     systemRole: string | null;
     globalAccess: boolean;
@@ -328,6 +331,7 @@ export class ConnectCoreService {
     let toolResult: MusicScaleNextScheduleResult;
     try {
       toolResult = await this.musicScaleReadTool.getNextSchedule({
+        authToken: request.authToken,
         actorUid: context.actorUid,
         systemRole: context.systemRole,
         globalAccess: context.globalAccess,
