@@ -22,7 +22,9 @@ function checkEqual(actual: unknown, expected: unknown, message: string) {
 function createResolvedContextProvider(overrides?: {
   organizationId?: string;
   musicscaleAccess?: boolean;
+  permissions?: string[];
   capabilities?: string[];
+  globalAccess?: boolean;
 }): CanonicalContextProvider {
   return {
     async resolve() {
@@ -30,9 +32,13 @@ function createResolvedContextProvider(overrides?: {
         status: 'resolved',
         context: {
           actorUid: 'user_01',
+          systemRole: 'user',
+          globalAccess: overrides?.globalAccess ?? false,
           organizationId: overrides?.organizationId ?? 'org_01',
+          organizationRole: 'member',
+          permissions: overrides?.permissions ?? ['musicscale.schedules.view'],
+          capabilities: overrides?.capabilities ?? [],
           appAccess: { musicscale: overrides?.musicscaleAccess ?? true },
-          capabilities: overrides?.capabilities ?? ['musicscale.schedules.view'],
         },
       };
     },
@@ -52,6 +58,11 @@ function createToolPort(counter: { calls: number }): MusicScaleReadToolPort {
   return {
     async getNextSchedule(input) {
       counter.calls++;
+      checkEqual(
+        input.requiredPermission,
+        'musicscale.schedules.view',
+        'Core forwards the canonical required permission to Tool Gateway port',
+      );
       return {
         status: 'success',
         data: {
@@ -158,15 +169,14 @@ checkEqual(
   const events: CoreAuditEvent[] = [];
   const toolCounter = { calls: 0 };
   const service = new ConnectCoreService(
-    createResolvedContextProvider({ capabilities: [] }),
+    createResolvedContextProvider({ permissions: [] }),
     createToolPort(toolCounter),
     createAuditPort(events),
   );
 
   const result = await service.handleMessage(baseRequest());
-  checkEqual(result.status, 'denied', 'missing capability is denied');
-  checkEqual('code' in result ? result.code : '', 'CAPABILITY_DENIED', 'missing capability has explicit code');
-  checkEqual(toolCounter.calls, 0, 'missing capability never invokes MusicScale');
+  checkEqual(result.status, 'success', 'Core does not invent a local permission bypass or deny policy');
+  checkEqual(toolCounter.calls, 1, 'Tool Gateway port remains the final permission authority');
 }
 
 {

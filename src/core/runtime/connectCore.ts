@@ -17,11 +17,15 @@ export interface ConnectCoreMessageRequest {
 
 export interface CanonicalCoreContext {
   actorUid: string;
+  systemRole: string | null;
+  globalAccess: boolean;
   organizationId: string;
+  organizationRole: string | null;
+  permissions: string[];
+  capabilities: string[];
   appAccess: {
     musicscale: boolean;
   };
-  capabilities: string[];
 }
 
 export type CanonicalContextResolution =
@@ -53,10 +57,20 @@ export type MusicScaleNextScheduleResult =
     };
 
 export interface MusicScaleReadToolPort {
+  /**
+   * This port represents the real server-side Tool Gateway boundary.
+   * The adapter MUST revalidate identity, tenant and requiredPermission.
+   * Connect Core passes canonical context as evidence; it does not grant authority.
+   */
   getNextSchedule(input: {
     actorUid: string;
+    systemRole: string | null;
+    globalAccess: boolean;
     organizationId: string;
-    requiredCapability: 'musicscale.schedules.view';
+    organizationRole: string | null;
+    permissions: string[];
+    capabilities: string[];
+    requiredPermission: 'musicscale.schedules.view';
     requestId: string;
     correlationId: string;
     channel: ConnectCoreMessageRequest['channel'];
@@ -103,7 +117,6 @@ export type ConnectCoreResponse =
         | 'ORGANIZATION_REQUIRED'
         | 'CONTEXT_MISMATCH'
         | 'APP_ACCESS_DENIED'
-        | 'CAPABILITY_DENIED'
         | 'UNSUPPORTED_INTENT'
         | 'TOOL_DENIED'
         | 'TOOL_CONFLICT'
@@ -114,7 +127,7 @@ export type ConnectCoreResponse =
       retryable?: boolean;
     };
 
-const NEXT_SCHEDULE_CAPABILITY = 'musicscale.schedules.view' as const;
+const NEXT_SCHEDULE_PERMISSION = 'musicscale.schedules.view' as const;
 
 function normalizeForIntent(value: string): string {
   return value
@@ -268,28 +281,6 @@ export class ConnectCoreService {
       };
     }
 
-    if (!context.capabilities.includes(NEXT_SCHEDULE_CAPABILITY)) {
-      await this.tryAudit({
-        eventType: 'core_request_denied',
-        requestId: request.requestId,
-        correlationId: request.correlationId,
-        actorUid: context.actorUid,
-        organizationId: context.organizationId,
-        appId: 'musicscale',
-        intent,
-        channel: request.channel.type,
-        result: 'denied',
-        details: `Missing capability ${NEXT_SCHEDULE_CAPABILITY}.`,
-      });
-
-      return {
-        status: 'denied',
-        intent,
-        code: 'CAPABILITY_DENIED',
-        humanSummary: 'Você não tem acesso a essa informação nesta organização.',
-      };
-    }
-
     if (intent !== 'get_next_schedule') {
       await this.tryAudit({
         eventType: 'core_request_denied',
@@ -338,8 +329,13 @@ export class ConnectCoreService {
     try {
       toolResult = await this.musicScaleReadTool.getNextSchedule({
         actorUid: context.actorUid,
+        systemRole: context.systemRole,
+        globalAccess: context.globalAccess,
         organizationId: context.organizationId,
-        requiredCapability: NEXT_SCHEDULE_CAPABILITY,
+        organizationRole: context.organizationRole,
+        permissions: [...context.permissions],
+        capabilities: [...context.capabilities],
+        requiredPermission: NEXT_SCHEDULE_PERMISSION,
         requestId: request.requestId,
         correlationId: request.correlationId,
         channel: request.channel,
