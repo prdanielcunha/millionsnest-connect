@@ -63,6 +63,11 @@ function createToolPort(counter: { calls: number }): MusicScaleReadToolPort {
         'scales.read',
         'Core forwards the canonical MusicScale read capability to Tool Gateway port',
       );
+      checkEqual(
+        input.authToken,
+        baseRequest().authToken,
+        'Core forwards the bearer transiently so MusicScale can independently revalidate identity',
+      );
       return {
         status: 'success',
         data: {
