@@ -59,7 +59,7 @@ export type MusicScaleNextScheduleResult =
 export interface MusicScaleReadToolPort {
   /**
    * This port represents the real server-side Tool Gateway boundary.
-   * The adapter MUST revalidate identity, tenant and requiredPermission.
+   * The adapter MUST revalidate identity, tenant and requiredCapability.
    * Connect Core passes canonical context as evidence; it does not grant authority.
    */
   getNextSchedule(input: {
@@ -70,7 +70,7 @@ export interface MusicScaleReadToolPort {
     organizationRole: string | null;
     permissions: string[];
     capabilities: string[];
-    requiredPermission: 'musicscale.schedules.view';
+    requiredCapability: 'scales.read';
     requestId: string;
     correlationId: string;
     channel: ConnectCoreMessageRequest['channel'];
@@ -127,7 +127,7 @@ export type ConnectCoreResponse =
       retryable?: boolean;
     };
 
-const NEXT_SCHEDULE_PERMISSION = 'musicscale.schedules.view' as const;
+const NEXT_SCHEDULE_CAPABILITY = 'scales.read' as const;
 
 function normalizeForIntent(value: string): string {
   return value
@@ -335,7 +335,7 @@ export class ConnectCoreService {
         organizationRole: context.organizationRole,
         permissions: [...context.permissions],
         capabilities: [...context.capabilities],
-        requiredPermission: NEXT_SCHEDULE_PERMISSION,
+        requiredCapability: NEXT_SCHEDULE_CAPABILITY,
         requestId: request.requestId,
         correlationId: request.correlationId,
         channel: request.channel,
