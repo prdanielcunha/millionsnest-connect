@@ -28,6 +28,8 @@ jobs:
       - run: npx tsx src/tests/hubSessionContextAdapter.test.ts
       - run: npx tsx src/tests/hubSessionContextHttpProvider.test.ts
       - run: npx tsx src/tests/musicScaleNextScheduleHttpTool.test.ts
+      - run: npx tsx src/tests/connectCoreHttpHandler.test.ts
+      - run: npx tsx src/tests/structuredCoreAudit.test.ts
       - run: npm run test:zerocost
       - run: npm run test:gatewaytenant
       - run: npm run test:authority
