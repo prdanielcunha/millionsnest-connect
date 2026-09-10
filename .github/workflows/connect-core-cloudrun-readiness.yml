@@ -1,0 +1,90 @@
+name: Connect Core Cloud Run Readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-core-cloudrun-readiness
+  cancel-in-progress: true
+
+env:
+  PROJECT_ID: millionsnest
+  REGION: us-central1
+  SERVICE: connect-api
+  IMAGE: connect-api:readiness
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate Core contracts
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run test:core-http
+          npm run build:core
+
+      - name: Build container locally
+        run: docker build -f Dockerfile.core -t "$IMAGE" .
+
+      - name: Local container health smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name connect-core-readiness \
+            -e PORT=8080 \
+            -e MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com \
+            -e MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com \
+            -p 18083:8080 "$IMAGE"
+          trap 'docker stop connect-core-readiness >/dev/null 2>&1 || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18083/api/health >/tmp/connect-health.json; then
+              node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.service!=='millionsnest-connect-core'||x.success!==true)process.exit(1);"
+              echo "CONNECT_CORE_CONTAINER_SMOKE_OK"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs connect-core-readiness
+          exit 1
+
+      - name: Authenticate with MillionsNest production WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+
+      - name: Read-only infrastructure discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CLOUD_RUN_SERVICES:"
+          gcloud run services list \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='table(metadata.name,status.url)' || true
+
+          echo "CONNECT_API_CURRENT_STATE:"
+          gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='table(metadata.name,status.url,status.conditions[0].type,status.conditions[0].status)' || true
+
+          echo "ARTIFACT_REPOSITORY_STATE:"
+          gcloud artifacts repositories describe millionsnest-web \
+            --project "$PROJECT_ID" \
+            --location "$REGION" \
+            --format='table(name,format,location)' || true
+
+          echo "READ_ONLY_CONNECT_CORE_READINESS_OK"
