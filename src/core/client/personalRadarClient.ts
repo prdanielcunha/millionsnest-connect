@@ -10,6 +10,10 @@ export type RadarClientPerson = {
   radarState?: string;
   snoozedUntil?: string | null;
   priority?: number;
+  salesStage?: string | null;
+  lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
+  lastCommercialAt?: string | null;
+  followUpAt?: string | null;
   signals: Array<{
     id: string;
     type: string;
@@ -98,6 +102,9 @@ export class PersonalRadarClient {
       phone?: string;
       radarState?: 'active' | 'ignored' | 'snoozed';
       snoozeDays?: number;
+      salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      followUpDays?: number;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {

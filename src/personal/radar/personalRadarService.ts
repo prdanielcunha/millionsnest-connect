@@ -85,6 +85,23 @@ function resolveSnoozeDays(value: unknown): number {
   return days;
 }
 
+const SALES_STAGES = new Set<ComposerObjective>([
+  'iniciar_conversa', 'descobrir_dor', 'contar_historia', 'pedir_video', 'enviar_video',
+  'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',
+]);
+const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
+
+function resolveFollowUpDays(value: unknown): number {
+  const days = value === undefined ? 2 : Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('FOLLOW_UP_DAYS_INVALID');
+  return days;
+}
+
+function isFollowUpDue(person: Record<string, unknown>, nowMs: number): boolean {
+  const at = Date.parse(String(person.followUpAt || ''));
+  return Number.isFinite(at) && at <= nowMs;
+}
+
 export class PersonalRadarService {
   constructor(
     private readonly contextProvider: CanonicalContextProvider,
@@ -226,6 +243,10 @@ export class PersonalRadarService {
     const active = people
       .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs))
       .sort((a, b) => {
+        const dueRank = Number(!isFollowUpDue(a, nowMs)) - Number(!isFollowUpDue(b, nowMs));
+        if (dueRank !== 0) return dueRank;
+        const followUpRank = String(a.followUpAt || '').localeCompare(String(b.followUpAt || ''));
+        if (isFollowUpDue(a, nowMs) && followUpRank !== 0) return followUpRank;
         const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
         if (rank !== 0) return rank;
         return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
@@ -278,6 +299,9 @@ export class PersonalRadarService {
       phone?: string | null;
       radarState?: 'active' | 'ignored' | 'snoozed';
       snoozeDays?: number;
+      salesStage?: ComposerObjective;
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      followUpDays?: number;
     },
   ) {
     const context = await this.resolvePilotContext(request);
@@ -289,6 +313,16 @@ export class PersonalRadarService {
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
       : String(person.radarState || 'active');
+
+    if (input.salesStage !== undefined && !SALES_STAGES.has(input.salesStage)) throw new Error('SALES_STAGE_INVALID');
+    if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) throw new Error('COMMERCIAL_ACTION_INVALID');
+
+    const commercialAt = input.commercialAction ? isoNow(this.now) : (person.lastCommercialAt || null);
+    let followUpAt = person.followUpAt || null;
+    if (input.commercialAction === 'sent_manual') {
+      const days = resolveFollowUpDays(input.followUpDays);
+      followUpAt = new Date(this.now() + days * DAY_MS).toISOString();
+    }
 
     let snoozedUntil = person.snoozedUntil || null;
     if (input.radarState === 'snoozed') {
@@ -306,6 +340,10 @@ export class PersonalRadarService {
         phone: hasPhoneUpdate ? (digits || null) : (person.phone || null),
         radarState,
         snoozedUntil,
+        salesStage: input.salesStage ?? person.salesStage ?? null,
+        lastCommercialAction: input.commercialAction ?? person.lastCommercialAction ?? null,
+        lastCommercialAt: commercialAt,
+        followUpAt,
         updatedAt: isoNow(this.now),
       },
     }]);
@@ -326,6 +364,10 @@ export class PersonalRadarService {
         displayName: person.displayName || null,
         phone: person.phone || null,
         organizationId: request.organizationId,
+        salesStage: person.salesStage || null,
+        lastCommercialAction: person.lastCommercialAction || null,
+        lastCommercialAt: person.lastCommercialAt || null,
+        followUpAt: person.followUpAt || null,
         status: 'open',
         promotedManually: true,
         createdAt,

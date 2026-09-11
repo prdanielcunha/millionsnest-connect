@@ -146,9 +146,22 @@ console.log('--- Running Personal Radar Service Tests ---');
   const reactivated = await service.updatePerson(request, person.id, { radarState: 'active' });
   equal(reactivated.snoozedUntil, null, 'reactivating clears stale snooze metadata');
 
+  await service.updatePerson(request, person.id, { salesStage: 'pedir_video' });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).salesStage, 'pedir_video', 'commercial stage persists across sessions');
+  await service.updatePerson(request, person.id, { commercialAction: 'whatsapp_opened' });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).lastCommercialAction, 'whatsapp_opened', 'WhatsApp open is tracked distinctly from sent');
+  await service.updatePerson(request, person.id, { commercialAction: 'sent_manual', followUpDays: 2 });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).lastCommercialAction, 'sent_manual', 'manual send is explicit');
+  assert(typeof (vault.records.get(`personalPeople/${person.id}`) as any).followUpAt === 'string', 'manual send schedules follow-up');
+  let invalidStageRejected = false;
+  try { await service.updatePerson(request, person.id, { salesStage: 'invalid' as any }); } catch (error) { invalidStageRejected = error instanceof Error && error.message === 'SALES_STAGE_INVALID'; }
+  assert(invalidStageRejected, 'invalid commercial stage fails closed');
+
   const promotion = await service.promoteOpportunity(request, person.id);
   equal(promotion.success, true, 'opportunity promotion is an explicit manual action');
   assert(vault.records.has(`relationshipOpportunities/${person.id}`), 'manual promotion creates an owner-scoped opportunity record');
+  equal((vault.records.get(`relationshipOpportunities/${person.id}`) as any).salesStage, 'pedir_video', 'opportunity receives minimal commercial stage metadata');
+  assert(typeof (vault.records.get(`relationshipOpportunities/${person.id}`) as any).followUpAt === 'string', 'opportunity receives follow-up metadata without raw history');
 
   const deletion = await service.deleteSource(request, first.sourceId);
   equal(deletion.deleted, true, 'source deletion succeeds');
