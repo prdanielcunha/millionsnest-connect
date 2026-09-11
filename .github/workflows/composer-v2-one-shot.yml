@@ -18,7 +18,7 @@ jobs:
         with:
           ref: feature/composer-playbook-v2-01
           fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
           cache: npm
@@ -34,6 +34,14 @@ jobs:
           if old not in s:
               raise SystemExit('composer service cast marker missing')
           p.write_text(s.replace(old, new, 1))
+
+          t = Path('src/tests/personalRadarService.test.ts')
+          x = t.read_text()
+          old_assert = "  assert(draft.draft.includes('MusicScale'), 'Composer produces a MusicScale-specific draft');"
+          new_assert = "  assert(Array.isArray((draft as any).options) && (draft as any).options.length === 3, 'Composer produces three contextual draft options');\n  assert((draft as any).stage === 2, 'Composer starts MusicScale fit with discovery before product presentation');\n  assert(typeof (draft as any).recommendation === 'string' && (draft as any).recommendation.length > 10, 'Composer explains the recommended next move');"
+          if old_assert not in x:
+              raise SystemExit('composer service test marker missing')
+          t.write_text(x.replace(old_assert, new_assert, 1))
           PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -52,6 +60,6 @@ jobs:
           rm scripts/apply-composer-v2.mjs .github/workflows/composer-v2-one-shot.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/personal/radar/composerPlaybook.ts src/personal/radar/personalRadarService.ts src/personal/radar/personalRadarHttp.ts src/core/client/personalRadarClient.ts src/features/radar/RadarPage.tsx src/tests/composerPlaybook.test.ts package.json scripts/apply-composer-v2.mjs .github/workflows/composer-v2-one-shot.yml
+          git add src/personal/radar/composerPlaybook.ts src/personal/radar/personalRadarService.ts src/personal/radar/personalRadarHttp.ts src/core/client/personalRadarClient.ts src/features/radar/RadarPage.tsx src/tests/composerPlaybook.test.ts src/tests/personalRadarService.test.ts package.json scripts/apply-composer-v2.mjs .github/workflows/composer-v2-one-shot.yml
           git commit -m "Implement guided MusicScale Composer playbook"
           git push origin HEAD:feature/composer-playbook-v2-01
