@@ -121,7 +121,9 @@ console.log('--- Running Personal Radar Service Tests ---');
 
   const signal = person.signals.find((item: any) => item.type === 'explicit_product_interest');
   const draft = await service.compose(request, person.id, signal.id, 'curto');
-  assert(draft.draft.includes('MusicScale'), 'Composer produces a MusicScale-specific draft');
+  assert(Array.isArray((draft as any).options) && (draft as any).options.length === 3, 'Composer produces three contextual draft options');
+  assert((draft as any).stage === 2, 'Composer starts MusicScale fit with discovery before product presentation');
+  assert(typeof (draft as any).recommendation === 'string' && (draft as any).recommendation.length > 10, 'Composer explains the recommended next move');
   equal(draft.automaticSend, false, 'Composer never enables automatic commercial sending');
   assert(Array.isArray(draft.evidence) && draft.evidence.length > 0, 'Composer keeps the evidence attached');
 
