@@ -142,4 +142,60 @@ console.log('--- Running Live Connect Session Tests ---');
   ok(threw, 'live bootstrap fails closed when canonical Hub tenant differs');
 }
 
+{
+  const deniedSessionFetch = (async (input: any) => {
+    const url = String(input);
+    if (url.startsWith('https://identitytoolkit.googleapis.com/')) {
+      return new Response(JSON.stringify({ idToken: 'firebase-id-token', localId: 'user-1' }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({
+      success: false,
+      code: 'ORGANIZATION_ACCESS_DENIED',
+    }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  let code = '';
+  try {
+    await bootstrapLiveConnectSession({
+      locationHref: `https://connect.example/start?ecosystem_ctx=${encodeURIComponent(encoded)}`,
+      replaceUrl: () => {},
+      fetchFn: deniedSessionFetch,
+      now: () => now,
+      configuredApiKey: 'public-api-key',
+    });
+  } catch (error) {
+    code = error instanceof Error ? error.message : '';
+  }
+  equal(code, 'ORGANIZATION_ACCESS_DENIED', 'safe canonical denial code survives to the bootstrap UI');
+}
+
+{
+  const malformedHostingConfigFetch = (async (input: any) => {
+    const url = String(input);
+    if (url === '/__/firebase/init.json') {
+      return new Response('<!doctype html><html></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+    throw new Error(`unexpected fetch ${url}`);
+  }) as typeof fetch;
+
+  let code = '';
+  try {
+    await bootstrapLiveConnectSession({
+      locationHref: `https://connect.example/start?ecosystem_ctx=${encodeURIComponent(encoded)}`,
+      replaceUrl: () => {},
+      fetchFn: malformedHostingConfigFetch,
+      now: () => now,
+      configuredApiKey: '',
+    });
+  } catch (error) {
+    code = error instanceof Error ? error.message : '';
+  }
+  equal(code, 'FIREBASE_CONFIG_UNAVAILABLE', 'malformed Hosting config fails with a stable safe diagnostic');
+}
+
 console.log(`✅ Passed ${passed} / ${total} tests.`);

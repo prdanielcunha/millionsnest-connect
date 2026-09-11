@@ -29,6 +29,10 @@ env:
   REPOSITORY: millionsnest-web
   RUNTIME_SA: mn-connect-runtime@millionsnest.iam.gserviceaccount.com
   IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${{ github.sha }}
+  # Firebase Web API keys are public client configuration, not credentials.
+  # Pin the same canonical MillionsNest project config used by Hub so the
+  # custom-token exchange does not depend on Hosting's reserved init endpoint.
+  VITE_FIREBASE_API_KEY: AIzaSyAhXY8TV8qoXz8Pd2u5jFHUTVssZmi3kMs
 
 jobs:
   release:
