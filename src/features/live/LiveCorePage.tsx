@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowUp, CheckCircle2, ExternalLink, Loader2, LockKeyhole, MessageSquareText, ShieldCheck, Sparkles } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
+import { toTrustedMusicScaleUrl } from '../../core/client/liveDeepLink';
 
 interface LiveCorePageProps {
   session: LiveConnectSession;
@@ -50,7 +51,7 @@ const copy = {
   'es-ES': {
     eyebrow: 'CONNECT CORE · EN VIVO',
     title: 'Pregunta a tu ecosistema',
-    subtitle: 'Tu contexto viene de MillionsNest y cada lectura se vuelve a validar en la aplicación de origen.',
+    subtitle: 'Tu contexto viene del MillionsNest y cada lectura se vuelve a validar en la aplicación de origen.',
     verified: 'Sesión verificada',
     tenant: 'Organización activa',
     greeting: 'Estoy conectado a tu contexto de MillionsNest. En esta primera integración real, ya puedo consultar tu próxima escala personal en MusicScale.',
@@ -63,12 +64,6 @@ const copy = {
     genericError: 'No pude completar la consulta ahora. Inténtalo de nuevo en unos instantes.',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
-
-function toMusicScaleUrl(deepLink: string | undefined): string | null {
-  const value = typeof deepLink === 'string' ? deepLink.trim() : '';
-  if (!value || value.length > 512 || !value.startsWith('/') || value.startsWith('//')) return null;
-  return `https://musicscale.millionsnest.com${value}`;
-}
 
 export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang }) => {
   const t = copy[currentLang];
@@ -151,7 +146,7 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
       <section className="flex min-h-[470px] flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-black/10 shadow-2xl shadow-black/10 backdrop-blur-xl">
         <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {messages.map((message) => {
-            const musicScaleUrl = toMusicScaleUrl(message.deepLink);
+            const musicScaleUrl = toTrustedMusicScaleUrl(message.deepLink);
             return (
               <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[88%] sm:max-w-[72%] ${message.sender === 'user' ? 'text-right' : ''}`}>
