@@ -30,7 +30,7 @@ const copy = {
     people: 'Pessoas no Radar', messages: 'mensagens',
     signals: 'sinais com evidência', empty: 'Nenhum sinal comercial útil ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra algo quando encontra evidência suficiente.',
     evidence: 'Evidência', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Promover manualmente', promoted: 'Oportunidade marcada',
-    phone: 'WhatsApp/telefone', savePhone: 'Salvar', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
+    phone: 'WhatsApp/telefone', savePhone: 'Salvar', snooze: 'Adiar 7 dias', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
     composerTitle: 'Composer MusicScale', tone: 'Tom', short: 'Curto', conversation: 'Conversa', audio: 'Áudio', video: 'Vídeo',
     regenerate: 'Gerar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Adicione o telefone para abrir o WhatsApp.',
     search: 'Pesquisar no seu histórico', searchPlaceholder: 'Pessoa, termo, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Nenhum resultado.',
@@ -47,7 +47,7 @@ const copy = {
     people: 'People in Radar', messages: 'messages',
     signals: 'evidence-backed signals', empty: 'No useful commercial signal yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces something when there is enough evidence.',
     evidence: 'Evidence', next: 'Next step', compose: 'Create approach', promote: 'Promote manually', promoted: 'Opportunity marked',
-    phone: 'WhatsApp/phone', savePhone: 'Save', ignore: 'Ignore', sourceDelete: 'Delete source',
+    phone: 'WhatsApp/phone', savePhone: 'Save', snooze: 'Snooze 7 days', ignore: 'Ignore', sourceDelete: 'Delete source',
     composerTitle: 'MusicScale Composer', tone: 'Tone', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video',
     regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'Add a phone number to open WhatsApp.',
     search: 'Search your history', searchPlaceholder: 'Person, term, schedule, WhatsApp…', searchAction: 'Search', noSearch: 'No results.',
@@ -64,7 +64,7 @@ const copy = {
     people: 'Personas en Radar', messages: 'mensajes',
     signals: 'señales con evidencia', empty: 'Aún no hay una señal comercial útil', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra algo cuando encuentra evidencia suficiente.',
     evidence: 'Evidencia', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Promover manualmente', promoted: 'Oportunidad marcada',
-    phone: 'WhatsApp/teléfono', savePhone: 'Guardar', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
+    phone: 'WhatsApp/teléfono', savePhone: 'Guardar', snooze: 'Posponer 7 días', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
     composerTitle: 'Composer MusicScale', tone: 'Tono', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
     regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Agrega el teléfono para abrir WhatsApp.',
     search: 'Buscar en tu historial', searchPlaceholder: 'Persona, término, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Sin resultados.',
@@ -162,6 +162,16 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     setTimeout(() => void compose(selection, 'curto'), 0);
   };
 
+  const snoozePerson = async (person: RadarClientPerson) => {
+    try {
+      await client.updatePerson(person.id, { radarState: 'snoozed', snoozeDays: 7 });
+      if (selected?.person.id === person.id) setSelected(null);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.error);
+    }
+  };
+
   const runSearch = async () => {
     if (query.trim().length < 2) return;
     setSearchBusy(true);
@@ -222,7 +232,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
           <article key={person.id} className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03]">
             <div className="flex flex-col gap-4 border-b border-white/8 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div><h3 className="text-lg font-semibold text-white">{person.displayName}</h3><p className="mt-1 text-xs text-slate-500">{person.lastDateKey || '—'} · {person.messageCount || 0} {t.messages}</p></div>
-              <div className="flex flex-wrap gap-2"><button onClick={async () => { await client.promote(person.id); setPromoted(prev => ({ ...prev, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-3 text-xs font-medium text-emerald-200"><UserRoundCheck size={15} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={async () => { await client.updatePerson(person.id, { radarState: 'ignored' }); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-400">{t.ignore}</button><button title={t.sourceDelete} onClick={async () => { if (window.confirm(t.deleteConfirm)) { await client.deleteSource(person.sourceId); await refresh(); } }} className="grid h-10 w-10 place-items-center rounded-xl border border-red-400/10 text-red-300/70 hover:bg-red-400/5"><Trash2 size={15} /></button></div>
+              <div className="flex flex-wrap gap-2"><button onClick={async () => { await client.promote(person.id); setPromoted(prev => ({ ...prev, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-3 text-xs font-medium text-emerald-200"><UserRoundCheck size={15} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={() => void snoozePerson(person)} className="min-h-10 rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] px-3 text-xs text-indigo-200">{t.snooze}</button><button onClick={async () => { await client.updatePerson(person.id, { radarState: 'ignored' }); if (selected?.person.id === person.id) setSelected(null); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-400">{t.ignore}</button><button title={t.sourceDelete} onClick={async () => { if (window.confirm(t.deleteConfirm)) { await client.deleteSource(person.sourceId); if (selected?.person.sourceId === person.sourceId) setSelected(null); await refresh(); } }} className="grid h-10 w-10 place-items-center rounded-xl border border-red-400/10 text-red-300/70 hover:bg-red-400/5"><Trash2 size={15} /></button></div>
             </div>
             <div className="grid gap-3 p-4 lg:grid-cols-2">{person.signals.map(signal => <div key={signal.id} className="rounded-2xl border border-white/8 bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full border border-indigo-400/15 bg-indigo-400/[0.06] px-2.5 py-1 text-[10px] font-semibold text-indigo-200">{signalLabel(signal.type, currentLang)}</span><ChevronRight size={15} className="text-slate-600" /></div><p className="mt-3 text-sm leading-6 text-slate-200">{signal.reason}</p>{signal.evidence?.[0] && <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.evidence} · {signal.evidence[0].dateKey}</div><p className="mt-1 text-xs leading-5 text-slate-400">“{signal.evidence[0].snippet}”</p></div>}<div className="mt-3 text-xs leading-5 text-slate-400"><span className="font-semibold text-slate-300">{t.next}:</span> {signal.nextAction}</div><button onClick={() => openComposer(person, signal)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3.5 text-xs font-semibold text-slate-950"><MessageCircle size={15} /> {t.compose}</button></div>)}</div>
             <div className="flex flex-col gap-2 border-t border-white/8 bg-black/10 p-4 sm:flex-row sm:items-center"><label className="text-xs text-slate-500 sm:min-w-32">{t.phone}</label><input value={phones[person.id] || ''} onChange={e => setPhones(prev => ({ ...prev, [person.id]: e.target.value }))} placeholder="5543999999999" className="min-h-10 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><button onClick={async () => { await client.updatePerson(person.id, { phone: phones[person.id] }); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300">{t.savePhone}</button></div>
