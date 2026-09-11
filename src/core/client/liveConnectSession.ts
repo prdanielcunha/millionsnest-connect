@@ -119,7 +119,13 @@ async function exchangeCustomToken(
 
   const idToken = safeString(body?.idToken);
   const localId = safeString(body?.localId);
-  if (!idToken || localId !== payload.userId) throw new Error('HANDOFF_IDENTITY_MISMATCH');
+  if (!idToken) throw new Error('HANDOFF_IDENTITY_MISMATCH');
+  // Identity Toolkit does not guarantee localId in every successful custom-token
+  // response. When present, keep the fast client-side consistency check. When
+  // absent, defer identity authority to the next canonical Hub session call,
+  // where the Firebase ID token is verified server-side and its uid must match
+  // the handoff uid before LIVE_CORE is created.
+  if (localId && localId !== payload.userId) throw new Error('HANDOFF_IDENTITY_MISMATCH');
   return idToken;
 }
 

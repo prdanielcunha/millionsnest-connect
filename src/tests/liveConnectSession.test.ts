@@ -96,6 +96,73 @@ console.log('--- Running Live Connect Session Tests ---');
 }
 
 {
+  const noLocalIdFetch = (async (input: any) => {
+    const url = String(input);
+    if (url.startsWith('https://identitytoolkit.googleapis.com/')) {
+      return new Response(JSON.stringify({ idToken: 'firebase-id-token' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.startsWith('/api/core/session')) {
+      return new Response(JSON.stringify({
+        success: true,
+        protocolVersion: '1.0.0',
+        user: { uid: 'user-1', displayName: 'Daniel', systemRole: 'ceo', capabilities: [] },
+        activeOrganizationId: 'org-1',
+        activeOrganization: {
+          id: 'org-1',
+          name: 'Família OBPC',
+          slug: 'familia-obpc',
+          organizationRole: 'owner',
+          permissions: [],
+          capabilities: [],
+        },
+        appAccess: { musicscale: { accessible: true } },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    throw new Error(`unexpected fetch ${url}`);
+  }) as typeof fetch;
+
+  const session = await bootstrapLiveConnectSession({
+    locationHref: `https://connect.example/start?ecosystem_ctx=${encodeURIComponent(encoded)}`,
+    replaceUrl: () => {},
+    fetchFn: noLocalIdFetch,
+    now: () => now,
+    configuredApiKey: 'public-api-key',
+  });
+  equal(session.context.user.uid, 'user-1', 'missing localId is accepted only after canonical Hub uid verification succeeds');
+  equal(session.context.activeOrganization.name, 'Família OBPC', 'canonical tenant remains authoritative when localId is omitted');
+}
+
+{
+  const wrongLocalIdFetch = (async (input: any) => {
+    const url = String(input);
+    if (url.startsWith('https://identitytoolkit.googleapis.com/')) {
+      return new Response(JSON.stringify({ idToken: 'firebase-id-token', localId: 'other-user' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw new Error(`unexpected fetch ${url}`);
+  }) as typeof fetch;
+
+  let code = '';
+  try {
+    await bootstrapLiveConnectSession({
+      locationHref: `https://connect.example/start?ecosystem_ctx=${encodeURIComponent(encoded)}`,
+      replaceUrl: () => {},
+      fetchFn: wrongLocalIdFetch,
+      now: () => now,
+      configuredApiKey: 'public-api-key',
+    });
+  } catch (error) {
+    code = error instanceof Error ? error.message : '';
+  }
+  equal(code, 'HANDOFF_IDENTITY_MISMATCH', 'an explicit conflicting localId still fails closed');
+}
+
+{
   let threw = false;
   try {
     await bootstrapLiveConnectSession({
