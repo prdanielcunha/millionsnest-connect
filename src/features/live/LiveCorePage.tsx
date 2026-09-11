@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowUp, CheckCircle2, Loader2, LockKeyhole, MessageSquareText, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowUp, CheckCircle2, ExternalLink, Loader2, LockKeyhole, MessageSquareText, ShieldCheck, Sparkles } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
+import { toTrustedMusicScaleUrl } from '../../core/client/liveDeepLink';
 
 interface LiveCorePageProps {
   session: LiveConnectSession;
@@ -13,6 +14,7 @@ type LiveMessage = {
   sender: 'user' | 'connect';
   content: string;
   auditId?: string;
+  deepLink?: string;
 };
 
 const copy = {
@@ -27,6 +29,7 @@ const copy = {
     placeholder: 'Pergunte sobre sua próxima escala…',
     sending: 'Consultando com segurança…',
     audit: 'Auditoria',
+    openInMusicScale: 'Abrir no MusicScale',
     footer: 'Identidade, organização e permissões são validadas no servidor. O navegador não decide seu acesso.',
     genericError: 'Não consegui concluir a consulta agora. Tente novamente em instantes.',
   },
@@ -41,13 +44,14 @@ const copy = {
     placeholder: 'Ask about your next schedule…',
     sending: 'Checking securely…',
     audit: 'Audit',
+    openInMusicScale: 'Open in MusicScale',
     footer: 'Identity, organization, and permissions are validated on the server. The browser never decides access.',
     genericError: 'I could not complete that request right now. Please try again shortly.',
   },
   'es-ES': {
     eyebrow: 'CONNECT CORE · EN VIVO',
     title: 'Pregunta a tu ecosistema',
-    subtitle: 'Tu contexto viene de MillionsNest y cada lectura se vuelve a validar en la aplicación de origen.',
+    subtitle: 'Tu contexto viene del MillionsNest y cada lectura se vuelve a validar en la aplicación de origen.',
     verified: 'Sesión verificada',
     tenant: 'Organización activa',
     greeting: 'Estoy conectado a tu contexto de MillionsNest. En esta primera integración real, ya puedo consultar tu próxima escala personal en MusicScale.',
@@ -55,6 +59,7 @@ const copy = {
     placeholder: 'Pregunta sobre tu próxima escala…',
     sending: 'Consultando de forma segura…',
     audit: 'Auditoría',
+    openInMusicScale: 'Abrir en MusicScale',
     footer: 'La identidad, organización y permisos se validan en el servidor. El navegador no decide el acceso.',
     genericError: 'No pude completar la consulta ahora. Inténtalo de nuevo en unos instantes.',
   },
@@ -94,6 +99,7 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
           sender: 'connect',
           content: result.humanSummary || t.genericError,
           auditId: result.auditId,
+          deepLink: result.deepLink,
         },
       ]);
     } catch {
@@ -139,25 +145,38 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
 
       <section className="flex min-h-[470px] flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-black/10 shadow-2xl shadow-black/10 backdrop-blur-xl">
         <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[88%] sm:max-w-[72%] ${message.sender === 'user' ? 'text-right' : ''}`}>
-                <div
-                  className={message.sender === 'user'
-                    ? 'rounded-[22px] rounded-br-md bg-white px-4 py-3 text-left text-sm leading-6 text-slate-950 shadow-lg'
-                    : 'rounded-[22px] rounded-bl-md border border-white/10 bg-white/[0.045] px-4 py-3 text-sm leading-6 text-slate-100'}
-                >
-                  {message.content}
-                </div>
-                {message.auditId && (
-                  <div className="mt-2 flex items-center gap-1.5 px-1 text-[10px] text-slate-500">
-                    <LockKeyhole size={11} />
-                    {t.audit}: {message.auditId}
+          {messages.map((message) => {
+            const musicScaleUrl = toTrustedMusicScaleUrl(message.deepLink);
+            return (
+              <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[88%] sm:max-w-[72%] ${message.sender === 'user' ? 'text-right' : ''}`}>
+                  <div
+                    className={message.sender === 'user'
+                      ? 'rounded-[22px] rounded-br-md bg-white px-4 py-3 text-left text-sm leading-6 text-slate-950 shadow-lg'
+                      : 'rounded-[22px] rounded-bl-md border border-white/10 bg-white/[0.045] px-4 py-3 text-sm leading-6 text-slate-100'}
+                  >
+                    {message.content}
                   </div>
-                )}
+                  {musicScaleUrl && (
+                    <a
+                      href={musicScaleUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-violet-400/20 bg-violet-400/[0.07] px-3 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-400/12"
+                    >
+                      {t.openInMusicScale} <ExternalLink size={12} />
+                    </a>
+                  )}
+                  {message.auditId && (
+                    <div className="mt-2 flex items-center gap-1.5 px-1 text-[10px] text-slate-500">
+                      <LockKeyhole size={11} />
+                      {t.audit}: {message.auditId}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {busy && (
             <div className="flex justify-start">

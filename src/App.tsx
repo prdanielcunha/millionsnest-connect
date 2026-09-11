@@ -32,7 +32,27 @@ import { AuditPage } from './features/audit/AuditPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { DocsPage } from './features/docs/DocsPage';
 
-function LiveBootScreen({ failed }: { failed?: boolean }) {
+const SAFE_BOOTSTRAP_ERROR_CODES = new Set([
+  'HANDOFF_REQUIRED',
+  'HANDOFF_INVALID',
+  'HANDOFF_EXPIRED',
+  'FIREBASE_CONFIG_UNAVAILABLE',
+  'HANDOFF_EXCHANGE_FAILED',
+  'HANDOFF_IDENTITY_MISMATCH',
+  'AUTH_REQUIRED',
+  'ORGANIZATION_REQUIRED',
+  'ORGANIZATION_CONTEXT_MISMATCH',
+  'ORGANIZATION_ACCESS_DENIED',
+  'CANONICAL_CONTEXT_UNAVAILABLE',
+  'CANONICAL_CONTEXT_MISMATCH',
+]);
+
+function safeBootstrapErrorCode(error: unknown): string {
+  const candidate = error instanceof Error ? error.message.trim() : '';
+  return SAFE_BOOTSTRAP_ERROR_CODES.has(candidate) ? candidate : 'LIVE_BOOT_FAILED';
+}
+
+function LiveBootScreen({ failed, errorCode }: { failed?: boolean; errorCode?: string | null }) {
   return (
     <main className="grid min-h-screen place-items-center bg-[#08090c] px-6 text-white">
       <section className="w-full max-w-lg rounded-[28px] border border-white/10 bg-white/[0.04] p-7 text-center shadow-2xl backdrop-blur-xl">
@@ -47,6 +67,11 @@ function LiveBootScreen({ failed }: { failed?: boolean }) {
             ? 'A sessão segura não pôde ser confirmada. Volte ao Hub, escolha sua organização e abra o Connect novamente.'
             : 'Validando identidade, organização e permissões antes de liberar o Connect Core.'}
         </p>
+        {failed && errorCode && (
+          <p className="mx-auto mt-3 w-fit rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 font-mono text-[11px] tracking-wide text-slate-400">
+            Diagnóstico: {errorCode}
+          </p>
+        )}
         {failed && (
           <button
             type="button"
@@ -84,6 +109,7 @@ export default function App() {
   const [liveBootState, setLiveBootState] = useState<'idle' | 'loading' | 'failed'>(
     CONNECT_LIVE_MODE_ENABLED ? 'loading' : 'idle',
   );
+  const [liveBootErrorCode, setLiveBootErrorCode] = useState<string | null>(null);
   const [activeRoute, setActiveRoute] = useState<string>('overview');
   const [currentLang, setCurrentLang] = useState<LanguageCode>('pt-BR');
 
@@ -91,15 +117,18 @@ export default function App() {
     if (!CONNECT_LIVE_MODE_ENABLED) return;
     let mounted = true;
     setLiveBootState('loading');
+    setLiveBootErrorCode(null);
     bootstrapLiveConnectSession()
       .then((session) => {
         if (!mounted) return;
         setLiveSession(session);
+        setLiveBootErrorCode(null);
         setLiveBootState('idle');
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) return;
         setLiveSession(null);
+        setLiveBootErrorCode(safeBootstrapErrorCode(error));
         setLiveBootState('failed');
       });
     return () => { mounted = false; };
@@ -109,7 +138,7 @@ export default function App() {
     return <LiveBootScreen />;
   }
   if (CONNECT_LIVE_MODE_ENABLED && (liveBootState === 'failed' || !liveSession)) {
-    return <LiveBootScreen failed />;
+    return <LiveBootScreen failed errorCode={liveBootErrorCode} />;
   }
 
   const context = liveSession?.context ?? demoContext;
@@ -154,7 +183,7 @@ export default function App() {
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
     }
-    if (activeRoute === 'overview' || activeRoute === 'inbox') {
+    if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
     }
     return <LiveStagedSection />;
