@@ -1,0 +1,86 @@
+name: Connect Live UI Truth Release Once
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - '.github/workflows/connect-live-ui-truth-release-once.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-live-ui-truth-release
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: millionsnest
+  VITE_CONNECT_LIVE_ENABLED: 'true'
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate live UI truth release
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run test:core-http
+          npm run test:radar-pilot
+          npm run test:zerocost
+          npm run test:gatewaytenant
+          npm run test:authority
+          npm run test:chartdelivery
+          npm run test:firebase-hosting
+          npm run test:release-policy
+          npm run build
+
+      - name: Authenticate with MillionsNest production WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+
+      - name: Deploy Connect Firebase Hosting live UI
+        run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
+
+      - name: Production smoke through Firebase Hosting
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://mn-connect-555464791734.web.app"
+
+          ROOT_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-index.html -w '%{http_code}' "$BASE/")"
+          echo "ROOT_STATUS=$ROOT_STATUS"
+          test "$ROOT_STATUS" = "200"
+          grep -Eiq '<!doctype html|<html' /tmp/connect-index.html
+
+          HEALTH_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-health.json -w '%{http_code}' "$BASE/api/health")"
+          echo "HEALTH_STATUS=$HEALTH_STATUS"
+          test "$HEALTH_STATUS" = "200"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
+
+          MESSAGE_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-message.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{\"text\":\"Qual é minha próxima escala?\"}' "$BASE/api/core/message")"
+          echo "MESSAGE_STATUS=$MESSAGE_STATUS"
+          test "$MESSAGE_STATUS" = "401"
+
+          SESSION_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-session.json -w '%{http_code}' "$BASE/api/core/session?organizationId=release-smoke")"
+          echo "SESSION_STATUS=$SESSION_STATUS"
+          test "$SESSION_STATUS" = "401"
+
+          FIREBASE_INIT_STATUS="$(curl --silent --show-error --location --retry 6 --retry-delay 2 --retry-all-errors -o /tmp/firebase-init.json -w '%{http_code}' "$BASE/__/firebase/init.json")"
+          echo "FIREBASE_INIT_STATUS=$FIREBASE_INIT_STATUS"
+          test "$FIREBASE_INIT_STATUS" = "200"
+
+          echo "CONNECT_LIVE_UI_TRUTH_RELEASE_OK"
