@@ -25,6 +25,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run test:core-http
+      - run: npm run test:radar-pilot
       - run: npm run test:zerocost
       - run: npm run test:gatewaytenant
       - run: npm run test:authority

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { 
-  Menu, X, Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
+import {
+  Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
   LayoutDashboard, MessageSquare, Wrench, Users, BrainCircuit,
-  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen
+  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
@@ -20,7 +20,15 @@ interface ShellProps {
   onSelectOrg: (orgId: string) => void;
   activeRoute: string;
   onNavigate: (route: string) => void;
+  isLive?: boolean;
+  showRadar?: boolean;
 }
+
+const radarLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'Radar',
+  'en-US': 'Radar',
+  'es-ES': 'Radar',
+};
 
 export const Shell: React.FC<ShellProps> = ({
   children,
@@ -30,6 +38,8 @@ export const Shell: React.FC<ShellProps> = ({
   onSelectOrg,
   activeRoute,
   onNavigate,
+  isLive = false,
+  showRadar = false,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopOrgMenuOpen, setIsDesktopOrgMenuOpen] = useState(false);
@@ -39,6 +49,7 @@ export const Shell: React.FC<ShellProps> = ({
   const navItems = [
     { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },
     { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },
+    ...(showRadar ? [{ id: 'radar', label: radarLabels[currentLang], icon: Radar }] : []),
     { id: 'tools', label: t.navigation.tools, icon: Wrench },
     { id: 'contacts', label: t.navigation.contacts, icon: Users },
     { id: 'agents', label: t.navigation.agents, icon: BrainCircuit },
@@ -52,10 +63,9 @@ export const Shell: React.FC<ShellProps> = ({
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#0B0E14] overflow-x-hidden">
-      <DemoBanner currentLang={currentLang} />
+      {!isLive && <DemoBanner currentLang={currentLang} />}
 
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Mobile Header (Hidden on lg) */}
         <MobileAppHeader
           className="lg:hidden"
           context={context}
@@ -78,12 +88,11 @@ export const Shell: React.FC<ShellProps> = ({
         />
 
         <div className="flex-1 min-h-0 flex">
-          {/* Desktop Sidebar (Hidden on mobile/tablet) */}
           <div className="hidden lg:flex w-64 flex-col bg-[#121824] border-r border-white/10 shrink-0">
             <div className="h-14 flex items-center gap-2 px-4 border-b border-white/10">
               <BrandLogo layout="horizontal" surface="dark" size="desktopWordmark" />
             </div>
-            
+
             <div className="flex-1 overflow-y-auto py-4">
               <nav className="space-y-1 px-3">
                 {navItems.map((item) => {
@@ -106,7 +115,7 @@ export const Shell: React.FC<ShellProps> = ({
                 })}
               </nav>
             </div>
-            
+
             <div className="p-4 border-t border-white/10 text-[10px] text-gray-500 text-center">
               {t.header.brandAuth.split('|').map((part, i) => (
                 <React.Fragment key={i}>
@@ -118,9 +127,7 @@ export const Shell: React.FC<ShellProps> = ({
           </div>
 
           <section className="flex-1 min-w-0 min-h-0 flex flex-col">
-            {/* Desktop Top Bar (Hidden on mobile/tablet) */}
             <header className="hidden lg:flex h-14 border-b border-white/10 bg-[#121824] px-4 items-center justify-between gap-4 shrink-0">
-              {/* Left: Organization Selector */}
               <div className="relative flex items-center gap-3 min-w-0">
                 <div className="relative">
                   <button
@@ -172,7 +179,6 @@ export const Shell: React.FC<ShellProps> = ({
                 </div>
               </div>
 
-              {/* Middle: Global Search Palette Trigger */}
               <div className="flex items-center flex-1 max-w-md">
                 <button
                   onClick={() => setIsCommandPaletteOpen(true)}
@@ -189,7 +195,6 @@ export const Shell: React.FC<ShellProps> = ({
                 </button>
               </div>
 
-              {/* Right Controls: Language, Notifications, User */}
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex items-center gap-1 bg-[#1A2234] border border-white/10 rounded-lg p-0.5 text-xs">
                   <Globe className="w-3.5 h-3.5 text-gray-400 ml-1.5" />
@@ -208,7 +213,7 @@ export const Shell: React.FC<ShellProps> = ({
                     </button>
                   ))}
                 </div>
-                <button 
+                <button
                   className="p-2 rounded-lg bg-[#1A2234] border border-white/10 text-gray-600 cursor-not-allowed transition relative"
                   aria-label={t.header.notificationsPlanned}
                   title={t.header.notificationsPlanned}
@@ -217,11 +222,17 @@ export const Shell: React.FC<ShellProps> = ({
                   <Bell className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2.5 pl-2 border-l border-white/10">
-                  <img
-                    src={context.user.avatarUrl}
-                    alt={context.user.name}
-                    className="w-8 h-8 rounded-full border border-indigo-500/50 object-cover"
-                  />
+                  {context.user.avatarUrl ? (
+                    <img
+                      src={context.user.avatarUrl}
+                      alt={context.user.name}
+                      className="w-8 h-8 rounded-full border border-indigo-500/50 object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-8 w-8 place-items-center rounded-full border border-indigo-500/50 bg-indigo-500/10 text-[10px] font-bold text-indigo-200">
+                      {context.user.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
                   <div className="flex flex-col text-left">
                     <span className="text-xs font-semibold text-gray-200 leading-tight">
                       {context.user.name}
@@ -234,7 +245,6 @@ export const Shell: React.FC<ShellProps> = ({
               </div>
             </header>
 
-            {/* Page Body */}
             <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6">
               {children}
             </main>
