@@ -1,0 +1,303 @@
+import { RadarSignal } from './radarSignals';
+
+export type ComposerChannel = 'texto' | 'audio' | 'video' | 'followup';
+export type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
+export type ComposerObjective =
+  | 'iniciar_conversa'
+  | 'descobrir_dor'
+  | 'pedir_video'
+  | 'explicar_dor'
+  | 'convidar_trial'
+  | 'acompanhar_trial'
+  | 'retomar_conversa'
+  | 'fechar';
+
+export type ComposerOption = {
+  id: string;
+  text: string;
+  style: ComposerStyle;
+  channel: ComposerChannel;
+};
+
+export type ComposerPlan = {
+  stage: number;
+  stageLabel: string;
+  objective: ComposerObjective;
+  recommendedChannel: ComposerChannel;
+  recommendedStyle: ComposerStyle;
+  recommendation: string;
+  why: string;
+  tip: string;
+  nextSmallYes: string;
+  estimatedDurationSeconds?: number;
+  factsUsed: string[];
+  options: ComposerOption[];
+};
+
+type PersonLike = {
+  displayName?: unknown;
+  signals?: unknown;
+};
+
+function firstName(value: unknown): string {
+  const clean = String(value || '').trim();
+  if (!clean || /^\+?\d/.test(clean)) return '';
+  return clean.split(/\s+/)[0] || '';
+}
+
+function evidenceText(signal: RadarSignal): string {
+  return signal.evidence.map(item => item.snippet).join(' ');
+}
+
+function topic(signal: RadarSignal): string {
+  const text = evidenceText(signal);
+  if (/cifra|repert[oó]rio|tom|tonalidade/i.test(text)) return 'repertório, cifras e tons';
+  if (/ensaio/i.test(text)) return 'ensaio e preparação da equipe';
+  if (/confirma|presen[cç]a|disponibilidade|faltar/i.test(text)) return 'confirmação e disponibilidade da equipe';
+  if (/whatsapp/i.test(text)) return 'organização do louvor pelo WhatsApp';
+  if (/escala/i.test(text)) return 'escalas do louvor';
+  if (/louvor|worship|minist[eé]rio|banda|vocal|m[uú]sic/i.test(text)) return 'organização da equipe de louvor';
+  return 'organização do louvor';
+}
+
+function isPastoral(signal: RadarSignal): boolean {
+  return signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic';
+}
+
+function hasProductInterest(signal: RadarSignal): boolean {
+  return signal.type === 'explicit_product_interest';
+}
+
+function hasRelationship(signal: RadarSignal): boolean {
+  return signal.type === 'commercial_followup_due';
+}
+
+function resolveStage(signal: RadarSignal, objective?: ComposerObjective): number {
+  if (objective === 'pedir_video') return 4;
+  if (objective === 'explicar_dor') return 7;
+  if (objective === 'convidar_trial') return 8;
+  if (objective === 'acompanhar_trial') return 9;
+  if (objective === 'fechar') return 10;
+  if (objective === 'retomar_conversa') return 1;
+  if (objective === 'descobrir_dor') return 2;
+  if (hasProductInterest(signal)) return 2;
+  return 1;
+}
+
+function stageLabel(stage: number): string {
+  return ({
+    1: 'Abertura', 2: 'Descoberta', 3: 'História', 4: 'Permissão', 5: 'Demonstração',
+    6: 'Diagnóstico', 7: 'Resposta focada', 8: 'Trial', 9: 'Ativação', 10: 'Fechamento',
+  } as Record<number, string>)[stage] || 'Descoberta';
+}
+
+function defaultObjective(stage: number): ComposerObjective {
+  if (stage === 1) return 'iniciar_conversa';
+  if (stage === 2) return 'descobrir_dor';
+  if (stage === 4) return 'pedir_video';
+  if (stage === 7) return 'explicar_dor';
+  if (stage === 8) return 'convidar_trial';
+  if (stage === 9) return 'acompanhar_trial';
+  if (stage === 10) return 'fechar';
+  return 'descobrir_dor';
+}
+
+function defaultStyle(signal: RadarSignal): ComposerStyle {
+  if (isPastoral(signal)) return 'pastoral';
+  if (hasRelationship(signal)) return 'proximo';
+  if (hasProductInterest(signal)) return 'consultivo';
+  return 'amigavel';
+}
+
+function greeting(name: string, style: ComposerStyle): string {
+  if (style === 'pastoral') return name ? `Olá, ${name}! Tudo bem?` : 'Olá! Tudo bem?';
+  if (style === 'descontraido') return name ? `Ô, ${name}!` : 'Oi!';
+  return name ? `Oi, ${name}! Tudo bem?` : 'Oi! Tudo bem?';
+}
+
+function soften(style: ComposerStyle, text: string): string {
+  if (style === 'objetivo') return text.replace(/Tudo bem\?\s*/g, '').replace(/Queria te fazer uma pergunta rapidinha:/g, 'Uma pergunta rápida:');
+  if (style === 'profissional') return text.replace('Ô, ', 'Olá, ').replace('rapidinho', 'brevemente').replace('uma coisa', 'um ponto');
+  if (style === 'pastoral') return text.replace('vocês', 'vocês aí na igreja');
+  return text;
+}
+
+function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  if (hasProductInterest(signal)) {
+    return [
+      `${g} Vi o que você comentou sobre ${t}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`,
+      `${g} Lembrei do que você falou sobre ${t}. O que mais dá trabalho para vocês hoje nessa parte?`,
+      `${g} Posso te fazer uma pergunta rápida? Como vocês organizam ${t} hoje na prática?`,
+    ].map(text => soften(style, text));
+  }
+  if (isPastoral(signal)) {
+    return [
+      `${g} Queria te fazer uma pergunta rapidinha sobre o louvor. Hoje vocês organizam músicas, cifras, tons e escala mais pelo WhatsApp ou usam algum sistema?`,
+      `${g} Uma curiosidade: como vocês organizam hoje escala, músicas e confirmações do pessoal do louvor?`,
+      `${g} Posso te fazer uma pergunta rápida sobre como vocês organizam o ministério de louvor hoje?`,
+    ].map(text => soften(style, text));
+  }
+  if (hasRelationship(signal)) {
+    return [
+      `${g} Lembrei de você e queria te perguntar uma coisa: vocês ainda organizam o louvor mais pelo WhatsApp?`,
+      `${g} Deixa eu te perguntar uma coisa sobre o louvor daí: como vocês montam escala e repertório hoje?`,
+      `${g} Posso te fazer uma pergunta rapidinha? O que mais dá trabalho para organizar o pessoal do louvor hoje?`,
+    ].map(text => soften(style, text));
+  }
+  return [
+    `${g} Posso te fazer uma pergunta rápida sobre como vocês organizam o louvor hoje?`,
+    `${g} Como vocês organizam escala, repertório e confirmações do louvor atualmente?`,
+    `${g} Hoje vocês usam mais WhatsApp para organizar o louvor ou já têm alguma ferramenta?`,
+  ].map(text => soften(style, text));
+}
+
+function permissionVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Pelo que você comentou sobre ${t}, acho que faz sentido te mostrar uma coisa. Posso te mandar um vídeo de uns 30 segundos do MusicScale?`,
+    `${g} A gente viveu algo bem parecido por aqui e acabou criando o MusicScale. Posso te mandar um vídeo curtinho para você ver como funciona?`,
+    `${g} Em vez de te explicar tudo por texto, posso te mandar um vídeo bem rápido mostrando como a gente resolveu essa parte no MusicScale?`,
+  ].map(text => soften(style, text));
+}
+
+function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Sobre ${t}: no MusicScale essa parte fica centralizada para a equipe, então ninguém precisa procurar informação espalhada. Se você quiser, te mostro só esse fluxo.`,
+    `${g} O ponto que você comentou sobre ${t} é justamente uma das coisas que o MusicScale resolve. Quer que eu te mostre especificamente essa parte?`,
+    `${g} Pensando no que você falou sobre ${t}, eu não te mostraria o app inteiro agora. Eu começaria só por essa função. Posso te mostrar?`,
+  ].map(text => soften(style, text));
+}
+
+function trialVariants(name: string, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  return [
+    `${g} Pelo que você viu até aqui, acho que o melhor é testar na realidade de vocês. Quer criar a organização da igreja e usar os 7 dias para montar uma escala real?`,
+    `${g} Se fizer sentido, o próximo passo pode ser bem simples: testar por 7 dias com a própria equipe e ver se facilita de verdade. Quer que eu te mostre como começar?`,
+    `${g} Em vez de decidir só pelo vídeo, vale testar numa escala real. Quer começar os 7 dias e colocar a equipe para usar?`,
+  ].map(text => soften(style, text));
+}
+
+function followupVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Passando só para retomar aquele assunto sobre ${t}. Você conseguiu ver com calma?`,
+    `${g} Lembrei da nossa conversa sobre ${t}. Ficou alguma dúvida ou alguma parte que você queria ver melhor?`,
+    `${g} Só retomando sem pressa: aquilo sobre ${t} ainda é uma dificuldade aí para vocês?`,
+  ].map(text => soften(style, text));
+}
+
+function closingVariants(name: string, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  return [
+    `${g} Agora que vocês já usaram numa rotina real: facilitou a organização do louvor?`,
+    `${g} Depois desse teste, queria saber uma coisa bem simples: ficou mais fácil para a equipe se organizar?`,
+    `${g} O teste ajudou de verdade na rotina de vocês? Se sim, eu te explico como fica a continuidade para a igreja inteira.`,
+  ].map(text => soften(style, text));
+}
+
+function audioVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Olha, aqui a gente também passava por muita coisa espalhada no WhatsApp, principalmente ${t}. Minha esposa lidera e ministra no louvor, e eu fui vendo de perto o trabalho que dava. Como eu trabalho com tecnologia, a gente acabou criando o MusicScale para resolver primeiro a nossa própria rotina: escala, repertório e confirmação da equipe num lugar só. Se você quiser, eu te mando um vídeo bem curto mostrando como funciona.`,
+    `${g} A ideia do MusicScale nasceu de uma necessidade nossa mesmo na igreja. A gente tinha dificuldade com ${t} e muita informação ficava perdida em conversa. Então fomos montando uma ferramenta simples para a equipe inteira acompanhar escala, músicas e confirmações. Se fizer sentido para você, eu posso te mostrar em um vídeo de poucos segundos.`,
+    `${g} Não foi um app que a gente inventou procurando o que vender. Ele nasceu porque a gente vivia essa rotina de louvor e queria facilitar ${t}. A ideia foi colocar o que a equipe precisa num lugar só e tirar peso do líder. Posso te mandar um vídeo rapidinho para você ver se faria sentido aí também?`,
+  ].map(text => soften(style, text));
+}
+
+export function buildComposerPlan(input: {
+  person: PersonLike;
+  signal: RadarSignal;
+  style?: ComposerStyle;
+  channel?: ComposerChannel;
+  objective?: ComposerObjective;
+}): ComposerPlan {
+  const stage = resolveStage(input.signal, input.objective);
+  const objective = input.objective || defaultObjective(stage);
+  const style = input.style || defaultStyle(input.signal);
+  const name = firstName(input.person.displayName);
+  const t = topic(input.signal);
+  const channel: ComposerChannel = input.channel || (objective === 'retomar_conversa' ? 'followup' : 'texto');
+
+  let texts: string[];
+  let effectiveChannel = channel;
+  if (channel === 'audio') {
+    texts = audioVariants(name, input.signal, style);
+  } else if (objective === 'pedir_video') {
+    texts = permissionVariants(name, input.signal, style);
+  } else if (objective === 'explicar_dor') {
+    texts = focusedVariants(name, input.signal, style);
+  } else if (objective === 'convidar_trial' || objective === 'acompanhar_trial') {
+    texts = trialVariants(name, style);
+  } else if (objective === 'retomar_conversa' || channel === 'followup') {
+    texts = followupVariants(name, input.signal, style);
+    effectiveChannel = 'followup';
+  } else if (objective === 'fechar') {
+    texts = closingVariants(name, style);
+  } else {
+    texts = openingVariants(name, input.signal, style);
+  }
+
+  const factsUsed = input.signal.evidence.slice(0, 3).map(item => `${item.dateKey}: ${item.snippet}`);
+  const recommendation = stage <= 2
+    ? 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
+    : stage === 4
+      ? 'Peça permissão antes de mandar o vídeo. O próximo passo é um pequeno “sim”.'
+      : stage === 7
+        ? `Fale somente da parte ligada a ${t}; não despeje todos os recursos.`
+        : stage === 8
+          ? 'Só convide para o trial quando houver intenção real. Use uma rotina da própria igreja.'
+          : stage === 10
+            ? 'Pergunte primeiro se facilitou. Só depois apresente continuidade e plano vigente.'
+            : 'Avance uma etapa por vez e adapte a próxima mensagem à resposta real.';
+
+  const why = hasProductInterest(input.signal)
+    ? `A própria conversa trouxe uma dor ligada a ${t}, então vale começar por esse contexto real.`
+    : hasRelationship(input.signal)
+      ? 'Já existe relacionamento comprovado, então uma abordagem natural é melhor que uma apresentação comercial fria.'
+      : isPastoral(input.signal)
+        ? 'É um contato pastoral/de liderança; use respeito, calor humano e descoberta antes de apresentar produto.'
+        : 'Há contexto suficiente para uma abertura curta e consultiva.';
+
+  const tip = effectiveChannel === 'audio'
+    ? 'Fale como conversa, com frases curtas e pausas naturais. Não leia como anúncio.'
+    : 'Envie uma pergunta por vez. Espere a resposta antes de avançar para a próxima etapa.';
+
+  const nextSmallYes = stage <= 2
+    ? 'Conseguir uma resposta sobre como eles organizam o louvor hoje.'
+    : stage === 4
+      ? 'Conseguir permissão para enviar um vídeo curto.'
+      : stage === 7
+        ? 'Confirmar se a função ligada à dor faz sentido para aquela igreja.'
+        : stage === 8
+          ? 'Conseguir concordância para testar 7 dias numa organização própria.'
+          : stage === 9
+            ? 'Levar a equipe a criar/publicar uma escala real e confirmar presença.'
+            : 'Confirmar se o MusicScale facilitou a rotina antes de falar em continuidade.';
+
+  return {
+    stage,
+    stageLabel: stageLabel(stage),
+    objective,
+    recommendedChannel: effectiveChannel,
+    recommendedStyle: style,
+    recommendation,
+    why,
+    tip,
+    nextSmallYes,
+    estimatedDurationSeconds: effectiveChannel === 'audio' ? (stage === 3 ? 45 : 30) : undefined,
+    factsUsed,
+    options: texts.slice(0, 3).map((text, index) => ({
+      id: `option_${index + 1}`,
+      text,
+      style,
+      channel: effectiveChannel,
+    })),
+  };
+}

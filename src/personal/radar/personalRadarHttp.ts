@@ -1,5 +1,6 @@
 import express from 'express';
 import { PersonalRadarService, RadarComposerTone } from './personalRadarService';
+import { ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
 
 function authToken(req: express.Request): string {
   const raw = req.headers.authorization;
@@ -163,6 +164,11 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
         safeId(String(body.personId || '')),
         safeId(String(body.signalId || '')),
         String(body.tone || 'curto') as RadarComposerTone,
+        {
+          style: typeof body.style === 'string' ? body.style as ComposerStyle : undefined,
+          channel: typeof body.channel === 'string' ? body.channel as ComposerChannel : undefined,
+          objective: typeof body.objective === 'string' ? body.objective as ComposerObjective : undefined,
+        },
       );
       return res.status(200).json({ success: true, ...result });
     }),
