@@ -68,7 +68,7 @@ const copy = {
     composerTitle: 'Composer MusicScale', tone: 'Tono', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
     regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Agrega el teléfono para abrir WhatsApp.',
     search: 'Buscar en tu historial', searchPlaceholder: 'Persona, término, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Sin resultados.',
-    deleteConfirm: '¿Eliminar esta fonte e todos los dados derivados dela do seu cofre pessoal?',
+    deleteConfirm: '¿Eliminar esta fuente y todos los datos derivados de ella de tu cofre personal?',
     error: 'No fue posible completar esta operación.', noAuto: 'El envío siempre es manual en este piloto.',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
