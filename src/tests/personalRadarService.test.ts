@@ -98,10 +98,11 @@ console.log('--- Running Personal Radar Service Tests ---');
 
 {
   const vault = new MemoryVault();
+  let nowMs = Date.parse('2026-09-11T12:00:00Z');
   const service = new PersonalRadarService(
     provider(canonicalContext()),
     vault,
-    () => Date.parse('2026-09-11T12:00:00Z'),
+    () => nowMs,
   );
   const request = { authToken: 'Bearer founder-token', organizationId: 'org-1' };
 
@@ -123,6 +124,25 @@ console.log('--- Running Personal Radar Service Tests ---');
   assert(draft.draft.includes('MusicScale'), 'Composer produces a MusicScale-specific draft');
   equal(draft.automaticSend, false, 'Composer never enables automatic commercial sending');
   assert(Array.isArray(draft.evidence) && draft.evidence.length > 0, 'Composer keeps the evidence attached');
+
+  const snooze = await service.updatePerson(request, person.id, { radarState: 'snoozed', snoozeDays: 7 });
+  equal(snooze.radarState, 'snoozed', 'manual snooze persists the snoozed state');
+  equal(snooze.snoozedUntil, '2026-09-18T12:00:00.000Z', 'manual snooze stores an explicit deterministic deadline');
+  equal((await service.getRadar(request)).people.length, 0, 'actively snoozed person is hidden from Radar');
+
+  let invalidSnoozeRejected = false;
+  try {
+    await service.updatePerson(request, person.id, { radarState: 'snoozed', snoozeDays: 91 });
+  } catch (error) {
+    invalidSnoozeRejected = error instanceof Error && error.message === 'SNOOZE_DAYS_INVALID';
+  }
+  assert(invalidSnoozeRejected, 'snooze duration fails closed outside the 1-90 day bound');
+
+  nowMs += 8 * 86_400_000;
+  equal((await service.getRadar(request)).people.length, 1, 'person returns automatically after snooze deadline expires');
+
+  const reactivated = await service.updatePerson(request, person.id, { radarState: 'active' });
+  equal(reactivated.snoozedUntil, null, 'reactivating clears stale snooze metadata');
 
   const promotion = await service.promoteOpportunity(request, person.id);
   equal(promotion.success, true, 'opportunity promotion is an explicit manual action');
