@@ -16,6 +16,18 @@ jobs:
     if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
+      - name: Verify runtime identity release fix is on production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/${{ github.repository }}/contents/.github/workflows/connect-core-production-release.yml?ref=production" \
+            --jq .content | base64 -d >/tmp/connect-release.yml
+          grep -F 'RUNTIME_SA: mn-connect-runtime@millionsnest.iam.gserviceaccount.com' /tmp/connect-release.yml
+          grep -F -- '--service-account "$RUNTIME_SA"' /tmp/connect-release.yml
+          echo "CONNECT_RUNTIME_RELEASE_FIX_PRESENT"
+
       - name: Dispatch canonical guarded release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -26,4 +38,4 @@ jobs:
             --ref production \
             -f live_mode=true \
             -f live_activation_ack=CONNECT_LIVE_READY
-          echo "CONNECT_LIVE_CANONICAL_RELEASE_DISPATCHED"
+          echo "CONNECT_LIVE_CANONICAL_RELEASE_REDISPATCHED_AFTER_RUNTIME_FIX"
