@@ -1,0 +1,32 @@
+name: Cleanup Composer Build Artifacts
+
+on:
+  push:
+    branches:
+      - hotfix/composer-editable-context-01
+    paths:
+      - .github/workflows/cleanup-composer-build-artifacts.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: hotfix/composer-editable-context-01
+          fetch-depth: 0
+      - name: Restore generated artifacts from main
+        run: |
+          git fetch origin main
+          git checkout origin/main -- dist-core/server.cjs dist-core/server.cjs.map
+      - name: Remove helper and commit only source fix
+        run: |
+          git rm .github/workflows/cleanup-composer-build-artifacts.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Remove generated Composer build artifacts"
+          git push origin HEAD:hotfix/composer-editable-context-01
