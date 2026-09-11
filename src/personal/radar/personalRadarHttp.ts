@@ -65,6 +65,8 @@ function humanSummary(error: unknown): string {
   if (code === 'SIGNAL_NOT_FOUND') return 'Este sinal não está mais disponível.';
   if (code === 'SEARCH_QUERY_INVALID') return 'Digite pelo menos dois caracteres para pesquisar.';
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
+  if (code === 'FOLLOW_UP_DAYS_INVALID') return 'Escolha um acompanhamento entre 1 e 90 dias.';
+  if (code === 'SALES_STAGE_INVALID' || code === 'COMMERCIAL_ACTION_INVALID') return 'O estado comercial informado é inválido.';
   return 'Não foi possível concluir esta operação do Radar.';
 }
 
@@ -136,6 +138,9 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
           phone: typeof body.phone === 'string' ? body.phone : undefined,
           radarState: typeof body.radarState === 'string' ? body.radarState as any : undefined,
           snoozeDays: typeof body.snoozeDays === 'number' ? body.snoozeDays : undefined,
+          salesStage: typeof body.salesStage === 'string' ? body.salesStage as ComposerObjective : undefined,
+          commercialAction: typeof body.commercialAction === 'string' ? body.commercialAction as any : undefined,
+          followUpDays: typeof body.followUpDays === 'number' ? body.followUpDays : undefined,
         },
       );
       return res.status(200).json(result);
