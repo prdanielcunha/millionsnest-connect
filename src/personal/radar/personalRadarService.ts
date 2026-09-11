@@ -1,0 +1,381 @@
+import crypto from 'node:crypto';
+import { CanonicalContextProvider, CanonicalCoreContext } from '../../core/runtime/connectCore';
+import { FirestorePersonalVault, VaultWrite } from '../storage/firestorePersonalVault';
+import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
+import { deriveRadarPeople, RadarPerson, RadarSignal } from './radarSignals';
+
+export type RadarComposerTone = 'curto' | 'conversa' | 'audio' | 'video';
+
+export interface PersonalRadarLogger {
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn?(message: string, meta?: Record<string, unknown>): void;
+  error?(message: string, meta?: Record<string, unknown>): void;
+}
+
+export type RadarRequestContext = {
+  authToken: string;
+  organizationId: string;
+};
+
+function isoNow(now: () => number): string {
+  return new Date(now()).toISOString();
+}
+
+function sourceIdFromText(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n').trim();
+  return `wa_${crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24)}`;
+}
+
+function safeBase64(value: unknown): Buffer {
+  if (typeof value !== 'string' || !value || value.length > 8_000_000) throw new Error('IMPORT_PAYLOAD_INVALID');
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(value)) throw new Error('IMPORT_PAYLOAD_INVALID');
+  const bytes = Buffer.from(value, 'base64');
+  if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new Error('IMPORT_FILE_SIZE_INVALID');
+  return bytes;
+}
+
+function normalizeSelfNames(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return Array.from(new Set(values
+    .filter((value): value is string => typeof value === 'string')
+    .map(value => value.trim())
+    .filter(Boolean)
+    .slice(0, 8)));
+}
+
+function chunkMessages(messages: ParsedWhatsAppMessage[], size = 100): ParsedWhatsAppMessage[][] {
+  const chunks: ParsedWhatsAppMessage[][] = [];
+  for (let i = 0; i < messages.length; i += size) chunks.push(messages.slice(i, i + size));
+  return chunks;
+}
+
+function signalPriority(signal: RadarSignal): number {
+  const rank: Record<RadarSignal['type'], number> = {
+    explicit_product_interest: 0,
+    commercial_followup_due: 1,
+    unanswered_conversation: 2,
+    recurring_relevant_topic: 3,
+  };
+  return rank[signal.type];
+}
+
+function personPriority(person: RadarPerson): number {
+  return person.signals.length ? Math.min(...person.signals.map(signalPriority)) : 99;
+}
+
+function firstName(displayName: string): string {
+  const clean = displayName.trim();
+  if (!clean || /^\+?\d/.test(clean)) return '';
+  return clean.split(/\s+/)[0] || '';
+}
+
+function topicFromSignal(signal: any): string {
+  const evidenceText = String(signal?.evidence?.[0]?.snippet || '');
+  if (/\bescala/i.test(evidenceText)) return 'escala e organização do time';
+  if (/\brepert[oó]rio|cifra/i.test(evidenceText)) return 'repertório e preparação';
+  if (/\bensaio/i.test(evidenceText)) return 'ensaio e preparação da equipe';
+  if (/\bwhatsapp/i.test(evidenceText)) return 'organização pelo WhatsApp';
+  if (/\bpre[cç]o|valor|quanto custa/i.test(evidenceText)) return 'valor e funcionamento do MusicScale';
+  if (/\bapp|aplicativo|sistema|plataforma/i.test(evidenceText)) return 'ferramenta para organizar a equipe';
+  return 'organização da equipe de música';
+}
+
+function composerDraft(person: any, signal: any, tone: RadarComposerTone): string {
+  const name = firstName(String(person.displayName || ''));
+  const greeting = name ? `Oi, ${name}!` : 'Oi!';
+  const topic = topicFromSignal(signal);
+
+  if (tone === 'audio') {
+    return `${greeting} Vi que a gente já falou sobre ${topic}. Aqui nós também passávamos por esse tipo de dificuldade e foi justamente por isso que criamos o MusicScale. Ele junta escala, repertório e confirmação da equipe num lugar só. Se fizer sentido pra você, eu posso te mandar um vídeo bem curto mostrando como funciona.`;
+  }
+  if (tone === 'video') {
+    return `${greeting} Lembrei da nossa conversa sobre ${topic}. Posso te mandar um vídeo de uns 30 segundos mostrando exatamente como o MusicScale organiza isso?`;
+  }
+  if (tone === 'conversa') {
+    return `${greeting} Lembrei do que você comentou sobre ${topic}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`;
+  }
+  return `${greeting} Lembrei da nossa conversa sobre ${topic}. Posso te mostrar rapidinho como a gente resolveu isso no MusicScale?`;
+}
+
+export class PersonalRadarService {
+  constructor(
+    private readonly contextProvider: CanonicalContextProvider,
+    private readonly vault: FirestorePersonalVault,
+    private readonly now: () => number = Date.now,
+    private readonly logger: PersonalRadarLogger = console,
+  ) {}
+
+  private async resolvePilotContext(input: RadarRequestContext): Promise<CanonicalCoreContext> {
+    const resolution = await this.contextProvider.resolve({
+      authToken: input.authToken,
+      requestedOrganizationId: input.organizationId,
+    });
+    if (resolution.status !== 'resolved') throw new Error('RADAR_CONTEXT_DENIED');
+    if (!resolution.context.globalAccess) throw new Error('RADAR_PILOT_FORBIDDEN');
+    if (resolution.context.organizationId !== input.organizationId) throw new Error('RADAR_TENANT_MISMATCH');
+    return resolution.context;
+  }
+
+  async importWhatsApp(
+    request: RadarRequestContext,
+    input: { fileName: string; contentBase64: string; selfNames?: string[] },
+  ) {
+    const context = await this.resolvePilotContext(request);
+    const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 240) : '';
+    if (!fileName) throw new Error('IMPORT_FILENAME_REQUIRED');
+    const bytes = safeBase64(input.contentBase64);
+    const text = extractWhatsAppText(fileName, bytes);
+    const sourceId = sourceIdFromText(text);
+    const existing = await this.vault.get(request.authToken, context.actorUid, ['personalSources', sourceId]);
+    if (existing) {
+      return {
+        status: 'deduplicated' as const,
+        sourceId,
+        messageCount: Number(existing.messageCount || 0),
+        participantCount: Number(existing.participantCount || 0),
+        radarCount: Number(existing.radarCount || 0),
+      };
+    }
+
+    const parsed = parseWhatsAppExport(text);
+    const selfNames = normalizeSelfNames(input.selfNames);
+    const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250);
+    const createdAt = isoNow(this.now);
+    const chunks = chunkMessages(parsed.messages);
+
+    const writes: VaultWrite[] = [
+      {
+        path: ['personalSources', sourceId],
+        data: {
+          id: sourceId,
+          type: 'whatsapp_export',
+          fileName,
+          ownerUid: context.actorUid,
+          createdAt,
+          firstDateKey: parsed.firstDateKey,
+          lastDateKey: parsed.lastDateKey,
+          messageCount: parsed.messages.length,
+          participantCount: parsed.participants.length,
+          radarCount: people.length,
+          sourceHash: sourceId.replace(/^wa_/, ''),
+          organizationHint: request.organizationId,
+          privacyScope: 'owner_only',
+        },
+      },
+      {
+        path: ['importRuns', sourceId],
+        data: {
+          id: sourceId,
+          sourceId,
+          ownerUid: context.actorUid,
+          status: 'completed',
+          createdAt,
+          messageCount: parsed.messages.length,
+          participantCount: parsed.participants.length,
+          radarCount: people.length,
+        },
+      },
+      {
+        path: ['personalConversations', sourceId],
+        data: {
+          id: sourceId,
+          sourceId,
+          ownerUid: context.actorUid,
+          fileName,
+          createdAt,
+          firstDateKey: parsed.firstDateKey,
+          lastDateKey: parsed.lastDateKey,
+          participantNames: parsed.participants.slice(0, 300),
+          messageCount: parsed.messages.length,
+          selfNames,
+        },
+      },
+      ...chunks.map((messages, index) => ({
+        path: ['personalConversations', sourceId, 'messageChunks', String(index).padStart(4, '0')],
+        data: {
+          sourceId,
+          chunkIndex: index,
+          messages,
+        },
+      })),
+      ...people.map(person => ({
+        path: ['personalPeople', `${sourceId}_${person.id}`],
+        data: {
+          ...person,
+          id: `${sourceId}_${person.id}`,
+          sourceId,
+          ownerUid: context.actorUid,
+          importedAt: createdAt,
+          radarState: 'active',
+          priority: personPriority(person),
+        },
+      })),
+    ];
+
+    await this.vault.writeMany(request.authToken, context.actorUid, writes);
+    this.logger.info('RADAR_WHATSAPP_IMPORT_COMPLETED', {
+      sourceId,
+      actorUid: context.actorUid.slice(0, 4) + '***',
+      messageCount: parsed.messages.length,
+      participantCount: parsed.participants.length,
+      radarCount: people.length,
+    });
+
+    return {
+      status: 'imported' as const,
+      sourceId,
+      messageCount: parsed.messages.length,
+      participantCount: parsed.participants.length,
+      radarCount: people.length,
+    };
+  }
+
+  async getRadar(request: RadarRequestContext) {
+    const context = await this.resolvePilotContext(request);
+    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_000);
+    const active = people
+      .filter(person => person.radarState !== 'ignored')
+      .sort((a, b) => {
+        const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
+        if (rank !== 0) return rank;
+        return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
+      });
+    return { people: active, count: active.length };
+  }
+
+  async search(request: RadarRequestContext, rawQuery: string) {
+    const context = await this.resolvePilotContext(request);
+    const query = rawQuery.trim().toLocaleLowerCase('pt-BR');
+    if (query.length < 2 || query.length > 120) throw new Error('SEARCH_QUERY_INVALID');
+    const conversations = await this.vault.list(request.authToken, context.actorUid, ['personalConversations'], 80);
+    const matches: Array<Record<string, unknown>> = [];
+
+    for (const conversation of conversations) {
+      if (matches.length >= 100) break;
+      const sourceId = String(conversation.sourceId || conversation.id || '');
+      if (!sourceId) continue;
+      const chunks = await this.vault.list(
+        request.authToken,
+        context.actorUid,
+        ['personalConversations', sourceId, 'messageChunks'],
+        400,
+      );
+      for (const chunk of chunks) {
+        const messages = Array.isArray(chunk.messages) ? chunk.messages : [];
+        for (const message of messages as any[]) {
+          const haystack = `${message?.sender || ''} ${message?.text || ''}`.toLocaleLowerCase('pt-BR');
+          if (!haystack.includes(query)) continue;
+          matches.push({
+            sourceId,
+            sender: String(message?.sender || ''),
+            dateKey: String(message?.dateKey || ''),
+            timestampLocal: String(message?.timestampLocal || ''),
+            snippet: String(message?.text || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+          });
+          if (matches.length >= 100) break;
+        }
+        if (matches.length >= 100) break;
+      }
+    }
+
+    return { query: rawQuery.trim(), matches };
+  }
+
+  async updatePerson(
+    request: RadarRequestContext,
+    personDocumentId: string,
+    input: { phone?: string | null; radarState?: 'active' | 'ignored' | 'snoozed' },
+  ) {
+    const context = await this.resolvePilotContext(request);
+    const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
+    if (!person) throw new Error('PERSON_NOT_FOUND');
+    const digits = typeof input.phone === 'string' ? input.phone.replace(/\D/g, '') : '';
+    if (digits && (digits.length < 10 || digits.length > 15)) throw new Error('PHONE_INVALID');
+    const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
+      ? input.radarState
+      : String(person.radarState || 'active');
+    await this.vault.writeMany(request.authToken, context.actorUid, [{
+      path: ['personalPeople', personDocumentId],
+      data: {
+        ...person,
+        id: personDocumentId,
+        phone: digits || person.phone || null,
+        radarState,
+        updatedAt: isoNow(this.now),
+      },
+    }]);
+    return { success: true };
+  }
+
+  async promoteOpportunity(request: RadarRequestContext, personDocumentId: string) {
+    const context = await this.resolvePilotContext(request);
+    const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
+    if (!person) throw new Error('PERSON_NOT_FOUND');
+    const createdAt = isoNow(this.now);
+    await this.vault.writeMany(request.authToken, context.actorUid, [{
+      path: ['relationshipOpportunities', personDocumentId],
+      data: {
+        id: personDocumentId,
+        personId: personDocumentId,
+        sourceId: person.sourceId || null,
+        displayName: person.displayName || null,
+        phone: person.phone || null,
+        organizationId: request.organizationId,
+        status: 'open',
+        promotedManually: true,
+        createdAt,
+        createdByUid: context.actorUid,
+        privacyScope: 'owner_only_pilot',
+      },
+    }]);
+    return { success: true, opportunityId: personDocumentId };
+  }
+
+  async compose(
+    request: RadarRequestContext,
+    personDocumentId: string,
+    signalId: string,
+    tone: RadarComposerTone,
+  ) {
+    const context = await this.resolvePilotContext(request);
+    const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
+    if (!person) throw new Error('PERSON_NOT_FOUND');
+    const signals = Array.isArray(person.signals) ? person.signals as any[] : [];
+    const signal = signals.find(item => item?.id === signalId);
+    if (!signal) throw new Error('SIGNAL_NOT_FOUND');
+    if (!['curto', 'conversa', 'audio', 'video'].includes(tone)) throw new Error('COMPOSER_TONE_INVALID');
+    return {
+      draft: composerDraft(person, signal, tone),
+      tone,
+      personId: personDocumentId,
+      signalId,
+      phone: person.phone || null,
+      evidence: signal.evidence || [],
+      automaticSend: false,
+    };
+  }
+
+  async deleteSource(request: RadarRequestContext, sourceId: string) {
+    const context = await this.resolvePilotContext(request);
+    const source = await this.vault.get(request.authToken, context.actorUid, ['personalSources', sourceId]);
+    if (!source) return { success: true, deleted: false };
+    const chunks = await this.vault.list(
+      request.authToken,
+      context.actorUid,
+      ['personalConversations', sourceId, 'messageChunks'],
+      500,
+    );
+    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
+    const opportunityDocs = await this.vault.list(request.authToken, context.actorUid, ['relationshipOpportunities'], 1_500);
+    const paths: string[][] = [
+      ...chunks.map(chunk => ['personalConversations', sourceId, 'messageChunks', chunk.id]),
+      ...people.filter(person => person.sourceId === sourceId).map(person => ['personalPeople', person.id]),
+      ...opportunityDocs.filter(item => item.sourceId === sourceId).map(item => ['relationshipOpportunities', item.id]),
+      ['personalConversations', sourceId],
+      ['importRuns', sourceId],
+      ['personalSources', sourceId],
+    ];
+    await this.vault.deleteMany(request.authToken, context.actorUid, paths);
+    return { success: true, deleted: true };
+  }
+}
