@@ -27,6 +27,7 @@ env:
   REGION: us-central1
   SERVICE: connect-api
   REPOSITORY: millionsnest-web
+  RUNTIME_SA: mn-connect-runtime@millionsnest.iam.gserviceaccount.com
   IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${{ github.sha }}
 
 jobs:
@@ -126,6 +127,16 @@ jobs:
             --format='value(name)' >/tmp/connect-artifact-repo.txt
           test -s /tmp/connect-artifact-repo.txt
 
+      - name: Verify dedicated Connect runtime identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_EMAIL="$(gcloud iam service-accounts describe "$RUNTIME_SA" \
+            --project "$PROJECT_ID" \
+            --format='value(email)')"
+          test "$RUNTIME_EMAIL" = "$RUNTIME_SA"
+          echo "CONNECT_RUNTIME_IDENTITY_VERIFIED"
+
       - name: Configure Docker authentication
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -141,6 +152,7 @@ jobs:
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
+            --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
             --memory 512Mi \
