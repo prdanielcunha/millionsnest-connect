@@ -59,7 +59,6 @@ jobs:
           if marker not in s: raise SystemExit('facts marker missing')
           s=s.replace(marker,context+marker,1)
 
-          # Add language-aware style labels helper and use it.
           marker2="export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {"
           helper="""function composerStyleLabel(style: ComposerStyle, lang: LanguageCode): string {\n  const labels: Record<ComposerStyle, Record<LanguageCode, string>> = {\n    amigavel: { 'pt-BR': 'Amigável', 'en-US': 'Friendly', 'es-ES': 'Amigable' },\n    profissional: { 'pt-BR': 'Profissional', 'en-US': 'Professional', 'es-ES': 'Profesional' },\n    descontraido: { 'pt-BR': 'Descontraído', 'en-US': 'Casual', 'es-ES': 'Relajado' },\n    objetivo: { 'pt-BR': 'Objetivo', 'en-US': 'Direct', 'es-ES': 'Directo' },\n    proximo: { 'pt-BR': 'Próximo', 'en-US': 'Personal', 'es-ES': 'Cercano' },\n    pastoral: { 'pt-BR': 'Pastoral', 'en-US': 'Pastoral', 'es-ES': 'Pastoral' },\n    consultivo: { 'pt-BR': 'Consultivo', 'en-US': 'Consultative', 'es-ES': 'Consultivo' },\n  };\n  return labels[style][lang];\n}\n\n"""
           if marker2 not in s: raise SystemExit('helper marker missing')
@@ -71,7 +70,6 @@ jobs:
           s=s.replace(old,new,1)
           old='{label}</button>)'
           new='{composerStyleLabel(value, currentLang)}</button>)'
-          # Replace the occurrence in the composer style block only; first occurrence of exact label after our modified map.
           pos=s.find("(['amigavel','profissional','descontraido'")
           if pos<0: raise SystemExit('style map position missing')
           tail=s[pos:]
@@ -95,6 +93,6 @@ jobs:
           git rm .github/workflows/composer-editable-context-one-shot.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/features/radar/RadarPage.tsx .github/workflows/composer-editable-context-one-shot.yml
+          git add -A
           git commit -m "Make Composer drafts editable and show used context"
           git push origin HEAD:hotfix/composer-editable-context-01
