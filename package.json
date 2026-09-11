@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev:core": "tsx server.ts",
     "build": "vite build",
+    "build:core": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-core/server.cjs",
+    "start:core": "node dist-core/server.cjs",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist dist-core server.js",
     "lint": "tsc --noEmit",
     "test:brand": "tsx src/tests/brandLogo.test.ts",
     "test:zerocost": "tsx src/tests/zeroCostPolicy.test.ts",
@@ -16,12 +19,14 @@
     "test:gatewayzc": "tsx src/tests/toolGatewayZeroCost.test.ts",
     "test:gatewaytenant": "tsx src/tests/toolGatewayTenantBoundary.test.ts",
     "test:authority": "tsx src/tests/authorityModel.test.ts && tsx src/tests/confirmationIntent.test.ts",
+    "test:core-http": "tsx src/tests/connectCoreRuntime.test.ts && tsx src/tests/hubSessionContextAdapter.test.ts && tsx src/tests/hubSessionContextHttpProvider.test.ts && tsx src/tests/musicScaleNextScheduleHttpTool.test.ts && tsx src/tests/connectCoreHttpHandler.test.ts && tsx src/tests/structuredCoreAudit.test.ts && tsx src/tests/connectSessionHttpHandler.test.ts && tsx src/tests/liveConnectSession.test.ts && tsx src/tests/connectServerComposition.test.ts",
     "test:mobile-layout": "tsx src/tests/mobileLayout.test.ts",
     "test:inbox-mobile": "tsx src/tests/inboxMobile.test.ts && npm run test:inbox-domain",
     "test:inbox-domain": "tsx src/tests/inboxDomain.test.ts",
     "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
     "test:menu-mobile": "tsx src/tests/menuMobile.test.ts",
-    "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts"
+    "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts",
+    "test:release-policy": "tsx src/tests/connectProductionReleasePolicy.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -1,9 +1,9 @@
 /**
  * MillionsNest Connect - Domain Types & Contracts
- * DEMO_MODE - Local Typed Contracts
+ * Demo and staged live Core typed contracts
  */
 
-export type EnvironmentMode = 'DEMO_MODE' | 'PRODUCTION_STUB';
+export type EnvironmentMode = 'DEMO_MODE' | 'PRODUCTION_STUB' | 'LIVE_CORE';
 
 export type LanguageCode = 'pt-BR' | 'en-US' | 'es-ES';
 
@@ -26,7 +26,7 @@ export interface EcosystemOrganization {
   slug: string;
   avatarUrl?: string;
   plan: string;
-  isDemo: true;
+  isDemo: boolean;
 }
 
 export type MembershipStatus = 'active' | 'inactive' | 'suspended';
