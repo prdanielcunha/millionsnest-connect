@@ -13,6 +13,7 @@ interface RadarPageProps {
 }
 
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
+type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
 
 type SelectedSignal = {
   person: RadarClientPerson;
@@ -31,7 +32,8 @@ const copy = {
     signals: 'motivos com evidência', empty: 'Nenhum contato prioritário ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra pessoas quando encontra um motivo real para priorizá-las.',
     evidence: 'Evidência', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Promover manualmente', promoted: 'Oportunidade marcada',
     phone: 'WhatsApp/telefone', savePhone: 'Salvar', snooze: 'Adiar 7 dias', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
-    composerTitle: 'Composer MusicScale', tone: 'Tom', short: 'Curto', conversation: 'Conversa', audio: 'Áudio', video: 'Vídeo',
+    composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Curto', conversation: 'Conversa', audio: 'Áudio', video: 'Vídeo',
+    guidance: 'Sugestão para agora', why: 'Por quê', nextYes: 'Próximo pequeno sim', usedContext: 'Contexto usado', chooseOption: 'Escolha uma opção', style: 'Estilo',
     regenerate: 'Gerar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Adicione o telefone para abrir o WhatsApp.',
     search: 'Pesquisar no seu histórico', searchPlaceholder: 'Pessoa, termo, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Nenhum resultado.',
     deleteConfirm: 'Excluir esta fonte e todos os dados derivados dela do seu cofre pessoal?',
@@ -48,7 +50,8 @@ const copy = {
     signals: 'evidence-backed reasons', empty: 'No priority contact yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces people when there is a real reason to prioritize them.',
     evidence: 'Evidence', next: 'Next step', compose: 'Create approach', promote: 'Promote manually', promoted: 'Opportunity marked',
     phone: 'WhatsApp/phone', savePhone: 'Save', snooze: 'Snooze 7 days', ignore: 'Ignore', sourceDelete: 'Delete source',
-    composerTitle: 'MusicScale Composer', tone: 'Tone', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video',
+    composerTitle: 'MusicScale Composer', tone: 'Format', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video',
+    guidance: 'Suggested next move', why: 'Why', nextYes: 'Next small yes', usedContext: 'Context used', chooseOption: 'Choose an option', style: 'Style',
     regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'Add a phone number to open WhatsApp.',
     search: 'Search your history', searchPlaceholder: 'Person, term, schedule, WhatsApp…', searchAction: 'Search', noSearch: 'No results.',
     deleteConfirm: 'Delete this source and all data derived from it from your personal vault?',
@@ -65,7 +68,8 @@ const copy = {
     signals: 'motivos con evidencia', empty: 'Aún no hay contactos prioritarios', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra personas cuando encuentra un motivo real para priorizarlas.',
     evidence: 'Evidencia', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Promover manualmente', promoted: 'Oportunidad marcada',
     phone: 'WhatsApp/teléfono', savePhone: 'Guardar', snooze: 'Posponer 7 días', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
-    composerTitle: 'Composer MusicScale', tone: 'Tono', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
+    composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
+    guidance: 'Sugerencia para ahora', why: 'Por qué', nextYes: 'Próximo pequeño sí', usedContext: 'Contexto usado', chooseOption: 'Elige una opción', style: 'Estilo',
     regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Agrega el teléfono para abrir WhatsApp.',
     search: 'Buscar en tu historial', searchPlaceholder: 'Persona, término, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Sin resultados.',
     deleteConfirm: '¿Eliminar esta fuente y todos los datos derivados de ella de tu cofre personal?',
@@ -97,6 +101,8 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
   const [selected, setSelected] = useState<SelectedSignal | null>(null);
   const [tone, setTone] = useState<Tone>('curto');
   const [draft, setDraft] = useState('');
+  const [composerPlan, setComposerPlan] = useState<any | null>(null);
+  const [composerStyle, setComposerStyle] = useState<ComposerStyle>('consultivo');
   const [draftBusy, setDraftBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [phones, setPhones] = useState<Record<string, string>>({});
@@ -144,8 +150,9 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     setDraftBusy(true);
     setCopied(false);
     try {
-      const result = await client.compose(selection.person.id, selection.signal.id, requestedTone);
-      setDraft(result.draft || '');
+      const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, { style: composerStyle });
+      setComposerPlan(result);
+      setDraft(result.draft || result.options?.[0]?.text || '');
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : t.error);
@@ -158,6 +165,8 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     const selection = { person, signal };
     setSelected(selection);
     setDraft('');
+    setComposerPlan(null);
+    setComposerStyle(signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic' ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo');
     setTone('curto');
     setTimeout(() => void compose(selection, 'curto'), 0);
   };
@@ -240,7 +249,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
         ))}
       </section>
 
-      {selected && <section className="sticky bottom-4 z-30 rounded-[26px] border border-indigo-400/20 bg-[#101522]/95 p-4 shadow-2xl backdrop-blur-2xl sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start"><div className="lg:w-60"><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.displayName}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto', t.short], ['conversa', t.conversation], ['audio', t.audio], ['video', t.video]] as Array<[Tone, string]>).map(([value, label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value); }} className={`rounded-lg px-2.5 py-1.5 text-xs ${tone === value ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0 flex-1"><div className="min-h-24 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100">{draftBusy ? <div className="flex items-center gap-2 text-slate-400"><Loader2 size={15} className="animate-spin" /> {t.regenerate}…</div> : draft}</div><div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{t.regenerate}</button>{phones[selected.person.id] ? <button onClick={() => window.open(`https://wa.me/${(phones[selected.person.id] || '').replace(/\D/g, '')}?text=${encodeURIComponent(draft)}`, '_blank', 'noopener,noreferrer')} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button> : <span className="text-xs text-slate-500">{t.noPhone}</span>}<span className="ml-auto text-[10px] text-slate-500">{t.noAuto}</span></div></div></div></section>}
+      {selected && <section className="sticky bottom-4 z-30 rounded-[26px] border border-indigo-400/20 bg-[#101522]/95 p-4 shadow-2xl backdrop-blur-2xl sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start"><div className="lg:w-60"><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.displayName}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto', t.short], ['conversa', t.conversation], ['audio', t.audio], ['video', t.video]] as Array<[Tone, string]>).map(([value, label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value); }} className={`rounded-lg px-2.5 py-1.5 text-xs ${tone === value ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0 flex-1">{composerPlan && <div className="mb-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] p-3 sm:col-span-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">{t.guidance} · {composerPlan.stageLabel}</div><p className="mt-1 text-xs leading-5 text-slate-200">{composerPlan.recommendation}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.why}</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.why}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.nextYes}</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.nextSmallYes}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Dica</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.tip}</p></div></div>}<div className="mb-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.style}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['amigavel','Amigável'],['profissional','Profissional'],['descontraido','Descontraído'],['objetivo','Objetivo'],['proximo','Próximo'],['pastoral','Pastoral'],['consultivo','Consultivo']] as Array<[ComposerStyle,string]>).map(([value,label]) => <button key={value} onClick={() => { setComposerStyle(value); setTimeout(() => void compose(selected, tone), 0); }} className={`rounded-lg px-2.5 py-1.5 text-xs ${composerStyle === value ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div>{composerPlan?.options?.length > 1 && <div className="mb-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.chooseOption}</div><div className="mt-2 grid gap-2">{composerPlan.options.map((option:any,index:number) => <button key={option.id || index} onClick={() => setDraft(option.text)} className={`rounded-xl border p-3 text-left text-xs leading-5 ${draft === option.text ? 'border-indigo-400/40 bg-indigo-400/[0.07] text-slate-100' : 'border-white/8 bg-black/15 text-slate-400'}`}><span className="mr-2 font-semibold text-indigo-300">{index + 1}.</span>{option.text}</button>)}</div></div>}<div className="min-h-24 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100">{draftBusy ? <div className="flex items-center gap-2 text-slate-400"><Loader2 size={15} className="animate-spin" /> {t.regenerate}…</div> : draft}</div><div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{t.regenerate}</button>{phones[selected.person.id] ? <button onClick={() => window.open(`https://wa.me/${(phones[selected.person.id] || '').replace(/\D/g, '')}?text=${encodeURIComponent(draft)}`, '_blank', 'noopener,noreferrer')} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button> : <span className="text-xs text-slate-500">{t.noPhone}</span>}<span className="ml-auto text-[10px] text-slate-500">{t.noAuto}</span></div></div></div></section>}
     </main>
   );
 };
