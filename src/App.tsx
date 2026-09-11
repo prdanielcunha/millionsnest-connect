@@ -13,7 +13,9 @@ import {
   CONNECT_LIVE_MODE_ENABLED,
   LiveConnectSession,
 } from './core/client/liveConnectSession';
+import { isGlobalGovernanceRole } from './core/roles/systemRoles';
 import { LiveCorePage } from './features/live/LiveCorePage';
+import { RadarPage } from './features/radar/RadarPage';
 
 // Demo feature pages remain available while the live rollout flag is off.
 import { OverviewPage } from './features/overview/OverviewPage';
@@ -112,6 +114,7 @@ export default function App() {
 
   const context = liveSession?.context ?? demoContext;
   const isLive = Boolean(liveSession);
+  const showRadar = isLive && isGlobalGovernanceRole(context.user.systemRole);
 
   const handleSelectOrg = (orgId: string) => {
     if (isLive) return;
@@ -148,6 +151,9 @@ export default function App() {
 
   const renderCurrentPage = () => {
     if (!liveSession) return renderDemoPage();
+    if (activeRoute === 'radar' && showRadar) {
+      return <RadarPage session={liveSession} currentLang={currentLang} />;
+    }
     if (activeRoute === 'overview' || activeRoute === 'inbox') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
     }
@@ -162,6 +168,8 @@ export default function App() {
       onNavigate={setActiveRoute}
       onSelectOrg={handleSelectOrg}
       onChangeLang={setCurrentLang}
+      isLive={isLive}
+      showRadar={showRadar}
     >
       {renderCurrentPage()}
     </Shell>
