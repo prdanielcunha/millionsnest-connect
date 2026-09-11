@@ -4,7 +4,16 @@ import assert from "node:assert/strict";
 const firebase = JSON.parse(fs.readFileSync("firebase.json", "utf8"));
 assert.equal(firebase?.hosting?.target, "connect");
 assert.equal(firebase?.hosting?.public, "dist");
-assert.deepEqual(firebase?.hosting?.rewrites, [{ source: "**", destination: "/index.html" }]);
+assert.deepEqual(firebase?.hosting?.rewrites, [
+  {
+    source: "/api/**",
+    run: {
+      serviceId: "connect-api",
+      region: "us-central1",
+    },
+  },
+  { source: "**", destination: "/index.html" },
+]);
 
 const rc = JSON.parse(fs.readFileSync(".firebaserc", "utf8"));
 assert.deepEqual(
