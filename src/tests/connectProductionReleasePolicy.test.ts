@@ -47,6 +47,11 @@ assert.match(release, /SERVICE:\s*connect-api/, 'Canonical Cloud Run service mus
 assert.match(release, /REPOSITORY:\s*millionsnest-web/, 'Canonical Artifact Registry repository must remain millionsnest-web');
 assert.match(
   release,
+  /npm run test:radar-pilot/,
+  'Production release must re-run the private Radar pilot contract suite',
+);
+assert.match(
+  release,
   /RUNTIME_SA:\s*mn-connect-runtime@millionsnest\.iam\.gserviceaccount\.com/,
   'Connect must use its own dedicated Cloud Run runtime identity',
 );
