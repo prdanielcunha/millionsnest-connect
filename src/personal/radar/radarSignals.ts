@@ -1,11 +1,23 @@
 import crypto from 'node:crypto';
 import { ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
 
+/**
+ * IMPORTANT: these four persisted signal codes are also the priority buckets used
+ * by PersonalRadarService. Their user-facing labels are intentionally different
+ * from the original pilot wording:
+ * 0 explicit_product_interest -> MusicScale fit / product pain
+ * 1 commercial_followup_due   -> existing relationship / direct interaction
+ * 2 unanswered_conversation   -> pastor or ministry decision-maker
+ * 3 recurring_relevant_topic  -> other pastoral contact
+ *
+ * Keeping the persisted codes stable lets existing pilot data continue to load
+ * while the Radar evolves into the sales-first priority ladder defined for Connect.
+ */
 export type RadarSignalType =
   | 'explicit_product_interest'
+  | 'commercial_followup_due'
   | 'unanswered_conversation'
-  | 'recurring_relevant_topic'
-  | 'commercial_followup_due';
+  | 'recurring_relevant_topic';
 
 export type RadarEvidence = {
   messageIndex: number;
@@ -46,16 +58,61 @@ const PRODUCT_PATTERNS = [
   /\bfunciona\b/i,
 ];
 
-const RELEVANT_TOPIC_PATTERNS = [
-  /\bescala(?:s)?\b/i,
-  /\brepert[oó]rio\b/i,
+// Things MusicScale can actually help with. A single concrete pain/need here is
+// enough to put a person in the highest Radar bucket; they do not need to know
+// the MusicScale name yet.
+const MUSIC_SCALE_FIT_PATTERNS = [
+  /\bescala(?:s|do|da|r)?\b/i,
+  /\brepert[oó]rio(?:s)?\b/i,
   /\bcifra(?:s)?\b/i,
-  /\bensaio(?:s)?\b/i,
+  /\bchord(?:s)?\b/i,
+  /\btom\b/i,
+  /\btonalidade\b/i,
+  /\btranspo(?:r|si[cç][aã]o)\b/i,
   /\blouvor\b/i,
+  /\bworship\b/i,
+  /\bminist[eé]rio\s+de\s+(?:louvor|m[uú]sica)\b/i,
+  /\bl[ií]der\s+de\s+louvor\b/i,
+  /\bministro(?:a)?\s+de\s+louvor\b/i,
+  /\bvocal(?:ista|istas)?\b/i,
+  /\bback\s*vocal\b/i,
   /\bm[uú]sic[oa]s?\b/i,
-  /\borganiza(?:r|[cç][aã]o|do|da)\b/i,
-  /\btecnologia\b/i,
-  /\bwhatsapp\b/i,
+  /\binstrumentista(?:s)?\b/i,
+  /\bbanda\b/i,
+  /\bensaio(?:s)?\b/i,
+  /\bset\s*list\b/i,
+  /\bplaylist\b/i,
+  /\bconfirma(?:r|[cç][aã]o)\b/i,
+  /\bpresen[cç]a\b/i,
+  /\bdisponibilidade\b/i,
+  /\bfaltar\s+(?:no|ao)\s+(?:ensaio|culto)\b/i,
+  /\btrocar\s+(?:o\s+)?tom\b/i,
+  /\bm[uú]sicas?\s+(?:do|para\s+o)\s+culto\b/i,
+  /\borganiza(?:r|[cç][aã]o|do|da)\b.{0,45}\b(?:louvor|m[uú]sic|equipe|banda|escala|repert[oó]rio)\b/i,
+  /\b(?:louvor|m[uú]sic|equipe|banda|escala|repert[oó]rio)\b.{0,45}\borganiza(?:r|[cç][aã]o|do|da)\b/i,
+  /\bwhatsapp\b.{0,55}\b(?:escala|repert[oó]rio|cifra|louvor|ensaio|m[uú]sic|equipe|banda)\b/i,
+  /\b(?:escala|repert[oó]rio|cifra|louvor|ensaio|m[uú]sic|equipe|banda)\b.{0,55}\bwhatsapp\b/i,
+];
+
+const LEADERSHIP_ROLE_PATTERNS = [
+  /\bpastor(?:a)?\s+(?:titular|presidente|s[eê]nior|senior|respons[aá]vel)\b/i,
+  /\bpr\.?\s*(?:titular|presidente)\b/i,
+  /\bpresidente\s+(?:da|de)\s+igreja\b/i,
+  /\bl[ií]der\s+(?:do\s+)?(?:louvor|worship|minist[eé]rio\s+de\s+m[uú]sica)\b/i,
+  /\bministro(?:a)?\s+de\s+louvor\b/i,
+  /\bcoordenador(?:a)?\s+(?:de\s+)?(?:louvor|m[uú]sica)\b/i,
+  /\bdirigente\s+(?:de\s+)?(?:louvor|m[uú]sica)\b/i,
+  /\brespons[aá]vel\s+(?:pelo|por|do|da)\s+(?:louvor|m[uú]sica)\b/i,
+];
+
+const PASTOR_ROLE_PATTERNS = [
+  /(^|\s)pr\.?($|\s)/i,
+  /(^|\s)pra\.?($|\s)/i,
+  /\bpastor(?:a)?\b/i,
+  /\bbispo(?:a)?\b/i,
+  /\bpresb[ií]tero(?:a)?\b/i,
+  /\bap[oó]stolo(?:a)?\b/i,
+  /\breverendo(?:a)?\b/i,
 ];
 
 function normalizeName(value: string): string {
@@ -64,6 +121,13 @@ function normalizeName(value: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 }
 
@@ -103,7 +167,36 @@ function hasAny(text: string, patterns: RegExp[]): boolean {
 
 function hasExplicitProductInterest(text: string): boolean {
   if (/\bmusicscale\b/i.test(text)) return true;
-  return hasAny(text, PRODUCT_PATTERNS) && hasAny(text, RELEVANT_TOPIC_PATTERNS);
+  return hasAny(text, PRODUCT_PATTERNS) && hasAny(text, MUSIC_SCALE_FIT_PATTERNS);
+}
+
+function hasMusicScaleFit(text: string): boolean {
+  return hasExplicitProductInterest(text) || hasAny(text, MUSIC_SCALE_FIT_PATTERNS);
+}
+
+function selfMentioned(text: string, selfNames: string[]): boolean {
+  const normalized = ` ${normalizeText(text).replace(/[^a-z0-9@+]+/g, ' ')} `;
+  return selfNames.some(rawName => {
+    const full = normalizeName(rawName);
+    if (!full) return false;
+    const candidates = new Set<string>([full, full.split(' ')[0]].filter(value => value.length >= 3));
+    for (const candidate of candidates) {
+      if (normalized.includes(` ${candidate} `) || normalized.includes(` @${candidate} `)) return true;
+    }
+    return false;
+  });
+}
+
+function roleEvidenceText(displayName: string, messages: ParsedWhatsAppMessage[]): string {
+  return `${displayName} ${messages.map(message => message.text).join(' ')}`;
+}
+
+function isLeadershipRole(displayName: string, messages: ParsedWhatsAppMessage[]): boolean {
+  return hasAny(roleEvidenceText(displayName, messages), LEADERSHIP_ROLE_PATTERNS);
+}
+
+function isPastoralRole(displayName: string, messages: ParsedWhatsAppMessage[]): boolean {
+  return isLeadershipRole(displayName, messages) || hasAny(roleEvidenceText(displayName, messages), PASTOR_ROLE_PATTERNS);
 }
 
 export function deriveRadarPeople(input: {
@@ -124,10 +217,9 @@ export function deriveRadarPeople(input: {
   }
 
   const ownerMessages = input.messages.filter(message => self.has(normalizeName(message.sender)));
-  // A raw WhatsApp export does not encode reply targets reliably. We only infer
-  // "you did/did not reply" when there is exactly one non-self participant.
-  // In group/multi-party exports, person-specific message evidence can still
-  // produce explicit/recurrent signals, but reply/follow-up inference is disabled.
+  // Raw WhatsApp exports do not reliably encode quote/reply targets. Direct
+  // conversation interaction is safe to infer; in groups we only treat an
+  // explicit textual mention of one of the owner's names as person-specific.
   const isDirectConversation = self.size > 0 && grouped.size === 1;
   const people: RadarPerson[] = [];
 
@@ -136,49 +228,50 @@ export function deriveRadarPeople(input: {
     const displayName = ordered[ordered.length - 1]?.sender || normalizedName;
     const personId = stableId('person', normalizedName);
     const signals: RadarSignal[] = [];
-
-    const interestMessages = ordered.filter(message => hasExplicitProductInterest(message.text));
-    if (interestMessages.length > 0) {
-      const selected = interestMessages.slice(-2);
-      signals.push({
-        id: stableId('signal', `${personId}:explicit_product_interest:${selected.map(item => item.index).join(',')}`),
-        type: 'explicit_product_interest',
-        reason: 'Há uma menção explícita ao MusicScale ou a aplicativo/sistema em contexto de escala, repertório, organização, música ou tecnologia.',
-        nextAction: 'Responder ao ponto concreto e pedir um pequeno “sim” antes de apresentar o MusicScale.',
-        evidence: selected.map(evidence),
-      });
-    }
-
-    const relevantMessages = ordered.filter(message => hasAny(message.text, RELEVANT_TOPIC_PATTERNS));
-    if (relevantMessages.length >= 3) {
-      const selected = relevantMessages.slice(-3);
-      signals.push({
-        id: stableId('signal', `${personId}:recurring_relevant_topic:${selected.map(item => item.index).join(',')}`),
-        type: 'recurring_relevant_topic',
-        reason: 'O tema de escala, repertório, organização, música ou tecnologia apareceu repetidamente na conversa.',
-        nextAction: 'Retomar o tema citado pela própria pessoa e fazer uma pergunta curta de descoberta.',
-        evidence: selected.map(evidence),
-      });
-    }
-
     const lastPersonMessage = ordered[ordered.length - 1];
-    if (isDirectConversation && lastPersonMessage) {
-      const laterOwnerReply = ownerMessages.some(message => message.index > lastPersonMessage.index);
-      if (!laterOwnerReply && daysBetween(lastPersonMessage.dateKey, today) >= 1) {
-        signals.push({
-          id: stableId('signal', `${personId}:unanswered_conversation:${lastPersonMessage.index}`),
-          type: 'unanswered_conversation',
-          reason: 'Na conversa direta, a última mensagem desta pessoa ficou sem uma resposta posterior sua neste export.',
-          nextAction: 'Reabrir a conversa de forma natural, respondendo ao assunto que ficou pendente.',
-          evidence: [evidence(lastPersonMessage)],
-        });
-      }
+
+    // Priority 1: concrete MusicScale fit. One real pain/need is enough.
+    const fitMessages = ordered.filter(message => hasMusicScaleFit(message.text));
+    if (fitMessages.length > 0) {
+      const selected = fitMessages.slice(-3);
+      signals.push({
+        id: stableId('signal', `${personId}:music_scale_fit:${selected.map(item => item.index).join(',')}`),
+        type: 'explicit_product_interest',
+        reason: /\bmusicscale\b/i.test(selected.map(item => item.text).join(' '))
+          ? 'Esta pessoa já citou o MusicScale ou demonstrou interesse direto em algo que o produto resolve.'
+          : 'Esta pessoa falou sobre uma necessidade diretamente ligada ao MusicScale, como louvor, escala, repertório, cifras, ensaio, equipe, confirmação ou organização.',
+        nextAction: 'Retomar exatamente o assunto citado e fazer uma pergunta curta antes de apresentar o MusicScale.',
+        evidence: selected.map(evidence),
+      });
     }
 
+    // Priority 2: existing relationship. In a direct export, messages from both
+    // sides prove an actual conversation. In groups, only explicit name/@mention
+    // is considered person-specific; adjacency is deliberately not treated as a reply.
+    const directInteraction = isDirectConversation && ownerMessages.length > 0 && ordered.length > 0;
+    const mentionMessages = ordered.filter(message => selfMentioned(message.text, input.selfNames));
+    const explicitlyMentioned = mentionMessages.length > 0;
+    if (directInteraction || explicitlyMentioned) {
+      const selected = explicitlyMentioned
+        ? mentionMessages.slice(-2)
+        : [lastPersonMessage].filter(Boolean) as ParsedWhatsAppMessage[];
+      signals.push({
+        id: stableId('signal', `${personId}:relationship:${selected.map(item => item.index).join(',') || 'direct'}`),
+        type: 'commercial_followup_due',
+        reason: explicitlyMentioned
+          ? 'Esta pessoa chamou você pelo nome ou marcou você na conversa, então já existe um ponto natural para retomar o contato.'
+          : 'Vocês já tiveram uma conversa direta neste histórico, o que torna uma abordagem pessoal mais natural do que um contato frio.',
+        nextAction: 'Retomar a relação de forma pessoal e descobrir como essa pessoa organiza hoje o louvor e a equipe.',
+        evidence: selected.map(evidence),
+      });
+    }
+
+    // Keep overdue commercial follow-up evidence inside the same relationship
+    // bucket so it naturally ranks ahead of cold pastoral contacts.
     if (isDirectConversation) {
       const ownerSalesMessages = ownerMessages.filter(message =>
         /\bmusicscale\b/i.test(message.text) ||
-        (hasAny(message.text, PRODUCT_PATTERNS) && hasAny(message.text, RELEVANT_TOPIC_PATTERNS)),
+        (hasAny(message.text, PRODUCT_PATTERNS) && hasAny(message.text, MUSIC_SCALE_FIT_PATTERNS)),
       );
       const lastOwnerSales = ownerSalesMessages
         .filter(ownerMessage => {
@@ -191,11 +284,36 @@ export function deriveRadarPeople(input: {
         signals.push({
           id: stableId('signal', `${personId}:commercial_followup_due:${lastOwnerSales.index}`),
           type: 'commercial_followup_due',
-          reason: 'Na conversa direta, você mencionou explicitamente o MusicScale ou produto/app em contexto relevante e não há resposta posterior da pessoa neste export.',
-          nextAction: 'Fazer um follow-up curto e útil, sem pressão, retomando exatamente o ponto já conversado.',
+          reason: 'Você já apresentou o MusicScale ou uma solução relacionada e não há resposta posterior da pessoa neste export.',
+          nextAction: 'Fazer um follow-up curto, útil e sem pressão, retomando o ponto que vocês já conversaram.',
           evidence: [evidence(lastOwnerSales)],
         });
       }
+    }
+
+    const leadershipRole = isLeadershipRole(displayName, ordered);
+    const pastoralRole = isPastoralRole(displayName, ordered);
+
+    // Priority 3: pastors/ministry leaders who look like decision makers for the
+    // worship operation. If they also fit priorities 1 or 2, min-rank wins.
+    if (leadershipRole) {
+      signals.push({
+        id: stableId('signal', `${personId}:leadership_role`),
+        type: 'unanswered_conversation',
+        reason: 'O histórico indica um papel de liderança com influência direta na igreja ou no ministério de louvor.',
+        nextAction: 'Fazer uma abordagem respeitosa e consultiva, começando por como a equipe de louvor é organizada hoje.',
+        evidence: lastPersonMessage ? [evidence(lastPersonMessage)] : [],
+      });
+    } else if (pastoralRole) {
+      // Priority 4: remaining pastoral contacts. This intentionally surfaces them
+      // even without a MusicScale keyword, but always below fit and relationship.
+      signals.push({
+        id: stableId('signal', `${personId}:pastoral_contact`),
+        type: 'recurring_relevant_topic',
+        reason: 'Este contato aparenta ser pastor ou liderança pastoral e pode ser relevante para uma apresentação futura do MusicScale.',
+        nextAction: 'Só abordar depois dos contatos com dor ou relacionamento mais forte; use uma mensagem pessoal, curta e sem pressão.',
+        evidence: lastPersonMessage ? [evidence(lastPersonMessage)] : [],
+      });
     }
 
     if (!signals.length) continue;
