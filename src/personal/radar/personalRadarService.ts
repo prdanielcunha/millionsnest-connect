@@ -283,7 +283,8 @@ export class PersonalRadarService {
     const context = await this.resolvePilotContext(request);
     const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
     if (!person) throw new Error('PERSON_NOT_FOUND');
-    const digits = typeof input.phone === 'string' ? input.phone.replace(/\D/g, '') : '';
+    const hasPhoneUpdate = typeof input.phone === 'string';
+    const digits = hasPhoneUpdate ? input.phone!.replace(/\D/g, '') : '';
     if (digits && (digits.length < 10 || digits.length > 15)) throw new Error('PHONE_INVALID');
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
@@ -302,7 +303,7 @@ export class PersonalRadarService {
       data: {
         ...person,
         id: personDocumentId,
-        phone: digits || person.phone || null,
+        phone: hasPhoneUpdate ? (digits || null) : (person.phone || null),
         radarState,
         snoozedUntil,
         updatedAt: isoNow(this.now),

@@ -124,7 +124,7 @@ export class PersonalRadarClient {
     preferences: {
       style?: 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
       channel?: 'texto' | 'audio' | 'video' | 'followup';
-      objective?: 'iniciar_conversa' | 'descobrir_dor' | 'pedir_video' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+      objective?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
     } = {},
   ) {
     const response = await fetch('/api/personal/composer/draft', {

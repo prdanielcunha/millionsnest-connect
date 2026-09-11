@@ -21,4 +21,10 @@ const video=buildComposerPlan({person:{displayName:'João'},signal,objective:'pe
 assert(video.stage===4 && video.options.every(o=>/vídeo/i.test(o.text)),'permission stage asks before video');
 const trial=buildComposerPlan({person:{displayName:'João'},signal,objective:'convidar_trial'});
 assert(trial.stage===8 && trial.options.every(o=>/7 dias/i.test(o.text)),'trial stage uses seven-day real-organization test');
+const story=buildComposerPlan({person:{displayName:'João'},signal,objective:'contar_historia'});
+assert(story.stage===3 && story.recommendedChannel==='audio','story stage recommends audio and is explicit');
+const demo=buildComposerPlan({person:{displayName:'João'},signal,objective:'enviar_video',channel:'video'});
+assert(demo.stage===5 && demo.options.every(o=>/MusicScale|escala|louvor/i.test(o.text)),'demo stage creates short video scripts');
+const diagnosis=buildComposerPlan({person:{displayName:'João'},signal,objective:'diagnosticar'});
+assert(diagnosis.stage===6 && diagnosis.options.every(o=>o.text.includes('?')),'diagnosis stage asks instead of pitching');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);

@@ -5,7 +5,10 @@ export type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'obje
 export type ComposerObjective =
   | 'iniciar_conversa'
   | 'descobrir_dor'
+  | 'contar_historia'
   | 'pedir_video'
+  | 'enviar_video'
+  | 'diagnosticar'
   | 'explicar_dor'
   | 'convidar_trial'
   | 'acompanhar_trial'
@@ -73,7 +76,10 @@ function hasRelationship(signal: RadarSignal): boolean {
 }
 
 function resolveStage(signal: RadarSignal, objective?: ComposerObjective): number {
+  if (objective === 'contar_historia') return 3;
   if (objective === 'pedir_video') return 4;
+  if (objective === 'enviar_video') return 5;
+  if (objective === 'diagnosticar') return 6;
   if (objective === 'explicar_dor') return 7;
   if (objective === 'convidar_trial') return 8;
   if (objective === 'acompanhar_trial') return 9;
@@ -94,7 +100,10 @@ function stageLabel(stage: number): string {
 function defaultObjective(stage: number): ComposerObjective {
   if (stage === 1) return 'iniciar_conversa';
   if (stage === 2) return 'descobrir_dor';
+  if (stage === 3) return 'contar_historia';
   if (stage === 4) return 'pedir_video';
+  if (stage === 5) return 'enviar_video';
+  if (stage === 6) return 'diagnosticar';
   if (stage === 7) return 'explicar_dor';
   if (stage === 8) return 'convidar_trial';
   if (stage === 9) return 'acompanhar_trial';
@@ -163,6 +172,36 @@ function permissionVariants(name: string, signal: RadarSignal, style: ComposerSt
   ].map(text => soften(style, text));
 }
 
+function videoSendVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Como combinamos, vou te mandar um vídeo bem curto mostrando justamente a parte de ${t}. Depois me diz se isso faria diferença aí para vocês.`,
+    `${g} Separei um vídeo rápido do MusicScale focado em ${t}. Assiste quando puder e depois quero saber qual parte mais conversa com a realidade de vocês.`,
+    `${g} Te mando agora uma demonstração curtinha. Repara principalmente na parte de ${t}; depois me fala se hoje isso ajudaria a equipe daí.`,
+  ].map(text => soften(style, text));
+}
+
+function diagnosticVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const g = greeting(name, style);
+  const t = topic(signal);
+  return [
+    `${g} Do que você viu, qual parte faria mais diferença aí hoje: ${t}, a organização da equipe ou as confirmações?`,
+    `${g} Pensando na rotina de vocês, o que mais te chamou atenção no vídeo? Quero entender antes de te mostrar qualquer outra coisa.`,
+    `${g} Se você pudesse resolver só uma parte da organização do louvor agora, qual seria?`,
+  ].map(text => soften(style, text));
+}
+
+function videoScriptVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+  const t = topic(signal);
+  const who = name ? `, ${name}` : '';
+  return [
+    `Oi${who}! Gravei rapidinho porque é mais fácil te mostrar. O MusicScale nasceu da nossa própria rotina de igreja. Aqui a equipe recebe a escala, vê repertório, cifras e tons e confirma presença sem depender de mensagem perdida. Pensando no que você comentou sobre ${t}, olha como essa parte fica organizada.`,
+    `Oi${who}! Em menos de meio minuto eu quero te mostrar só uma coisa. A gente tinha muita informação espalhada no WhatsApp e criou o MusicScale para centralizar a rotina do louvor. Repara especialmente nessa parte de ${t}, porque foi exatamente o ponto que lembrei da nossa conversa.`,
+    `Oi${who}! Vou te mostrar sem apresentação comercial, só na prática. Aqui está uma escala real: equipe, músicas, cifras, tons e confirmação num lugar só. Pelo que você falou sobre ${t}, acho que essa é a parte que mais vale você olhar primeiro.`,
+  ].map(text => soften(style, text));
+}
+
 function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
   const g = greeting(name, style);
   const t = topic(signal);
@@ -227,7 +266,17 @@ export function buildComposerPlan(input: {
 
   let texts: string[];
   let effectiveChannel = channel;
-  if (channel === 'audio') {
+  if (objective === 'contar_historia') {
+    texts = audioVariants(name, input.signal, style);
+    effectiveChannel = 'audio';
+  } else if (objective === 'enviar_video' && channel === 'video') {
+    texts = videoScriptVariants(name, input.signal, style);
+    effectiveChannel = 'video';
+  } else if (objective === 'enviar_video') {
+    texts = videoSendVariants(name, input.signal, style);
+  } else if (objective === 'diagnosticar') {
+    texts = diagnosticVariants(name, input.signal, style);
+  } else if (channel === 'audio') {
     texts = audioVariants(name, input.signal, style);
   } else if (objective === 'pedir_video') {
     texts = permissionVariants(name, input.signal, style);
@@ -247,8 +296,14 @@ export function buildComposerPlan(input: {
   const factsUsed = input.signal.evidence.slice(0, 3).map(item => `${item.dateKey}: ${item.snippet}`);
   const recommendation = stage <= 2
     ? 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
-    : stage === 4
+    : stage === 3
+      ? 'Conte a história em 35–50 segundos, como conversa. Termine pedindo permissão para mostrar.'
+      : stage === 4
       ? 'Peça permissão antes de mandar o vídeo. O próximo passo é um pequeno “sim”.'
+      : stage === 5
+        ? 'Mostre só o necessário em cerca de 30 segundos e conecte a demonstração à dor real da conversa.'
+        : stage === 6
+          ? 'Depois do vídeo, faça uma pergunta diagnóstica. Não continue apresentando recursos sem ouvir a resposta.'
       : stage === 7
         ? `Fale somente da parte ligada a ${t}; não despeje todos os recursos.`
         : stage === 8
