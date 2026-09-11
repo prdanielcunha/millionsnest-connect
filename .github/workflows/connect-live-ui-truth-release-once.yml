@@ -71,7 +71,7 @@ jobs:
           test "$HEALTH_STATUS" = "200"
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
 
-          MESSAGE_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-message.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{\"text\":\"Qual é minha próxima escala?\"}' "$BASE/api/core/message")"
+          MESSAGE_STATUS="$(curl --silent --show-error --location --retry 12 --retry-delay 3 --retry-all-errors -o /tmp/connect-message.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"text":"Qual é minha próxima escala?"}' "$BASE/api/core/message")"
           echo "MESSAGE_STATUS=$MESSAGE_STATUS"
           test "$MESSAGE_STATUS" = "401"
 
