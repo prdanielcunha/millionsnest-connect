@@ -1,0 +1,166 @@
+import { CanonicalContextProvider, CanonicalCoreContext } from '../core/runtime/connectCore';
+import { PersonalRadarService } from '../personal/radar/personalRadarService';
+import { FirestorePersonalVault, VaultDocument, VaultWrite } from '../personal/storage/firestorePersonalVault';
+
+let passed = 0;
+let total = 0;
+
+function assert(condition: unknown, message: string) {
+  total++;
+  if (!condition) throw new Error(message);
+  passed++;
+}
+
+function equal(actual: unknown, expected: unknown, message: string) {
+  assert(actual === expected, `${message} (expected ${String(expected)}, got ${String(actual)})`);
+}
+
+class MemoryVault extends FirestorePersonalVault {
+  readonly records = new Map<string, Record<string, unknown>>();
+
+  constructor() {
+    super({ fetchImpl: (async () => new Response()) as typeof fetch });
+  }
+
+  private key(path: string[]): string {
+    return path.join('/');
+  }
+
+  override async get(_authToken: string, _uid: string, relativePath: string[]): Promise<VaultDocument | null> {
+    const data = this.records.get(this.key(relativePath));
+    if (!data) return null;
+    return { id: relativePath[relativePath.length - 1] || '', ...structuredClone(data) };
+  }
+
+  override async list(
+    _authToken: string,
+    _uid: string,
+    relativeCollectionPath: string[],
+    maxDocuments = 1_500,
+  ): Promise<VaultDocument[]> {
+    const prefix = `${this.key(relativeCollectionPath)}/`;
+    const result: VaultDocument[] = [];
+    for (const [key, data] of this.records.entries()) {
+      if (!key.startsWith(prefix)) continue;
+      const remainder = key.slice(prefix.length);
+      if (!remainder || remainder.includes('/')) continue;
+      result.push({ id: remainder, ...structuredClone(data) });
+      if (result.length >= maxDocuments) break;
+    }
+    return result;
+  }
+
+  override async writeMany(_authToken: string, _uid: string, writes: VaultWrite[]): Promise<void> {
+    for (const write of writes) this.records.set(this.key(write.path), structuredClone(write.data));
+  }
+
+  override async deleteMany(_authToken: string, _uid: string, paths: string[][]): Promise<void> {
+    for (const path of paths) this.records.delete(this.key(path));
+  }
+}
+
+function canonicalContext(overrides: Partial<CanonicalCoreContext> = {}): CanonicalCoreContext {
+  return {
+    actorUid: 'founder-1',
+    systemRole: 'founder',
+    globalAccess: true,
+    organizationId: 'org-1',
+    organizationRole: 'owner',
+    permissions: [],
+    capabilities: [],
+    appAccess: { musicscale: true },
+    ...overrides,
+  };
+}
+
+function provider(context: CanonicalCoreContext): CanonicalContextProvider {
+  return {
+    async resolve() {
+      return { status: 'resolved', context };
+    },
+  };
+}
+
+function exportPayload() {
+  const text = [
+    '[08/09/2026, 09:00:00] Ana: Como vocês organizam a escala pelo WhatsApp?',
+    '[08/09/2026, 09:05:00] Daniel: Aqui a gente usa o MusicScale para organizar escala e repertório.',
+    '[09/09/2026, 10:00:00] Ana: O MusicScale tem teste e confirmação da equipe?',
+  ].join('\n');
+  return {
+    fileName: 'Conversa com Ana.txt',
+    contentBase64: Buffer.from(text, 'utf8').toString('base64'),
+    selfNames: ['Daniel'],
+  };
+}
+
+console.log('--- Running Personal Radar Service Tests ---');
+
+{
+  const vault = new MemoryVault();
+  const service = new PersonalRadarService(
+    provider(canonicalContext()),
+    vault,
+    () => Date.parse('2026-09-11T12:00:00Z'),
+  );
+  const request = { authToken: 'Bearer founder-token', organizationId: 'org-1' };
+
+  const first = await service.importWhatsApp(request, exportPayload());
+  equal(first.status, 'imported', 'first WhatsApp source import is persisted');
+  assert(first.messageCount === 3, 'message count is returned');
+
+  const duplicate = await service.importWhatsApp(request, exportPayload());
+  equal(duplicate.status, 'deduplicated', 'same source is deduplicated by content hash');
+  equal(duplicate.sourceId, first.sourceId, 'dedupe preserves canonical source id');
+
+  const radar = await service.getRadar(request);
+  equal(radar.people.length, 1, 'private Radar returns the imported person');
+  const person = radar.people[0] as any;
+  assert(person.signals.some((signal: any) => signal.type === 'explicit_product_interest'), 'Radar retains explicit evidence-backed interest');
+
+  const signal = person.signals.find((item: any) => item.type === 'explicit_product_interest');
+  const draft = await service.compose(request, person.id, signal.id, 'curto');
+  assert(draft.draft.includes('MusicScale'), 'Composer produces a MusicScale-specific draft');
+  equal(draft.automaticSend, false, 'Composer never enables automatic commercial sending');
+  assert(Array.isArray(draft.evidence) && draft.evidence.length > 0, 'Composer keeps the evidence attached');
+
+  const promotion = await service.promoteOpportunity(request, person.id);
+  equal(promotion.success, true, 'opportunity promotion is an explicit manual action');
+  assert(vault.records.has(`relationshipOpportunities/${person.id}`), 'manual promotion creates an owner-scoped opportunity record');
+
+  const deletion = await service.deleteSource(request, first.sourceId);
+  equal(deletion.deleted, true, 'source deletion succeeds');
+  assert(!vault.records.has(`personalSources/${first.sourceId}`), 'source record is deleted');
+  assert(![...vault.records.keys()].some(key => key.startsWith(`personalPeople/${first.sourceId}_`)), 'derived people from the source are deleted');
+  assert(![...vault.records.values()].some(value => value.sourceId === first.sourceId), 'derived source-linked records are deleted');
+}
+
+{
+  const service = new PersonalRadarService(
+    provider(canonicalContext({ globalAccess: false, systemRole: null })),
+    new MemoryVault(),
+  );
+  let denied = false;
+  try {
+    await service.getRadar({ authToken: 'Bearer member-token', organizationId: 'org-1' });
+  } catch (error) {
+    denied = error instanceof Error && error.message === 'RADAR_PILOT_FORBIDDEN';
+  }
+  assert(denied, 'ordinary organization member cannot enter the private founder Radar pilot');
+}
+
+{
+  const service = new PersonalRadarService(
+    provider(canonicalContext({ organizationId: 'org-other' })),
+    new MemoryVault(),
+  );
+  let denied = false;
+  try {
+    await service.getRadar({ authToken: 'Bearer founder-token', organizationId: 'org-1' });
+  } catch (error) {
+    denied = error instanceof Error && error.message === 'RADAR_TENANT_MISMATCH';
+  }
+  assert(denied, 'tenant mismatch fails closed even for a global identity');
+}
+
+console.log(`✅ Passed ${passed} / ${total} tests.`);
