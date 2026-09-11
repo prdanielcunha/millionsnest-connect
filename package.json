@@ -20,6 +20,7 @@
     "test:gatewaytenant": "tsx src/tests/toolGatewayTenantBoundary.test.ts",
     "test:authority": "tsx src/tests/authorityModel.test.ts && tsx src/tests/confirmationIntent.test.ts",
     "test:core-http": "tsx src/tests/connectCoreRuntime.test.ts && tsx src/tests/hubSessionContextAdapter.test.ts && tsx src/tests/hubSessionContextHttpProvider.test.ts && tsx src/tests/musicScaleNextScheduleHttpTool.test.ts && tsx src/tests/connectCoreHttpHandler.test.ts && tsx src/tests/structuredCoreAudit.test.ts && tsx src/tests/connectSessionHttpHandler.test.ts && tsx src/tests/liveConnectSession.test.ts && tsx src/tests/connectServerComposition.test.ts",
+    "test:radar-pilot": "tsx src/tests/personalRadarSignals.test.ts && tsx src/tests/personalRadarService.test.ts",
     "test:mobile-layout": "tsx src/tests/mobileLayout.test.ts",
     "test:inbox-mobile": "tsx src/tests/inboxMobile.test.ts && npm run test:inbox-domain",
     "test:inbox-domain": "tsx src/tests/inboxDomain.test.ts",
