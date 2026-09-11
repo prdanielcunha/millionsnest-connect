@@ -76,6 +76,11 @@ console.log('--- Running MusicScale Next Schedule HTTP Tool Tests ---');
     'adapter ignores arbitrary origin paths and targets the canonical endpoint',
   );
   checkEqual(seenHeaders.Authorization, 'Bearer user-firebase-token', 'user bearer is forwarded transiently');
+  checkEqual(
+    seenHeaders['X-Connect-User-Authorization'],
+    'Bearer user-firebase-token',
+    'same user bearer is duplicated only into the Connect transport fallback header',
+  );
   checkEqual(seenHeaders['X-Organization-Id'], 'org-1', 'canonical organization is forwarded');
   checkEqual(seenHeaders['X-Request-Id'], 'req-1', 'request id is forwarded for tracing');
   checkEqual(seenHeaders['X-Correlation-Id'], 'cor-1', 'correlation id is forwarded for tracing');
