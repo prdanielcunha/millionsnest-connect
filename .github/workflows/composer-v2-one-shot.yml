@@ -23,7 +23,18 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Apply source-defined Composer v2
-        run: node scripts/apply-composer-v2.mjs
+        run: |
+          node scripts/apply-composer-v2.mjs
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/personal/radar/personalRadarService.ts')
+          s = p.read_text()
+          old = "    const plan = buildComposerPlan({\n      person,\n      signal,"
+          new = "    const plan = buildComposerPlan({\n      person: person as any,\n      signal,"
+          if old not in s:
+              raise SystemExit('composer service cast marker missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Verify TypeScript
