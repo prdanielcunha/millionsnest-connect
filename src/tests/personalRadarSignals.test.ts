@@ -120,41 +120,84 @@ console.log('--- Running Personal Radar Signal Tests ---');
   });
   equal(direct.length, 1, 'direct relevant conversation produces one Radar person');
   const types = new Set(direct[0].signals.map(signal => signal.type));
-  assert(types.has('explicit_product_interest'), 'explicit MusicScale interest is surfaced');
-  assert(types.has('recurring_relevant_topic'), 'recurring relevant topic is surfaced');
-  assert(types.has('unanswered_conversation'), 'direct unanswered conversation is surfaced');
-  assert(!direct[0].signals.some(signal => signal.evidence.length === 0), 'every signal has evidence');
+  assert(types.has('explicit_product_interest'), 'MusicScale fit is highest-priority signal');
+  assert(types.has('commercial_followup_due'), 'existing direct relationship is also surfaced');
+  assert(!direct[0].signals.some(signal => signal.evidence.length === 0), 'direct signals keep evidence');
 }
 
 {
-  const unrelated = deriveRadarPeople({
+  const relationshipOnly = deriveRadarPeople({
     selfNames: ['Daniel'],
     todayDateKey: '2026-09-11',
     messages: [
       message(0, 'Carlos', 'Como funciona a câmera desse celular?'),
-      message(1, 'Carlos', 'Qual o preço dela?'),
-      message(2, 'Daniel', 'Não sei ainda.'),
+      message(1, 'Daniel', 'Depois eu te mostro.'),
     ],
   });
-  equal(unrelated.length, 0, 'generic app/product words outside relevant context do not create a sales lead');
+  equal(relationshipOnly.length, 1, 'a real direct relationship can surface even without MusicScale keywords');
+  assert(
+    relationshipOnly[0].signals.some(signal => signal.type === 'commercial_followup_due'),
+    'direct relationship uses the second priority bucket',
+  );
+  assert(
+    !relationshipOnly[0].signals.some(signal => signal.type === 'explicit_product_interest'),
+    'unrelated relationship is not falsely classified as MusicScale fit',
+  );
 }
 
 {
   const group = deriveRadarPeople({
-    selfNames: ['Daniel'],
+    selfNames: ['Daniel Barbosa', 'Daniel'],
     todayDateKey: '2026-09-11',
     messages: [
       message(0, 'Ana', 'A escala do louvor está confusa.'),
-      message(1, 'Bruno', 'O repertório também está espalhado no WhatsApp.'),
-      message(2, 'Daniel', 'Eu criei o MusicScale para escala e repertório.'),
-      message(3, 'Ana', 'O MusicScale tem confirmação de presença?'),
+      message(1, 'Bruno', 'Daniel, depois consegue me chamar no privado?'),
+      message(2, 'Daniel', 'Consigo sim.'),
+      message(3, 'Ana', 'O repertório também está espalhado no WhatsApp.'),
     ],
   });
   const ana = group.find(person => person.displayName === 'Ana');
-  assert(Boolean(ana), 'group participant can surface explicit evidence from their own message');
-  assert(ana?.signals.some(signal => signal.type === 'explicit_product_interest'), 'group explicit product interest remains evidence-based');
-  assert(!group.some(person => person.signals.some(signal => signal.type === 'unanswered_conversation')), 'group exports never infer unanswered status');
-  assert(!group.some(person => person.signals.some(signal => signal.type === 'commercial_followup_due')), 'group exports never infer commercial follow-up attribution');
+  const bruno = group.find(person => person.displayName === 'Bruno');
+  assert(Boolean(ana), 'group participant with MusicScale pain is surfaced');
+  assert(ana?.signals.some(signal => signal.type === 'explicit_product_interest'), 'group MusicScale fit stays evidence-based');
+  assert(Boolean(bruno), 'explicit owner mention in group is surfaced as relationship');
+  assert(bruno?.signals.some(signal => signal.type === 'commercial_followup_due'), 'owner mention uses relationship priority');
+}
+
+{
+  const pastoral = deriveRadarPeople({
+    selfNames: ['Daniel'],
+    todayDateKey: '2026-09-11',
+    messages: [
+      message(0, 'Pastor Presidente João', 'Boa noite irmãos.'),
+      message(1, 'Pr. Marcos', 'Deus abençoe a todos.'),
+      message(2, 'Pessoa Comum', 'Boa noite.'),
+    ],
+  });
+  const leader = pastoral.find(person => person.displayName === 'Pastor Presidente João');
+  const pastor = pastoral.find(person => person.displayName === 'Pr. Marcos');
+  assert(Boolean(leader), 'pastor/leader decision-maker is surfaced without MusicScale keyword');
+  assert(leader?.signals.some(signal => signal.type === 'unanswered_conversation'), 'leader role uses third priority bucket');
+  assert(Boolean(pastor), 'remaining pastoral contact is surfaced');
+  assert(pastor?.signals.some(signal => signal.type === 'recurring_relevant_topic'), 'pastoral contact uses fourth priority bucket');
+  assert(!pastoral.some(person => person.displayName === 'Pessoa Comum'), 'unrelated cold contact is not added just because it appears in a group');
+}
+
+{
+  const ordered = deriveRadarPeople({
+    selfNames: ['Daniel'],
+    todayDateKey: '2026-09-11',
+    messages: [
+      message(0, 'Pastor Presidente João', 'Boa noite irmãos.'),
+      message(1, 'Pr. Marcos', 'Paz a todos.'),
+      message(2, 'Bruno', 'Daniel, fala comigo depois por favor.'),
+      message(3, 'Ana', 'Nossa escala e as cifras ficam perdidas no WhatsApp.'),
+    ],
+  });
+  equal(ordered[0]?.displayName, 'Ana', 'MusicScale fit ranks first');
+  equal(ordered[1]?.displayName, 'Bruno', 'existing relationship/mention ranks second');
+  equal(ordered[2]?.displayName, 'Pastor Presidente João', 'pastor/leader decision-maker ranks third');
+  equal(ordered[3]?.displayName, 'Pr. Marcos', 'remaining pastoral contact ranks fourth');
 }
 
 {
@@ -163,7 +206,6 @@ console.log('--- Running Personal Radar Signal Tests ---');
     todayDateKey: '2026-09-11',
     messages: [
       message(0, 'Maria', 'Minha religião é algo pessoal.'),
-      message(1, 'Daniel', 'Tudo bem.'),
     ],
   });
   equal(sensitiveOnly.length, 0, 'sensitive personal statements alone never create Radar signals');
