@@ -1,0 +1,100 @@
+name: Composer Editable Context One Shot
+
+on:
+  push:
+    branches:
+      - hotfix/composer-editable-context-01
+    paths:
+      - .github/workflows/composer-editable-context-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: hotfix/composer-editable-context-01
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply Composer acceptance fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/features/radar/RadarPage.tsx')
+          s=p.read_text()
+
+          old="  const compose = async (selection = selected, requestedTone = tone) => {"
+          new="  const compose = async (selection = selected, requestedTone = tone, requestedStyle = composerStyle) => {"
+          if old not in s: raise SystemExit('compose signature marker missing')
+          s=s.replace(old,new,1)
+
+          old="const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, { style: composerStyle });"
+          new="const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, { style: requestedStyle });"
+          if old not in s: raise SystemExit('compose style marker missing')
+          s=s.replace(old,new,1)
+
+          old="    setComposerStyle(signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic' ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo');\n    setTone('curto');\n    setTimeout(() => void compose(selection, 'curto'), 0);"
+          new="    const initialStyle: ComposerStyle = signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic' ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo';\n    setComposerStyle(initialStyle);\n    setTone('curto');\n    setTimeout(() => void compose(selection, 'curto', initialStyle), 0);"
+          if old not in s: raise SystemExit('open composer marker missing')
+          s=s.replace(old,new,1)
+
+          old="onClick={() => { setComposerStyle(value); setTimeout(() => void compose(selected, tone), 0); }}"
+          new="onClick={() => { setComposerStyle(value); void compose(selected, tone, value); }}"
+          if old not in s: raise SystemExit('style click marker missing')
+          s=s.replace(old,new,1)
+
+          old='<div className="min-h-24 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100">{draftBusy ? <div className="flex items-center gap-2 text-slate-400"><Loader2 size={15} className="animate-spin" /> {t.regenerate}…</div> : draft}</div>'
+          new='<div className="relative">{draftBusy ? <div className="grid min-h-24 place-items-center rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400"><div className="flex items-center gap-2"><Loader2 size={15} className="animate-spin" /> {t.regenerate}…</div></div> : <textarea value={draft} onChange={e => { setDraft(e.target.value); setCopied(false); }} rows={5} className="min-h-28 w-full resize-y rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100 outline-none focus:border-indigo-400/40" />}</div>'
+          if old not in s: raise SystemExit('draft display marker missing')
+          s=s.replace(old,new,1)
+
+          marker='{composerPlan?.options?.length > 1 && <div className="mb-3">'
+          context='{composerPlan?.factsUsed?.length > 0 && <div className="mb-3 rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.usedContext}</div><div className="mt-2 space-y-1.5">{composerPlan.factsUsed.map((fact:string,index:number) => <p key={`${fact}-${index}`} className="text-xs leading-5 text-slate-400">{fact}</p>)}</div></div>}'
+          if marker not in s: raise SystemExit('facts marker missing')
+          s=s.replace(marker,context+marker,1)
+
+          # Add language-aware style labels helper and use it.
+          marker2="export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {"
+          helper="""function composerStyleLabel(style: ComposerStyle, lang: LanguageCode): string {\n  const labels: Record<ComposerStyle, Record<LanguageCode, string>> = {\n    amigavel: { 'pt-BR': 'Amigável', 'en-US': 'Friendly', 'es-ES': 'Amigable' },\n    profissional: { 'pt-BR': 'Profissional', 'en-US': 'Professional', 'es-ES': 'Profesional' },\n    descontraido: { 'pt-BR': 'Descontraído', 'en-US': 'Casual', 'es-ES': 'Relajado' },\n    objetivo: { 'pt-BR': 'Objetivo', 'en-US': 'Direct', 'es-ES': 'Directo' },\n    proximo: { 'pt-BR': 'Próximo', 'en-US': 'Personal', 'es-ES': 'Cercano' },\n    pastoral: { 'pt-BR': 'Pastoral', 'en-US': 'Pastoral', 'es-ES': 'Pastoral' },\n    consultivo: { 'pt-BR': 'Consultivo', 'en-US': 'Consultative', 'es-ES': 'Consultivo' },\n  };\n  return labels[style][lang];\n}\n\n"""
+          if marker2 not in s: raise SystemExit('helper marker missing')
+          s=s.replace(marker2,helper+marker2,1)
+
+          old="([['amigavel','Amigável'],['profissional','Profissional'],['descontraido','Descontraído'],['objetivo','Objetivo'],['proximo','Próximo'],['pastoral','Pastoral'],['consultivo','Consultivo']] as Array<[ComposerStyle,string]>).map(([value,label])"
+          new="(['amigavel','profissional','descontraido','objetivo','proximo','pastoral','consultivo'] as ComposerStyle[]).map((value)"
+          if old not in s: raise SystemExit('style map marker missing')
+          s=s.replace(old,new,1)
+          old='{label}</button>)'
+          new='{composerStyleLabel(value, currentLang)}</button>)'
+          # Replace the occurrence in the composer style block only; first occurrence of exact label after our modified map.
+          pos=s.find("(['amigavel','profissional','descontraido'")
+          if pos<0: raise SystemExit('style map position missing')
+          tail=s[pos:]
+          if old not in tail: raise SystemExit('style label marker missing')
+          tail=tail.replace(old,new,1)
+          s=s[:pos]+tail
+
+          p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify
+        run: |
+          npm run lint
+          npm run test:radar-pilot
+          npm run test:release-policy
+          npm run build
+          npm run build:core
+      - name: Commit verified fix
+        run: |
+          git rm .github/workflows/composer-editable-context-one-shot.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/radar/RadarPage.tsx .github/workflows/composer-editable-context-one-shot.yml
+          git commit -m "Make Composer drafts editable and show used context"
+          git push origin HEAD:hotfix/composer-editable-context-01
