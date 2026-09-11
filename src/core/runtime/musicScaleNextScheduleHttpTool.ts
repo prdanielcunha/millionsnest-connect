@@ -84,6 +84,12 @@ function isPayload(value: unknown): value is MusicScaleToolPayload {
  * permissions or capabilities as authority. Only the user's bearer,
  * organization id and request tracing metadata cross the boundary. MusicScale
  * independently verifies identity, tenant and `scales.read`.
+ *
+ * The Firebase bearer is sent in both the standard Authorization header and a
+ * Connect-specific transport fallback. The fallback exists because Firebase
+ * Hosting -> Cloud Run rewrites can drop Authorization in some paths. MusicScale
+ * accepts the fallback only on this Connect boundary and still revalidates the
+ * exact same Firebase bearer server-side.
  */
 export class MusicScaleNextScheduleHttpTool implements MusicScaleReadToolPort {
   private readonly endpoint: string;
@@ -125,6 +131,7 @@ export class MusicScaleNextScheduleHttpTool implements MusicScaleReadToolPort {
         method: 'GET',
         headers: {
           Authorization: authorization,
+          'X-Connect-User-Authorization': authorization,
           'X-Organization-Id': input.organizationId,
           'X-Request-Id': input.requestId,
           'X-Correlation-Id': input.correlationId,
