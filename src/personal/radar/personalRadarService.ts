@@ -17,6 +17,8 @@ export type RadarRequestContext = {
   organizationId: string;
 };
 
+const DAY_MS = 86_400_000;
+
 function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
 }
@@ -95,6 +97,18 @@ function composerDraft(person: any, signal: any, tone: RadarComposerTone): strin
     return `${greeting} Lembrei do que você comentou sobre ${topic}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`;
   }
   return `${greeting} Lembrei da nossa conversa sobre ${topic}. Posso te mostrar rapidinho como a gente resolveu isso no MusicScale?`;
+}
+
+function isActivelySnoozed(person: Record<string, unknown>, nowMs: number): boolean {
+  if (person.radarState !== 'snoozed') return false;
+  const untilMs = Date.parse(String(person.snoozedUntil || ''));
+  return Number.isFinite(untilMs) && untilMs > nowMs;
+}
+
+function resolveSnoozeDays(value: unknown): number {
+  const days = value === undefined ? 7 : Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('SNOOZE_DAYS_INVALID');
+  return days;
 }
 
 export class PersonalRadarService {
@@ -207,6 +221,7 @@ export class PersonalRadarService {
           ownerUid: context.actorUid,
           importedAt: createdAt,
           radarState: 'active',
+          snoozedUntil: null,
           priority: personPriority(person),
         },
       })),
@@ -233,8 +248,9 @@ export class PersonalRadarService {
   async getRadar(request: RadarRequestContext) {
     const context = await this.resolvePilotContext(request);
     const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_000);
+    const nowMs = this.now();
     const active = people
-      .filter(person => person.radarState !== 'ignored')
+      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs))
       .sort((a, b) => {
         const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
         if (rank !== 0) return rank;
@@ -284,7 +300,11 @@ export class PersonalRadarService {
   async updatePerson(
     request: RadarRequestContext,
     personDocumentId: string,
-    input: { phone?: string | null; radarState?: 'active' | 'ignored' | 'snoozed' },
+    input: {
+      phone?: string | null;
+      radarState?: 'active' | 'ignored' | 'snoozed';
+      snoozeDays?: number;
+    },
   ) {
     const context = await this.resolvePilotContext(request);
     const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
@@ -294,6 +314,15 @@ export class PersonalRadarService {
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
       : String(person.radarState || 'active');
+
+    let snoozedUntil = person.snoozedUntil || null;
+    if (input.radarState === 'snoozed') {
+      const days = resolveSnoozeDays(input.snoozeDays);
+      snoozedUntil = new Date(this.now() + days * DAY_MS).toISOString();
+    } else if (input.radarState === 'active' || input.radarState === 'ignored') {
+      snoozedUntil = null;
+    }
+
     await this.vault.writeMany(request.authToken, context.actorUid, [{
       path: ['personalPeople', personDocumentId],
       data: {
@@ -301,10 +330,11 @@ export class PersonalRadarService {
         id: personDocumentId,
         phone: digits || person.phone || null,
         radarState,
+        snoozedUntil,
         updatedAt: isoNow(this.now),
       },
     }]);
-    return { success: true };
+    return { success: true, radarState, snoozedUntil };
   }
 
   async promoteOpportunity(request: RadarRequestContext, personDocumentId: string) {
