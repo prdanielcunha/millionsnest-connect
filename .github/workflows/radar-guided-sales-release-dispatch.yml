@@ -1,0 +1,32 @@
+name: Radar Guided Sales Release Dispatcher
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - 'src/features/radar/RadarPage.tsx'
+      - 'src/core/client/personalRadarClient.ts'
+      - 'src/personal/radar/personalRadarService.ts'
+      - 'src/personal/radar/composerPlaybook.ts'
+      - '.github/workflows/radar-guided-sales-release-dispatch.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch-certified-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch certified Connect production release in live mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run connect-core-production-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref production \
+            -f live_mode=true \
+            -f live_activation_ack=CONNECT_LIVE_READY
+          echo "CONNECT_RADAR_GUIDED_SALES_RELEASE_DISPATCHED"
