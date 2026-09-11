@@ -1,0 +1,54 @@
+name: Activate Radar Snooze Live Once
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - .github/workflows/activate-radar-snooze-live-once.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify certified Radar snooze release is on production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh api "repos/${{ github.repository }}/contents/src/personal/radar/personalRadarService.ts?ref=production" \
+            --jq .content | base64 -d >/tmp/radar-service.ts
+          grep -F "const DAY_MS = 86_400_000;" /tmp/radar-service.ts
+          grep -F "SNOOZE_DAYS_INVALID" /tmp/radar-service.ts
+          grep -F "snoozedUntil" /tmp/radar-service.ts
+
+          gh api "repos/${{ github.repository }}/contents/src/features/radar/RadarPage.tsx?ref=production" \
+            --jq .content | base64 -d >/tmp/radar-page.tsx
+          grep -F "Adiar 7 dias" /tmp/radar-page.tsx
+          grep -F "snoozeDays: 7" /tmp/radar-page.tsx
+
+          gh api "repos/${{ github.repository }}/contents/src/tests/personalRadarService.test.ts?ref=production" \
+            --jq .content | base64 -d >/tmp/radar-test.ts
+          grep -F "person returns automatically after snooze deadline expires" /tmp/radar-test.ts
+
+          echo "CONNECT_RADAR_SNOOZE_RELEASE_GATES_PRESENT"
+
+      - name: Dispatch canonical guarded live release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run connect-core-production-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref production \
+            -f live_mode=true \
+            -f live_activation_ack=CONNECT_LIVE_READY
+          echo "CONNECT_RADAR_SNOOZE_CANONICAL_RELEASE_DISPATCHED"
