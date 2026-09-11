@@ -2,6 +2,17 @@ name: Connect Core Production Release
 
 on:
   workflow_dispatch:
+    inputs:
+      live_mode:
+        description: "Build the Connect UI in LIVE_CORE mode"
+        required: true
+        default: false
+        type: boolean
+      live_activation_ack:
+        description: "When live_mode=true, type CONNECT_LIVE_READY"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -30,10 +41,43 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Guard live activation intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.live_mode }}" = "true" ]; then
+            test "${{ inputs.live_activation_ack }}" = "CONNECT_LIVE_READY"
+            echo "CONNECT_LIVE_ACTIVATION_EXPLICITLY_ACKNOWLEDGED"
+          else
+            echo "CONNECT_LIVE_MODE_DISABLED"
+          fi
+
+      - name: Prove live upstream routes before activation
+        if: inputs.live_mode == true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          HUB_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/hub-connect-session.json -w '%{http_code}' \
+            'https://www.millionsnest.com/api/ecosystem/connect/session-context')"
+          test "$HUB_STATUS" = "401"
+
+          MUSIC_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/musicscale-connect-next.json -w '%{http_code}' \
+            'https://musicscale.millionsnest.com/api/v1/connect/next-schedule')"
+          test "$MUSIC_STATUS" = "401"
+
+          echo "CONNECT_LIVE_UPSTREAM_ROUTE_PROOFS_OK"
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Validate frontend and Core
+        env:
+          VITE_CONNECT_LIVE_ENABLED: ${{ inputs.live_mode }}
         run: |
           npm run lint
           npm run test:core-http
@@ -42,6 +86,7 @@ jobs:
           npm run test:authority
           npm run test:chartdelivery
           npm run test:firebase-hosting
+          npm run test:release-policy
           npm run build
           npm run build:core
 
@@ -133,12 +178,19 @@ jobs:
             "$BASE/api/health" -o /tmp/connect-health.json
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
 
-          STATUS="$(curl --silent --show-error --location \
+          MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             -o /tmp/connect-core-unauth.json -w '%{http_code}' \
             -X POST -H 'Content-Type: application/json' \
-            --data '{"message":"Qual é minha próxima escala?"}' \
+            --data '{"text":"Qual é minha próxima escala?"}' \
             "$BASE/api/core/message")"
-          test "$STATUS" = "401"
+          test "$MESSAGE_STATUS" = "401"
+
+          SESSION_STATUS="$(curl --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            -o /tmp/connect-session-unauth.json -w '%{http_code}' \
+            "$BASE/api/core/session?organizationId=release-smoke")"
+          test "$SESSION_STATUS" = "401"
 
           echo "CONNECT_PRODUCTION_RELEASE_OK"
+          echo "CONNECT_LIVE_MODE=${{ inputs.live_mode }}"
