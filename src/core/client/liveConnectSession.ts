@@ -94,7 +94,8 @@ async function resolveFirebaseApiKey(deps: BootstrapDependencies): Promise<strin
     cache: 'no-store',
   });
   if (!response.ok) throw new Error('FIREBASE_CONFIG_UNAVAILABLE');
-  const config = await response.json() as any;
+
+  const config = await response.json().catch(() => null) as any;
   const apiKey = safeString(config?.apiKey);
   if (!apiKey) throw new Error('FIREBASE_CONFIG_UNAVAILABLE');
   return apiKey;
@@ -118,7 +119,9 @@ async function exchangeCustomToken(
 
   const idToken = safeString(body?.idToken);
   const localId = safeString(body?.localId);
-  if (!idToken || localId !== payload.userId) throw new Error('HANDOFF_IDENTITY_MISMATCH');
+  if (!idToken || (localId && localId !== payload.userId)) {
+    throw new Error('HANDOFF_IDENTITY_MISMATCH');
+  }
   return idToken;
 }
 
@@ -178,6 +181,14 @@ function mapCanonicalSessionToContext(session: any, expectedOrgId: string, expec
   };
 }
 
+const SAFE_CANONICAL_SESSION_ERROR_CODES = new Set([
+  'AUTH_REQUIRED',
+  'ORGANIZATION_REQUIRED',
+  'ORGANIZATION_CONTEXT_MISMATCH',
+  'ORGANIZATION_ACCESS_DENIED',
+  'CANONICAL_CONTEXT_UNAVAILABLE',
+]);
+
 export async function bootstrapLiveConnectSession(
   injected?: Partial<BootstrapDependencies>,
 ): Promise<LiveConnectSession> {
@@ -213,8 +224,15 @@ export async function bootstrapLiveConnectSession(
       cache: 'no-store',
     },
   );
-  const sessionPayload = await sessionResponse.json().catch(() => ({}));
-  if (!sessionResponse.ok) throw new Error('CANONICAL_CONTEXT_UNAVAILABLE');
+  const sessionPayload = await sessionResponse.json().catch(() => ({})) as any;
+  if (!sessionResponse.ok) {
+    const upstreamCode = safeString(sessionPayload?.code);
+    throw new Error(
+      SAFE_CANONICAL_SESSION_ERROR_CODES.has(upstreamCode)
+        ? upstreamCode
+        : 'CANONICAL_CONTEXT_UNAVAILABLE',
+    );
+  }
 
   const context = mapCanonicalSessionToContext(sessionPayload, handoff.orgId, handoff.userId);
 
