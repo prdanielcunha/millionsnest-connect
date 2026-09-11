@@ -21,14 +21,14 @@ type SelectedSignal = {
 
 const copy = {
   'pt-BR': {
-    eyebrow: 'RADAR · PILOTO PRIVADO', title: 'Quem merece sua atenção agora?',
-    subtitle: 'Importe uma exportação autorizada do seu WhatsApp. O Radar mostra evidências reais e sugere o próximo passo — sem transformar sua vida pessoal em CRM.',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Com quem vale conversar primeiro?',
+    subtitle: 'O Radar prioriza quem já mostrou uma dor que o MusicScale resolve, depois quem já tem relação com você, pastores/líderes e, por último, os demais contatos pastorais — sempre com evidência e contexto.',
     privacy: 'Cofre pessoal: visível somente para sua conta. Nada vira oportunidade comercial automaticamente.',
     importTitle: 'Importar conversa', importHint: 'TXT ou ZIP exportado pelo próprio WhatsApp · até 5 MB',
     selfName: 'Seu nome como aparece no export', choose: 'Escolher TXT ou ZIP', importing: 'Analisando com segurança…',
     importAction: 'Importar e analisar', imported: 'Importação concluída', dedup: 'Este arquivo já estava no seu cofre. Nenhuma duplicação foi criada.',
-    people: 'Pessoas no Radar', messages: 'mensagens',
-    signals: 'sinais com evidência', empty: 'Nenhum sinal comercial útil ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra algo quando encontra evidência suficiente.',
+    people: 'Pessoas priorizadas', messages: 'mensagens',
+    signals: 'motivos com evidência', empty: 'Nenhum contato prioritário ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra pessoas quando encontra um motivo real para priorizá-las.',
     evidence: 'Evidência', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Promover manualmente', promoted: 'Oportunidade marcada',
     phone: 'WhatsApp/telefone', savePhone: 'Salvar', snooze: 'Adiar 7 dias', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
     composerTitle: 'Composer MusicScale', tone: 'Tom', short: 'Curto', conversation: 'Conversa', audio: 'Áudio', video: 'Vídeo',
@@ -38,14 +38,14 @@ const copy = {
     error: 'Não foi possível concluir esta operação.', noAuto: 'O envio é sempre manual neste piloto.',
   },
   'en-US': {
-    eyebrow: 'RADAR · PRIVATE PILOT', title: 'Who deserves your attention now?',
-    subtitle: 'Import an authorized WhatsApp export. Radar shows real evidence and suggests a next step — without turning your personal life into a CRM.',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Who should you talk to first?',
+    subtitle: 'Radar prioritizes people who already showed a problem MusicScale can solve, then people who already know you, pastors/leaders, and finally other pastoral contacts — always with evidence and context.',
     privacy: 'Personal vault: visible only to your account. Nothing becomes a commercial opportunity automatically.',
     importTitle: 'Import conversation', importHint: 'TXT or ZIP exported by WhatsApp · up to 5 MB',
     selfName: 'Your name as it appears in the export', choose: 'Choose TXT or ZIP', importing: 'Analyzing securely…',
     importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. No duplicate was created.',
-    people: 'People in Radar', messages: 'messages',
-    signals: 'evidence-backed signals', empty: 'No useful commercial signal yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces something when there is enough evidence.',
+    people: 'Prioritized people', messages: 'messages',
+    signals: 'evidence-backed reasons', empty: 'No priority contact yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces people when there is a real reason to prioritize them.',
     evidence: 'Evidence', next: 'Next step', compose: 'Create approach', promote: 'Promote manually', promoted: 'Opportunity marked',
     phone: 'WhatsApp/phone', savePhone: 'Save', snooze: 'Snooze 7 days', ignore: 'Ignore', sourceDelete: 'Delete source',
     composerTitle: 'MusicScale Composer', tone: 'Tone', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video',
@@ -55,14 +55,14 @@ const copy = {
     error: 'Could not complete this operation.', noAuto: 'Sending is always manual in this pilot.',
   },
   'es-ES': {
-    eyebrow: 'RADAR · PILOTO PRIVADO', title: '¿Quién merece tu atención ahora?',
-    subtitle: 'Importa una exportación autorizada de WhatsApp. Radar muestra evidencia real y sugiere el siguiente paso, sin convertir tu vida personal en un CRM.',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: '¿Con quién conviene hablar primero?',
+    subtitle: 'Radar prioriza a quienes ya mostraron un problema que MusicScale puede resolver, luego a quienes ya tienen relación contigo, pastores/líderes y, por último, otros contactos pastorales — siempre con evidencia y contexto.',
     privacy: 'Cofre personal: visible solo para tu cuenta. Nada se convierte automáticamente en oportunidad comercial.',
     importTitle: 'Importar conversación', importHint: 'TXT o ZIP exportado por WhatsApp · hasta 5 MB',
     selfName: 'Tu nombre como aparece en la exportación', choose: 'Elegir TXT o ZIP', importing: 'Analizando de forma segura…',
     importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. No se creó ningún duplicado.',
-    people: 'Personas en Radar', messages: 'mensajes',
-    signals: 'señales con evidencia', empty: 'Aún no hay una señal comercial útil', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra algo cuando encuentra evidencia suficiente.',
+    people: 'Personas priorizadas', messages: 'mensajes',
+    signals: 'motivos con evidencia', empty: 'Aún no hay contactos prioritarios', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra personas cuando encuentra un motivo real para priorizarlas.',
     evidence: 'Evidencia', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Promover manualmente', promoted: 'Oportunidad marcada',
     phone: 'WhatsApp/teléfono', savePhone: 'Guardar', snooze: 'Posponer 7 días', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
     composerTitle: 'Composer MusicScale', tone: 'Tono', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
@@ -75,10 +75,10 @@ const copy = {
 
 function signalLabel(type: string, lang: LanguageCode): string {
   const labels: Record<string, Record<LanguageCode, string>> = {
-    explicit_product_interest: { 'pt-BR': 'Interesse explícito', 'en-US': 'Explicit interest', 'es-ES': 'Interés explícito' },
-    commercial_followup_due: { 'pt-BR': 'Follow-up pendente', 'en-US': 'Follow-up due', 'es-ES': 'Seguimiento pendiente' },
-    unanswered_conversation: { 'pt-BR': 'Conversa sem resposta', 'en-US': 'Unanswered conversation', 'es-ES': 'Conversación sin respuesta' },
-    recurring_relevant_topic: { 'pt-BR': 'Tema recorrente', 'en-US': 'Recurring topic', 'es-ES': 'Tema recurrente' },
+    explicit_product_interest: { 'pt-BR': 'Potencial MusicScale', 'en-US': 'MusicScale fit', 'es-ES': 'Potencial MusicScale' },
+    commercial_followup_due: { 'pt-BR': 'Relacionamento ativo', 'en-US': 'Existing relationship', 'es-ES': 'Relación existente' },
+    unanswered_conversation: { 'pt-BR': 'Pastor / líder', 'en-US': 'Pastor / leader', 'es-ES': 'Pastor / líder' },
+    recurring_relevant_topic: { 'pt-BR': 'Contato pastoral', 'en-US': 'Pastoral contact', 'es-ES': 'Contacto pastoral' },
   };
   return labels[type]?.[lang] || type;
 }
