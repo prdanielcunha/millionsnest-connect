@@ -3,6 +3,10 @@ import { ConnectCoreService } from '../core/runtime/connectCore';
 import { createConnectCoreHttpHandler } from '../core/runtime/connectCoreHttpHandler';
 import { createConnectCoreRuntime } from '../core/runtime/connectCoreRuntimeFactory';
 import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionHttpHandler';
+import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
+import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
+import { PersonalRadarService } from '../personal/radar/personalRadarService';
+import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
 
 export interface CreateConnectServerOptions {
   core?: ConnectCoreService;
@@ -10,16 +14,18 @@ export interface CreateConnectServerOptions {
   fetchImpl?: typeof fetch;
   logger?: {
     info(message: string, meta?: Record<string, unknown>): void;
+    warn?(message: string, meta?: Record<string, unknown>): void;
     error?(message: string, meta?: Record<string, unknown>): void;
   };
 }
 
 /**
- * Minimal API server for the first real Connect Core in-app vertical.
+ * MillionsNest Connect server composition root.
  *
- * The live browser receives only a Firebase identity token. Hub remains the
- * canonical source for tenant/RBAC context and every MusicScale read is still
- * revalidated by the downstream app.
+ * Hub remains the identity/RBAC authority, MusicScale revalidates its own reads,
+ * and Personal Sources use the caller's Firebase bearer against owner-scoped
+ * Firestore Rules. The Radar pilot is additionally restricted to canonical
+ * global-access identities in PersonalRadarService.
  */
 export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
@@ -31,6 +37,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     : null;
 
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
+  let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
     try {
@@ -38,6 +45,24 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         hubOrigin,
         fetchImpl: options.fetchImpl,
       });
+
+      const personalContextProvider = new HubSessionContextHttpProvider({
+        hubOrigin,
+        fetchImpl: options.fetchImpl
+          ? ((input: string, init: any) => options.fetchImpl!(input, init) as any)
+          : undefined,
+      });
+      const vault = new FirestorePersonalVault({
+        projectId: env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest',
+        fetchImpl: options.fetchImpl,
+      });
+      const personalRadar = new PersonalRadarService(
+        personalContextProvider,
+        vault,
+        Date.now,
+        logger,
+      );
+      personalRadarRouter = createPersonalRadarRouter(personalRadar);
     } catch (error) {
       logger.error?.('CONNECT_SESSION_CONFIGURATION_ERROR', {
         error: error instanceof Error ? error.message : 'unknown_error',
@@ -46,6 +71,13 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   }
 
   app.disable('x-powered-by');
+
+  // Personal import can carry an authorized TXT/ZIP export up to 5 MB encoded
+  // as base64. Mount this router before the small default Core JSON parser so
+  // the larger body limit applies only to the private import endpoint.
+  if (personalRadarRouter) {
+    app.use('/api/personal', personalRadarRouter);
+  }
   app.use(express.json({ limit: '32kb' }));
 
   app.get('/api/health', (_req, res) => {
