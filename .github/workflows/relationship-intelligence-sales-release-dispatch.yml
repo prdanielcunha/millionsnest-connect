@@ -1,0 +1,29 @@
+name: Relationship Intelligence Sales Release Dispatcher
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - 'src/App.tsx'
+      - '.github/workflows/relationship-intelligence-sales-release-dispatch.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch-certified-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch existing certified Connect production release in live mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run connect-core-production-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref production \
+            -f live_mode=true \
+            -f live_activation_ack=CONNECT_LIVE_READY
+          echo "CONNECT_CERTIFIED_RELEASE_DISPATCHED"
