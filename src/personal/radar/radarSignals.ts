@@ -101,8 +101,9 @@ function hasAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some(pattern => pattern.test(text));
 }
 
-function isQuestion(text: string): boolean {
-  return text.includes('?') || /\b(como|qual|quais|quanto|tem como|voc[eê]s|funciona|onde)\b/i.test(text);
+function hasExplicitProductInterest(text: string): boolean {
+  if (/\bmusicscale\b/i.test(text)) return true;
+  return hasAny(text, PRODUCT_PATTERNS) && hasAny(text, RELEVANT_TOPIC_PATTERNS);
 }
 
 export function deriveRadarPeople(input: {
@@ -123,6 +124,11 @@ export function deriveRadarPeople(input: {
   }
 
   const ownerMessages = input.messages.filter(message => self.has(normalizeName(message.sender)));
+  // A raw WhatsApp export does not encode reply targets reliably. We only infer
+  // "you did/did not reply" when there is exactly one non-self participant.
+  // In group/multi-party exports, person-specific message evidence can still
+  // produce explicit/recurrent signals, but reply/follow-up inference is disabled.
+  const isDirectConversation = self.size > 0 && grouped.size === 1;
   const people: RadarPerson[] = [];
 
   for (const [normalizedName, messages] of grouped.entries()) {
@@ -131,16 +137,13 @@ export function deriveRadarPeople(input: {
     const personId = stableId('person', normalizedName);
     const signals: RadarSignal[] = [];
 
-    const interestMessages = ordered.filter(message =>
-      hasAny(message.text, PRODUCT_PATTERNS) &&
-      (isQuestion(message.text) || hasAny(message.text, RELEVANT_TOPIC_PATTERNS) || /\bmusicscale\b/i.test(message.text)),
-    );
+    const interestMessages = ordered.filter(message => hasExplicitProductInterest(message.text));
     if (interestMessages.length > 0) {
       const selected = interestMessages.slice(-2);
       signals.push({
         id: stableId('signal', `${personId}:explicit_product_interest:${selected.map(item => item.index).join(',')}`),
         type: 'explicit_product_interest',
-        reason: 'Há uma menção explícita a aplicativo, sistema, teste, preço ou funcionamento em contexto relevante.',
+        reason: 'Há uma menção explícita ao MusicScale ou a aplicativo/sistema em contexto de escala, repertório, organização, música ou tecnologia.',
         nextAction: 'Responder ao ponto concreto e pedir um pequeno “sim” antes de apresentar o MusicScale.',
         evidence: selected.map(evidence),
       });
@@ -159,38 +162,40 @@ export function deriveRadarPeople(input: {
     }
 
     const lastPersonMessage = ordered[ordered.length - 1];
-    if (lastPersonMessage) {
+    if (isDirectConversation && lastPersonMessage) {
       const laterOwnerReply = ownerMessages.some(message => message.index > lastPersonMessage.index);
       if (!laterOwnerReply && daysBetween(lastPersonMessage.dateKey, today) >= 1) {
         signals.push({
           id: stableId('signal', `${personId}:unanswered_conversation:${lastPersonMessage.index}`),
           type: 'unanswered_conversation',
-          reason: 'A última mensagem identificada desta pessoa ficou sem uma resposta posterior sua neste export.',
+          reason: 'Na conversa direta, a última mensagem desta pessoa ficou sem uma resposta posterior sua neste export.',
           nextAction: 'Reabrir a conversa de forma natural, respondendo ao assunto que ficou pendente.',
           evidence: [evidence(lastPersonMessage)],
         });
       }
     }
 
-    const ownerSalesMessages = ownerMessages.filter(message =>
-      /\bmusicscale\b/i.test(message.text) ||
-      (hasAny(message.text, PRODUCT_PATTERNS) && hasAny(message.text, RELEVANT_TOPIC_PATTERNS)),
-    );
-    const lastOwnerSales = ownerSalesMessages
-      .filter(ownerMessage => {
-        const previousPerson = ordered.some(personMessage => personMessage.index < ownerMessage.index);
-        const laterPerson = ordered.some(personMessage => personMessage.index > ownerMessage.index);
-        return previousPerson && !laterPerson;
-      })
-      .slice(-1)[0];
-    if (lastOwnerSales && daysBetween(lastOwnerSales.dateKey, today) >= 2) {
-      signals.push({
-        id: stableId('signal', `${personId}:commercial_followup_due:${lastOwnerSales.index}`),
-        type: 'commercial_followup_due',
-        reason: 'Você mencionou explicitamente produto/app em contexto relevante e não há resposta posterior da pessoa neste export.',
-        nextAction: 'Fazer um follow-up curto e útil, sem pressão, retomando exatamente o ponto já conversado.',
-        evidence: [evidence(lastOwnerSales)],
-      });
+    if (isDirectConversation) {
+      const ownerSalesMessages = ownerMessages.filter(message =>
+        /\bmusicscale\b/i.test(message.text) ||
+        (hasAny(message.text, PRODUCT_PATTERNS) && hasAny(message.text, RELEVANT_TOPIC_PATTERNS)),
+      );
+      const lastOwnerSales = ownerSalesMessages
+        .filter(ownerMessage => {
+          const previousPerson = ordered.some(personMessage => personMessage.index < ownerMessage.index);
+          const laterPerson = ordered.some(personMessage => personMessage.index > ownerMessage.index);
+          return previousPerson && !laterPerson;
+        })
+        .slice(-1)[0];
+      if (lastOwnerSales && daysBetween(lastOwnerSales.dateKey, today) >= 2) {
+        signals.push({
+          id: stableId('signal', `${personId}:commercial_followup_due:${lastOwnerSales.index}`),
+          type: 'commercial_followup_due',
+          reason: 'Na conversa direta, você mencionou explicitamente o MusicScale ou produto/app em contexto relevante e não há resposta posterior da pessoa neste export.',
+          nextAction: 'Fazer um follow-up curto e útil, sem pressão, retomando exatamente o ponto já conversado.',
+          evidence: [evidence(lastOwnerSales)],
+        });
+      }
     }
 
     if (!signals.length) continue;
@@ -213,11 +218,10 @@ export function deriveRadarPeople(input: {
     recurring_relevant_topic: 3,
   };
 
-  return people
-    .sort((a, b) => {
-      const aRank = Math.min(...a.signals.map(signal => priority[signal.type]));
-      const bRank = Math.min(...b.signals.map(signal => priority[signal.type]));
-      if (aRank !== bRank) return aRank - bRank;
-      return (b.lastDateKey || '').localeCompare(a.lastDateKey || '');
-    });
+  return people.sort((a, b) => {
+    const aRank = Math.min(...a.signals.map(signal => priority[signal.type]));
+    const bRank = Math.min(...b.signals.map(signal => priority[signal.type]));
+    if (aRank !== bRank) return aRank - bRank;
+    return (b.lastDateKey || '').localeCompare(a.lastDateKey || '');
+  });
 }
