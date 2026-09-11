@@ -3,6 +3,7 @@ import { CanonicalContextProvider, CanonicalCoreContext } from '../../core/runti
 import { FirestorePersonalVault, VaultWrite } from '../storage/firestorePersonalVault';
 import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
 import { deriveRadarPeople, RadarPerson, RadarSignal } from './radarSignals';
+import { buildComposerPlan, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
 
 export type RadarComposerTone = 'curto' | 'conversa' | 'audio' | 'video';
 
@@ -65,38 +66,11 @@ function personPriority(person: RadarPerson): number {
   return person.signals.length ? Math.min(...person.signals.map(signalPriority)) : 99;
 }
 
-function firstName(displayName: string): string {
-  const clean = displayName.trim();
-  if (!clean || /^\+?\d/.test(clean)) return '';
-  return clean.split(/\s+/)[0] || '';
-}
-
-function topicFromSignal(signal: any): string {
-  const evidenceText = String(signal?.evidence?.[0]?.snippet || '');
-  if (/\bescala/i.test(evidenceText)) return 'escala e organização do time';
-  if (/\brepert[oó]rio|cifra/i.test(evidenceText)) return 'repertório e preparação';
-  if (/\bensaio/i.test(evidenceText)) return 'ensaio e preparação da equipe';
-  if (/\bwhatsapp/i.test(evidenceText)) return 'organização pelo WhatsApp';
-  if (/\bpre[cç]o|valor|quanto custa/i.test(evidenceText)) return 'valor e funcionamento do MusicScale';
-  if (/\bapp|aplicativo|sistema|plataforma/i.test(evidenceText)) return 'ferramenta para organizar a equipe';
-  return 'organização da equipe de música';
-}
-
-function composerDraft(person: any, signal: any, tone: RadarComposerTone): string {
-  const name = firstName(String(person.displayName || ''));
-  const greeting = name ? `Oi, ${name}!` : 'Oi!';
-  const topic = topicFromSignal(signal);
-
-  if (tone === 'audio') {
-    return `${greeting} Vi que a gente já falou sobre ${topic}. Aqui nós também passávamos por esse tipo de dificuldade e foi justamente por isso que criamos o MusicScale. Ele junta escala, repertório e confirmação da equipe num lugar só. Se fizer sentido pra você, eu posso te mandar um vídeo bem curto mostrando como funciona.`;
-  }
-  if (tone === 'video') {
-    return `${greeting} Lembrei da nossa conversa sobre ${topic}. Posso te mandar um vídeo de uns 30 segundos mostrando exatamente como o MusicScale organiza isso?`;
-  }
-  if (tone === 'conversa') {
-    return `${greeting} Lembrei do que você comentou sobre ${topic}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`;
-  }
-  return `${greeting} Lembrei da nossa conversa sobre ${topic}. Posso te mostrar rapidinho como a gente resolveu isso no MusicScale?`;
+function legacyComposerPreferences(tone: RadarComposerTone): { style?: ComposerStyle; channel?: ComposerChannel; objective?: ComposerObjective } {
+  if (tone === 'audio') return { channel: 'audio', style: 'proximo' };
+  if (tone === 'video') return { channel: 'texto', objective: 'pedir_video', style: 'amigavel' };
+  if (tone === 'conversa') return { channel: 'texto', objective: 'descobrir_dor', style: 'consultivo' };
+  return { channel: 'texto', style: 'objetivo' };
 }
 
 function isActivelySnoozed(person: Record<string, unknown>, nowMs: number): boolean {
@@ -366,16 +340,38 @@ export class PersonalRadarService {
     personDocumentId: string,
     signalId: string,
     tone: RadarComposerTone,
+    preferences: { style?: ComposerStyle; channel?: ComposerChannel; objective?: ComposerObjective } = {},
   ) {
     const context = await this.resolvePilotContext(request);
     const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
     if (!person) throw new Error('PERSON_NOT_FOUND');
-    const signals = Array.isArray(person.signals) ? person.signals as any[] : [];
+    const signals = Array.isArray(person.signals) ? person.signals as RadarSignal[] : [];
     const signal = signals.find(item => item?.id === signalId);
     if (!signal) throw new Error('SIGNAL_NOT_FOUND');
     if (!['curto', 'conversa', 'audio', 'video'].includes(tone)) throw new Error('COMPOSER_TONE_INVALID');
+
+    const legacy = legacyComposerPreferences(tone);
+    const plan = buildComposerPlan({
+      person: person as any,
+      signal,
+      style: preferences.style || legacy.style,
+      channel: preferences.channel || legacy.channel,
+      objective: preferences.objective || legacy.objective,
+    });
     return {
-      draft: composerDraft(person, signal, tone),
+      draft: plan.options[0]?.text || '',
+      options: plan.options,
+      stage: plan.stage,
+      stageLabel: plan.stageLabel,
+      objective: plan.objective,
+      recommendedChannel: plan.recommendedChannel,
+      recommendedStyle: plan.recommendedStyle,
+      recommendation: plan.recommendation,
+      why: plan.why,
+      tip: plan.tip,
+      nextSmallYes: plan.nextSmallYes,
+      estimatedDurationSeconds: plan.estimatedDurationSeconds || null,
+      factsUsed: plan.factsUsed,
       tone,
       personId: personDocumentId,
       signalId,
