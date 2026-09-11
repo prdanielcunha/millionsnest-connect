@@ -1,0 +1,29 @@
+name: Activate Connect Live Core Once
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - .github/workflows/activate-live-core-once.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch canonical guarded release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run connect-core-production-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref production \
+            -f live_mode=true \
+            -f live_activation_ack=CONNECT_LIVE_READY
+          echo "CONNECT_LIVE_CANONICAL_RELEASE_DISPATCHED"
