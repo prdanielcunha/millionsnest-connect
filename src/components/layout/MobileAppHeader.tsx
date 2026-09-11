@@ -11,8 +11,15 @@ interface MobileAppHeaderProps {
   setIsCommandPaletteOpen: (isOpen: boolean) => void;
   currentLang: LanguageCode;
   onSelectOrg: (orgId: string) => void;
+  isLive?: boolean;
   className?: string;
 }
+
+const liveSearchLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'Busca global em breve',
+  'en-US': 'Global search coming soon',
+  'es-ES': 'Búsqueda global próximamente',
+};
 
 export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   context,
@@ -21,6 +28,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   setIsCommandPaletteOpen,
   currentLang,
   onSelectOrg,
+  isLive = false,
   className = '',
 }) => {
   const [isMobileOrgMenuOpen, setIsMobileOrgMenuOpen] = useState(false);
@@ -54,6 +62,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   }, [isMobileOrgMenuOpen]);
 
   const toggleOrgMenu = () => {
+    if (isLive) return;
     setIsMobileOrgMenuOpen(!isMobileOrgMenuOpen);
     if (!isMobileOrgMenuOpen && isMobileMenuOpen) {
       setIsMobileMenuOpen(false);
@@ -61,13 +70,13 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   };
 
   const handleSelectOrg = (orgId: string) => {
+    if (isLive) return;
     onSelectOrg(orgId);
     setIsMobileOrgMenuOpen(false);
   };
 
   return (
     <div ref={headerRef} className={`flex flex-col border-b border-white/10 bg-[#121824] shrink-0 z-40 ${className}`}>
-      {/* Top row: Menu, Brand, Search, Notifications */}
       <div className="h-14 px-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <button
@@ -94,20 +103,27 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           <button
             type="button"
             onClick={() => {
+              if (isLive) return;
               setIsMobileOrgMenuOpen(false);
               if (isMobileMenuOpen) {
                 setIsMobileMenuOpen(false);
               }
               setIsCommandPaletteOpen(true);
             }}
-            className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
-            aria-label={t.header.openSearch}
+            disabled={isLive}
+            className={`w-11 h-11 flex items-center justify-center focus:outline-none rounded-lg ${
+              isLive
+                ? 'text-gray-600 cursor-not-allowed'
+                : 'text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500'
+            }`}
+            aria-label={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
+            title={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
           >
             <Search className="w-5 h-5" />
           </button>
-          <button 
+          <button
             type="button"
-            className="w-11 h-11 flex items-center justify-center text-gray-600 cursor-not-allowed focus:outline-none rounded-lg" 
+            className="w-11 h-11 flex items-center justify-center text-gray-600 cursor-not-allowed focus:outline-none rounded-lg"
             aria-label={t.header.notificationsPlanned}
             aria-disabled="true"
             disabled
@@ -118,33 +134,46 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         </div>
       </div>
 
-      {/* Second row: Context / Active Organization */}
       <div className="h-12 border-t border-white/5 flex items-center bg-[#1A2234]">
-        <button
-          type="button"
-          onClick={toggleOrgMenu}
-          className="flex items-center justify-between w-full h-full px-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
-          aria-expanded={isMobileOrgMenuOpen}
-          aria-controls="mobile-org-menu"
-          aria-label={`${t.header.activeOrganization}: ${context.activeOrganization.name}`}
-          title={context.activeOrganization.name}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span className="font-semibold text-white text-xs truncate">
-              {context.activeOrganization.name}
-            </span>
+        {isLive ? (
+          <div
+            className="flex items-center w-full h-full px-4 text-left"
+            aria-label={`${t.header.activeOrganization}: ${context.activeOrganization.name}`}
+            title={context.activeOrganization.name}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span className="font-semibold text-white text-xs truncate">
+                {context.activeOrganization.name}
+              </span>
+            </div>
           </div>
-          {isMobileOrgMenuOpen ? (
-            <ChevronUp className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
-          )}
-        </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleOrgMenu}
+            className="flex items-center justify-between w-full h-full px-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+            aria-expanded={isMobileOrgMenuOpen}
+            aria-controls="mobile-org-menu"
+            aria-label={`${t.header.activeOrganization}: ${context.activeOrganization.name}`}
+            title={context.activeOrganization.name}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span className="font-semibold text-white text-xs truncate">
+                {context.activeOrganization.name}
+              </span>
+            </div>
+            {isMobileOrgMenuOpen ? (
+              <ChevronUp className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-2" />
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Expanded Org Menu */}
-      {isMobileOrgMenuOpen && (
+      {!isLive && isMobileOrgMenuOpen && (
         <div id="mobile-org-menu" className="bg-[#121824] border-t border-white/10 max-h-64 overflow-y-auto shadow-inner">
           <div className="px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5 bg-[#0B0E14]/50">
             {t.header.organizations}

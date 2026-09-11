@@ -11,6 +11,7 @@ import { CommandPalette } from './CommandPalette';
 import { MobileAppHeader } from './MobileAppHeader';
 import { MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { getUxText } from '../../i18n/mobileUx';
+import { getLiveNavigationRouteIds } from '../../core/client/liveSurfacePolicy';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -30,6 +31,18 @@ const radarLabels: Record<LanguageCode, string> = {
   'es-ES': 'Radar',
 };
 
+const liveSearchLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'Busca global em breve',
+  'en-US': 'Global search coming soon',
+  'es-ES': 'Búsqueda global próximamente',
+};
+
+const liveFooterLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'CONTEXTO AO VIVO · ZERO TRUST',
+  'en-US': 'LIVE CONTEXT · ZERO TRUST',
+  'es-ES': 'CONTEXTO EN VIVO · ZERO TRUST',
+};
+
 export const Shell: React.FC<ShellProps> = ({
   children,
   context,
@@ -46,7 +59,7 @@ export const Shell: React.FC<ShellProps> = ({
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const t = getUxText(currentLang);
 
-  const navItems = [
+  const allNavItems = [
     { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },
     { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },
     ...(showRadar ? [{ id: 'radar', label: radarLabels[currentLang], icon: Radar }] : []),
@@ -60,6 +73,10 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'audit', label: t.navigation.audit, icon: ShieldCheck },
     { id: 'settings', label: t.navigation.settings, icon: Settings },
   ];
+  const liveRouteIds = new Set(getLiveNavigationRouteIds(showRadar));
+  const navItems = isLive
+    ? allNavItems.filter((item) => liveRouteIds.has(item.id))
+    : allNavItems;
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#0B0E14] overflow-x-hidden">
@@ -74,6 +91,7 @@ export const Shell: React.FC<ShellProps> = ({
           setIsCommandPaletteOpen={setIsCommandPaletteOpen}
           currentLang={currentLang}
           onSelectOrg={onSelectOrg}
+          isLive={isLive}
         />
 
         <MobileNavigationDrawer
@@ -117,24 +135,31 @@ export const Shell: React.FC<ShellProps> = ({
             </div>
 
             <div className="p-4 border-t border-white/10 text-[10px] text-gray-500 text-center">
-              {t.header.brandAuth.split('|').map((part, i) => (
-                <React.Fragment key={i}>
-                  {part.trim()}
-                  {i === 0 && <br />}
-                </React.Fragment>
-              ))}
+              {isLive ? (
+                <>
+                  <span>{liveFooterLabels[currentLang]}</span>
+                  <br />
+                  <span className="text-gray-600">{context.activeOrganization.name}</span>
+                </>
+              ) : (
+                t.header.brandAuth.split('|').map((part, i) => (
+                  <React.Fragment key={i}>
+                    {part.trim()}
+                    {i === 0 && <br />}
+                  </React.Fragment>
+                ))
+              )}
             </div>
           </div>
 
           <section className="flex-1 min-w-0 min-h-0 flex flex-col">
             <header className="hidden lg:flex h-14 border-b border-white/10 bg-[#121824] px-4 items-center justify-between gap-4 shrink-0">
               <div className="relative flex items-center gap-3 min-w-0">
-                <div className="relative">
-                  <button
-                    onClick={() => setIsDesktopOrgMenuOpen(!isDesktopOrgMenuOpen)}
-                    className="flex items-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-200 transition"
-                    aria-expanded={isDesktopOrgMenuOpen}
+                {isLive ? (
+                  <div
+                    className="flex items-center gap-2 bg-[#1A2234] border border-white/10 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-200"
                     aria-label={t.header.activeOrganization}
+                    title={t.header.activeOrganization}
                   >
                     <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span className="font-semibold text-white max-w-[160px] truncate">
@@ -143,56 +168,84 @@ export const Shell: React.FC<ShellProps> = ({
                     <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase font-mono">
                       {context.activeOrganization.plan}
                     </span>
-                    {isDesktopOrgMenuOpen ? (
-                      <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    )}
-                  </button>
-                  {isDesktopOrgMenuOpen && (
-                    <div className="absolute left-0 mt-2 w-64 bg-[#121824] border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
-                      <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                        {t.header.organizations}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsDesktopOrgMenuOpen(!isDesktopOrgMenuOpen)}
+                      className="flex items-center gap-2 bg-[#1A2234] hover:bg-[#222C42] border border-white/10 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-200 transition"
+                      aria-expanded={isDesktopOrgMenuOpen}
+                      aria-label={t.header.activeOrganization}
+                    >
+                      <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <span className="font-semibold text-white max-w-[160px] truncate">
+                        {context.activeOrganization.name}
+                      </span>
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30 uppercase font-mono">
+                        {context.activeOrganization.plan}
+                      </span>
+                      {isDesktopOrgMenuOpen ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      )}
+                    </button>
+                    {isDesktopOrgMenuOpen && (
+                      <div className="absolute left-0 mt-2 w-64 bg-[#121824] border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                        <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">
+                          {t.header.organizations}
+                        </div>
+                        {context.availableOrganizations.map((org) => {
+                          const isActive = org.id === context.activeOrganization.id;
+                          return (
+                            <button
+                              key={org.id}
+                              onClick={() => {
+                                onSelectOrg(org.id);
+                                setIsDesktopOrgMenuOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-white/5 transition ${
+                                isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'
+                              }`}
+                            >
+                              <span className="font-medium truncate pr-2">{org.name}</span>
+                              {isActive && (
+                                <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
-                      {context.availableOrganizations.map((org) => {
-                        const isActive = org.id === context.activeOrganization.id;
-                        return (
-                          <button
-                            key={org.id}
-                            onClick={() => {
-                              onSelectOrg(org.id);
-                              setIsDesktopOrgMenuOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-white/5 transition ${
-                              isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300'
-                            }`}
-                          >
-                            <span className="font-medium truncate pr-2">{org.name}</span>
-                            {isActive && (
-                              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center flex-1 max-w-md">
-                <button
-                  onClick={() => setIsCommandPaletteOpen(true)}
-                  className="w-full bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-gray-400 px-3 py-1.5 rounded-lg text-xs flex items-center justify-between transition group"
-                  aria-label={t.header.openSearch}
-                >
-                  <span className="flex items-center gap-2 group-hover:text-gray-200">
-                    <Search className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{t.header.openSearch}</span>
-                  </span>
-                  <kbd className="bg-[#0B0E14] border border-white/10 text-[10px] px-1.5 py-0.5 rounded font-mono text-gray-400">
-                    ⌘K
-                  </kbd>
-                </button>
+                {isLive ? (
+                  <div
+                    className="w-full bg-[#1A2234] border border-white/10 text-gray-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 cursor-not-allowed"
+                    aria-disabled="true"
+                    title={liveSearchLabels[currentLang]}
+                  >
+                    <Search className="w-3.5 h-3.5 text-gray-500" />
+                    <span>{liveSearchLabels[currentLang]}</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsCommandPaletteOpen(true)}
+                    className="w-full bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-gray-400 px-3 py-1.5 rounded-lg text-xs flex items-center justify-between transition group"
+                    aria-label={t.header.openSearch}
+                  >
+                    <span className="flex items-center gap-2 group-hover:text-gray-200">
+                      <Search className="w-3.5 h-3.5 text-gray-400" />
+                      <span>{t.header.openSearch}</span>
+                    </span>
+                    <kbd className="bg-[#0B0E14] border border-white/10 text-[10px] px-1.5 py-0.5 rounded font-mono text-gray-400">
+                      ⌘K
+                    </kbd>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
@@ -252,11 +305,13 @@ export const Shell: React.FC<ShellProps> = ({
         </div>
       </div>
 
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        onNavigate={onNavigate}
-      />
+      {!isLive && (
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 };

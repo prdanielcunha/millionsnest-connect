@@ -183,7 +183,7 @@ export default function App() {
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
     }
-    if (activeRoute === 'overview' || activeRoute === 'inbox') {
+    if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
     }
     return <LiveStagedSection />;
