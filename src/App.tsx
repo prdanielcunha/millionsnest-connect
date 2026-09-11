@@ -122,6 +122,12 @@ export default function App() {
       .then((session) => {
         if (!mounted) return;
         setLiveSession(session);
+        // Current commercial priority: eligible ecosystem-governance users land
+        // directly in Relationship Intelligence instead of a generic overview.
+        // Non-governance users keep the existing Core landing and RBAC boundary.
+        if (isGlobalGovernanceRole(session.context.user.systemRole)) {
+          setActiveRoute('radar');
+        }
         setLiveBootErrorCode(null);
         setLiveBootState('idle');
       })
