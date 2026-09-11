@@ -1,4 +1,5 @@
 import { getLiveNavigationRouteIds, isLiveRouteEnabled } from '../core/client/liveSurfacePolicy';
+import { toTrustedMusicScaleUrl } from '../core/client/liveDeepLink';
 
 let passed = 0;
 let total = 0;
@@ -24,5 +25,14 @@ ok(isLiveRouteEnabled('radar', true), 'Radar is live for governance users');
 ok(!isLiveRouteEnabled('inbox', true), 'Inbox is not advertised as live before its backend is connected');
 ok(!isLiveRouteEnabled('tools', true), 'Tool Gateway UI is not advertised as live before its backend surface is connected');
 ok(!isLiveRouteEnabled('contacts', true), 'Contacts is not advertised as live before its backend is connected');
+
+equal(
+  toTrustedMusicScaleUrl('/scales/scale-123'),
+  'https://musicscale.millionsnest.com/scales/scale-123',
+  'relative MusicScale deep links resolve only to the canonical MusicScale origin',
+);
+equal(toTrustedMusicScaleUrl('https://evil.example/scales/1'), null, 'absolute external links are rejected');
+equal(toTrustedMusicScaleUrl('//evil.example/scales/1'), null, 'scheme-relative external links are rejected');
+equal(toTrustedMusicScaleUrl(undefined), null, 'missing deep links are ignored');
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
