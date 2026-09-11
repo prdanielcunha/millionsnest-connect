@@ -63,6 +63,7 @@ function humanSummary(error: unknown): string {
   if (code === 'PERSON_NOT_FOUND') return 'Esta pessoa não foi encontrada no seu cofre pessoal.';
   if (code === 'SIGNAL_NOT_FOUND') return 'Este sinal não está mais disponível.';
   if (code === 'SEARCH_QUERY_INVALID') return 'Digite pelo menos dois caracteres para pesquisar.';
+  if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
   return 'Não foi possível concluir esta operação do Radar.';
 }
 
@@ -133,6 +134,7 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
         {
           phone: typeof body.phone === 'string' ? body.phone : undefined,
           radarState: typeof body.radarState === 'string' ? body.radarState as any : undefined,
+          snoozeDays: typeof body.snoozeDays === 'number' ? body.snoozeDays : undefined,
         },
       );
       return res.status(200).json(result);
