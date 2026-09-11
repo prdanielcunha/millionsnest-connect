@@ -91,6 +91,7 @@ export const Shell: React.FC<ShellProps> = ({
           setIsCommandPaletteOpen={setIsCommandPaletteOpen}
           currentLang={currentLang}
           onSelectOrg={onSelectOrg}
+          isLive={isLive}
         />
 
         <MobileNavigationDrawer
