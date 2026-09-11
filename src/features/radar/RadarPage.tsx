@@ -27,6 +27,7 @@ const copy = {
     importTitle: 'Importar conversa', importHint: 'TXT ou ZIP exportado pelo próprio WhatsApp · até 5 MB',
     selfName: 'Seu nome como aparece no export', choose: 'Escolher TXT ou ZIP', importing: 'Analisando com segurança…',
     importAction: 'Importar e analisar', imported: 'Importação concluída', dedup: 'Este arquivo já estava no seu cofre. Nenhuma duplicação foi criada.',
+    people: 'Pessoas no Radar', messages: 'mensagens',
     signals: 'sinais com evidência', empty: 'Nenhum sinal comercial útil ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra algo quando encontra evidência suficiente.',
     evidence: 'Evidência', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Promover manualmente', promoted: 'Oportunidade marcada',
     phone: 'WhatsApp/telefone', savePhone: 'Salvar', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
@@ -43,6 +44,7 @@ const copy = {
     importTitle: 'Import conversation', importHint: 'TXT or ZIP exported by WhatsApp · up to 5 MB',
     selfName: 'Your name as it appears in the export', choose: 'Choose TXT or ZIP', importing: 'Analyzing securely…',
     importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. No duplicate was created.',
+    people: 'People in Radar', messages: 'messages',
     signals: 'evidence-backed signals', empty: 'No useful commercial signal yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces something when there is enough evidence.',
     evidence: 'Evidence', next: 'Next step', compose: 'Create approach', promote: 'Promote manually', promoted: 'Opportunity marked',
     phone: 'WhatsApp/phone', savePhone: 'Save', ignore: 'Ignore', sourceDelete: 'Delete source',
@@ -59,6 +61,7 @@ const copy = {
     importTitle: 'Importar conversación', importHint: 'TXT o ZIP exportado por WhatsApp · hasta 5 MB',
     selfName: 'Tu nombre como aparece en la exportación', choose: 'Elegir TXT o ZIP', importing: 'Analizando de forma segura…',
     importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. No se creó ningún duplicado.',
+    people: 'Personas en Radar', messages: 'mensajes',
     signals: 'señales con evidencia', empty: 'Aún no hay una señal comercial útil', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra algo cuando encuentra evidencia suficiente.',
     evidence: 'Evidencia', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Promover manualmente', promoted: 'Oportunidad marcada',
     phone: 'WhatsApp/teléfono', savePhone: 'Guardar', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
@@ -125,7 +128,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     setNotice('');
     try {
       const result = await client.importWhatsApp(file, selfName.trim() ? [selfName.trim()] : []);
-      setNotice(result.status === 'deduplicated' ? t.dedup : `${t.imported} · ${result.messageCount} mensagens`);
+      setNotice(result.status === 'deduplicated' ? t.dedup : `${t.imported} · ${result.messageCount} ${t.messages}`);
       setFile(null);
       if (fileRef.current) fileRef.current.value = '';
       await refresh();
@@ -189,7 +192,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:min-w-[280px]">
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="text-2xl font-semibold text-white">{people.length}</div><div className="mt-1 text-[11px] text-slate-400">Pessoas no Radar</div></div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="text-2xl font-semibold text-white">{people.length}</div><div className="mt-1 text-[11px] text-slate-400">{t.people}</div></div>
             <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="text-2xl font-semibold text-white">{totalSignals}</div><div className="mt-1 text-[11px] text-slate-400">{t.signals}</div></div>
           </div>
         </div>
@@ -218,7 +221,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
         {loading ? <div className="grid min-h-52 place-items-center rounded-[26px] border border-white/10 bg-white/[0.025]"><Loader2 className="animate-spin text-slate-400" /></div> : people.length === 0 ? <div className="rounded-[26px] border border-white/10 bg-white/[0.025] p-10 text-center"><Radar className="mx-auto text-slate-600" /><h3 className="mt-4 font-semibold text-white">{t.empty}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{t.emptyDesc}</p></div> : people.map(person => (
           <article key={person.id} className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03]">
             <div className="flex flex-col gap-4 border-b border-white/8 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div><h3 className="text-lg font-semibold text-white">{person.displayName}</h3><p className="mt-1 text-xs text-slate-500">{person.lastDateKey || '—'} · {person.messageCount || 0} mensagens</p></div>
+              <div><h3 className="text-lg font-semibold text-white">{person.displayName}</h3><p className="mt-1 text-xs text-slate-500">{person.lastDateKey || '—'} · {person.messageCount || 0} {t.messages}</p></div>
               <div className="flex flex-wrap gap-2"><button onClick={async () => { await client.promote(person.id); setPromoted(prev => ({ ...prev, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-3 text-xs font-medium text-emerald-200"><UserRoundCheck size={15} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={async () => { await client.updatePerson(person.id, { radarState: 'ignored' }); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-400">{t.ignore}</button><button title={t.sourceDelete} onClick={async () => { if (window.confirm(t.deleteConfirm)) { await client.deleteSource(person.sourceId); await refresh(); } }} className="grid h-10 w-10 place-items-center rounded-xl border border-red-400/10 text-red-300/70 hover:bg-red-400/5"><Trash2 size={15} /></button></div>
             </div>
             <div className="grid gap-3 p-4 lg:grid-cols-2">{person.signals.map(signal => <div key={signal.id} className="rounded-2xl border border-white/8 bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full border border-indigo-400/15 bg-indigo-400/[0.06] px-2.5 py-1 text-[10px] font-semibold text-indigo-200">{signalLabel(signal.type, currentLang)}</span><ChevronRight size={15} className="text-slate-600" /></div><p className="mt-3 text-sm leading-6 text-slate-200">{signal.reason}</p>{signal.evidence?.[0] && <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.evidence} · {signal.evidence[0].dateKey}</div><p className="mt-1 text-xs leading-5 text-slate-400">“{signal.evidence[0].snippet}”</p></div>}<div className="mt-3 text-xs leading-5 text-slate-400"><span className="font-semibold text-slate-300">{t.next}:</span> {signal.nextAction}</div><button onClick={() => openComposer(person, signal)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3.5 text-xs font-semibold text-slate-950"><MessageCircle size={15} /> {t.compose}</button></div>)}</div>
