@@ -1,0 +1,74 @@
+name: Connect Live Bootstrap HTTP Diagnostic Once
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - '.github/workflows/connect-live-bootstrap-http-diagnostic-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspect public production boundaries safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://mn-connect-555464791734.web.app"
+
+          ROOT_STATUS="$(curl --silent --show-error --location -o /tmp/root.html -w '%{http_code}' "$BASE/")"
+          echo "ROOT_STATUS=$ROOT_STATUS"
+          test "$ROOT_STATUS" = "200"
+          grep -Eiq '<!doctype html|<html' /tmp/root.html
+
+          HEALTH_STATUS="$(curl --silent --show-error --location -o /tmp/health.json -w '%{http_code}' "$BASE/api/health")"
+          echo "HEALTH_STATUS=$HEALTH_STATUS"
+          node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));
+          console.log('HEALTH_SAFE', JSON.stringify({ success: x?.success === true, service: x?.service || null }));
+          NODE
+
+          MESSAGE_STATUS="$(curl --silent --show-error --location \
+            -o /tmp/message.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"text":"Qual é minha próxima escala?"}' \
+            "$BASE/api/core/message")"
+          echo "MESSAGE_STATUS=$MESSAGE_STATUS"
+          node - <<'NODE'
+          const fs = require('fs');
+          let x = {};
+          try { x = JSON.parse(fs.readFileSync('/tmp/message.json','utf8')); } catch {}
+          console.log('MESSAGE_SAFE', JSON.stringify({ code: typeof x?.code === 'string' ? x.code : null, success: x?.success === true, status: typeof x?.status === 'string' ? x.status : null }));
+          NODE
+
+          SESSION_STATUS="$(curl --silent --show-error --location \
+            -o /tmp/session.json -w '%{http_code}' \
+            "$BASE/api/core/session?organizationId=release-smoke")"
+          echo "SESSION_STATUS=$SESSION_STATUS"
+          node - <<'NODE'
+          const fs = require('fs');
+          let x = {};
+          try { x = JSON.parse(fs.readFileSync('/tmp/session.json','utf8')); } catch {}
+          console.log('SESSION_SAFE', JSON.stringify({ code: typeof x?.code === 'string' ? x.code : null, success: x?.success === true }));
+          NODE
+
+          FIREBASE_INIT_STATUS="$(curl --silent --show-error --location -o /tmp/firebase-init.txt -w '%{http_code}' "$BASE/__/firebase/init.json")"
+          echo "FIREBASE_INIT_STATUS=$FIREBASE_INIT_STATUS"
+          node - <<'NODE'
+          const fs = require('fs');
+          const raw = fs.readFileSync('/tmp/firebase-init.txt','utf8');
+          let x = null;
+          try { x = JSON.parse(raw); } catch {}
+          console.log('FIREBASE_INIT_SAFE', JSON.stringify({ validJson: !!x, projectId: x?.projectId || null, apiKeyPresent: typeof x?.apiKey === 'string' && x.apiKey.length > 0 }));
+          NODE
+
+          test "$HEALTH_STATUS" = "200"
+          test "$MESSAGE_STATUS" = "401"
+          test "$SESSION_STATUS" = "401"
