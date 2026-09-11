@@ -8,6 +8,7 @@ export type RadarClientPerson = {
   lastDateKey?: string | null;
   messageCount?: number;
   radarState?: string;
+  snoozedUntil?: string | null;
   priority?: number;
   signals: Array<{
     id: string;
@@ -91,7 +92,14 @@ export class PersonalRadarClient {
     return parseResponse(response);
   }
 
-  async updatePerson(personId: string, update: { phone?: string; radarState?: 'active' | 'ignored' | 'snoozed' }) {
+  async updatePerson(
+    personId: string,
+    update: {
+      phone?: string;
+      radarState?: 'active' | 'ignored' | 'snoozed';
+      snoozeDays?: number;
+    },
+  ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
       method: 'PATCH',
       headers: this.headers(true),
