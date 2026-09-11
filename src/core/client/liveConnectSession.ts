@@ -38,6 +38,12 @@ function safeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function readViteEnv(name: keyof ImportMetaEnv): string | undefined {
+  const env = (import.meta as ImportMeta & { env?: ImportMetaEnv }).env;
+  const value = env?.[name];
+  return typeof value === 'string' ? value : undefined;
+}
+
 function decodeHandoff(encoded: string, now: number): ConnectHandoffPayload {
   if (!encoded || encoded.length > 32_768) throw new Error('HANDOFF_INVALID');
 
@@ -180,7 +186,7 @@ export async function bootstrapLiveConnectSession(
     replaceUrl: injected?.replaceUrl ?? ((url) => window.history.replaceState({}, '', url)),
     fetchFn: injected?.fetchFn ?? globalThis.fetch.bind(globalThis),
     now: injected?.now ?? Date.now,
-    configuredApiKey: injected?.configuredApiKey ?? import.meta.env.VITE_FIREBASE_API_KEY,
+    configuredApiKey: injected?.configuredApiKey ?? readViteEnv('VITE_FIREBASE_API_KEY'),
   };
 
   const url = new URL(deps.locationHref);
@@ -248,4 +254,4 @@ export async function bootstrapLiveConnectSession(
   };
 }
 
-export const CONNECT_LIVE_MODE_ENABLED = import.meta.env.VITE_CONNECT_LIVE_ENABLED === 'true';
+export const CONNECT_LIVE_MODE_ENABLED = readViteEnv('VITE_CONNECT_LIVE_ENABLED') === 'true';
