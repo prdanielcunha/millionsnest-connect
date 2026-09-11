@@ -45,6 +45,21 @@ assert.match(
 );
 assert.match(release, /SERVICE:\s*connect-api/, 'Canonical Cloud Run service must remain connect-api');
 assert.match(release, /REPOSITORY:\s*millionsnest-web/, 'Canonical Artifact Registry repository must remain millionsnest-web');
+assert.match(
+  release,
+  /RUNTIME_SA:\s*mn-connect-runtime@millionsnest\.iam\.gserviceaccount\.com/,
+  'Connect must use its own dedicated Cloud Run runtime identity',
+);
+assert.match(
+  release,
+  /--service-account "\$RUNTIME_SA"/,
+  'Cloud Run deploy must explicitly bind the dedicated Connect runtime identity',
+);
+assert.doesNotMatch(
+  release,
+  /555464791734-compute@developer\.gserviceaccount\.com/,
+  'Connect release must never fall back to the default Compute Engine service account',
+);
 assert.match(release, /--min-instances 0/, 'Core must preserve scale-to-zero policy');
 assert.match(release, /--allow-unauthenticated/, 'Firebase Hosting must be able to invoke the HTTP service');
 assert.match(release, /MILLIONSNEST_HUB_ORIGIN=https:\/\/www\.millionsnest\.com/);
