@@ -37,6 +37,12 @@ const sourceLabels: Record<LanguageCode, string> = {
   'es-ES': 'Mis fuentes',
 };
 
+const intelligenceLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'Inteligência',
+  'en-US': 'Intelligence',
+  'es-ES': 'Inteligencia',
+};
+
 const liveSearchLabels: Record<LanguageCode, string> = {
   'pt-BR': 'Busca global em breve',
   'en-US': 'Global search coming soon',
@@ -71,6 +77,7 @@ export const Shell: React.FC<ShellProps> = ({
     ...(showRadar ? [
       { id: 'radar', label: radarLabels[currentLang], icon: Radar },
       { id: 'sources', label: sourceLabels[currentLang], icon: Database },
+      { id: 'intelligence', label: intelligenceLabels[currentLang], icon: BrainCircuit },
     ] : []),
     { id: 'tools', label: t.navigation.tools, icon: Wrench },
     { id: 'contacts', label: t.navigation.contacts, icon: Users },
