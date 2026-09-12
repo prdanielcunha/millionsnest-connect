@@ -213,4 +213,35 @@ console.log('--- Running Personal Radar Service Tests ---');
   assert(denied, 'tenant mismatch fails closed even for a global identity');
 }
 
+
+{
+  const vault = new MemoryVault();
+  const service = new PersonalRadarService(provider(canonicalContext()), vault, () => Date.parse('2026-09-12T18:30:00Z'));
+  const request = { authToken: 'Bearer founder-token', organizationId: 'org-1' };
+  const text = [
+    '[12/09/2026, 15:00:00] +55 43 99999-1234: Oi, aqui é o Marcelo Santos. Como vocês organizam a escala do louvor?',
+    '[12/09/2026, 15:01:00] Ana Souza: Também queria entender a ferramenta.',
+    '[12/09/2026, 15:02:00] Daniel: Hoje usamos o MusicScale para repertório e confirmação.',
+    '[12/09/2026, 15:03:00] +55 43 99999-1234: Entendi, queria conhecer melhor.',
+  ].join('\n');
+  const imported = await service.importWhatsApp(request, {
+    fileName: 'Grupo Lideres de Louvor.txt',
+    contentBase64: Buffer.from(text, 'utf8').toString('base64'),
+    selfNames: ['Daniel'],
+  });
+  equal((imported as any).conversationLabel, 'Grupo Lideres de Louvor', 'import keeps a human-readable conversation source label');
+  equal((imported as any).conversationKind, 'group', 'group import remains identifiable as a group');
+  const radar = await service.getRadar(request);
+  equal((radar as any).conversations.length, 1, 'Radar exposes imported conversations separately');
+  equal((radar as any).conversations[0].label, 'Grupo Lideres de Louvor', 'conversation provenance keeps the imported source name');
+  const person = (radar.people as any[]).find(item => String(item.displayName).includes('99999'));
+  assert(Boolean(person), 'phone-based participant remains available');
+  equal(person.probableName, 'Marcelo Santos', 'unknown phone sender gets an explainable probable name from self-introduction');
+  equal(person.probableNameConfidence, 'high', 'self-introduction produces high-confidence identity evidence');
+  assert(Array.isArray(person.identityEvidence) && person.identityEvidence.some((item: any) => item.snippet.includes('Marcelo Santos')), 'probable name keeps the exact supporting message');
+  assert(Array.isArray(person.sources) && person.sources.some((source: any) => source.label === 'Grupo Lideres de Louvor'), 'person keeps visible source provenance');
+  const search = await service.search(request, 'conhecer');
+  equal((search.matches[0] as any).sourceLabel, 'Grupo Lideres de Louvor', 'history search returns the conversation source label');
+}
+
 console.log(`✅ Passed ${passed} / ${total} tests.`);
