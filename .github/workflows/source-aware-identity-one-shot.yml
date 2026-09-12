@@ -2,11 +2,7 @@ name: Source-aware identity one-shot
 
 on:
   pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/source-aware-identity-one-shot.yml
-      - scripts/apply-source-aware-identity.mjs
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,33 +15,379 @@ concurrency:
 jobs:
   implement-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      - name: Runtime info
-        run: |
-          node --version
-          npm --version
-      - name: Repair temporary patcher quoting
+      - name: Apply source-aware identity implementation
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('scripts/apply-source-aware-identity.mjs')
-          text = path.read_text()
-          bad = ".replace(/[“”\"'" + chr(96) + "]/g, '')"
-          good = ".replace(/[“”\"']/g, '')"
-          if bad not in text:
-              raise SystemExit('expected temporary quoting anchor not found')
-          path.write_text(text.replace(bad, good, 1))
+
+          if Path('src/personal/radar/identityInference.ts').exists():
+              print('SOURCE_AWARE_IDENTITY_ALREADY_APPLIED')
+              raise SystemExit(0)
+
+          def read(path):
+              return Path(path).read_text()
+
+          def write(path, content):
+              p = Path(path)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(content)
+
+          def replace_once(content, before, after, label):
+              count = content.count(before)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected 1 anchor, found {count}')
+              return content.replace(before, after, 1)
+
+          identity = r'''import { ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
+          import { normalizeIdentityName, normalizePhone } from './identityResolution';
+
+          export type IdentityEvidenceKind = 'self_introduction' | 'direct_address_reply' | 'phone_name_pair';
+          export type IdentityConfidence = 'high' | 'medium' | 'low' | 'none';
+
+          export type IdentityInferenceEvidence = {
+            kind: IdentityEvidenceKind;
+            score: number;
+            sourceId: string;
+            messageIndex: number;
+            dateKey: string;
+            sender: string;
+            snippet: string;
+          };
+
+          export type ProbableIdentity = {
+            probableName: string | null;
+            normalizedProbableName: string;
+            confidence: IdentityConfidence;
+            score: number;
+            evidence: IdentityInferenceEvidence[];
+          };
+
+          const ROLE_ONLY = new Set([
+            'pastor', 'pastora', 'pr', 'pra', 'bispo', 'bispa', 'lider', 'líder', 'ministro', 'ministra',
+            'presbitero', 'presbítero', 'apostolo', 'apóstolo', 'reverendo', 'reverenda', 'irmao', 'irmão', 'irma', 'irmã',
+            'coordenador', 'coordenadora', 'responsavel', 'responsável', 'secretario', 'secretária', 'secretaria',
+          ]);
+
+          const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'na', 'no', 'aqui', 'from', 'at', 'of', 'the', 'del', 'la', 'el', 'e']);
+
+          function snippet(text: string): string {
+            return text.replace(/\s+/g, ' ').trim().slice(0, 260);
+          }
+
+          function unknownLabel(value: string): boolean {
+            if (normalizePhone(value)) return true;
+            const clean = value.trim().toLowerCase();
+            return !clean || ['unknown', 'desconhecido', 'contato', 'contact'].includes(clean);
+          }
+
+          function cleanCandidate(raw: string): string | null {
+            const parts = raw.replace(/[“”"']/g, '').replace(/^\s*(?:o|a|el|la)\s+/i, '').trim().split(/\s+/);
+            const selected: string[] = [];
+            for (const part of parts) {
+              const cleaned = part.replace(/^[^\p{L}]+|[^\p{L}'’-]+$/gu, '');
+              const normalized = normalizeIdentityName(cleaned);
+              if (!normalized) continue;
+              if (selected.length > 0 && STOP.has(normalized)) break;
+              selected.push(cleaned);
+              if (selected.length >= 4) break;
+            }
+            while (selected.length && ROLE_ONLY.has(normalizeIdentityName(selected[0]))) selected.shift();
+            const value = selected.filter(Boolean).join(' ').trim();
+            const normalized = normalizeIdentityName(value);
+            if (!normalized || normalized.length < 2 || normalized.length > 70 || /\d/.test(value)) return null;
+            if (ROLE_ONLY.has(normalized)) return null;
+            return value;
+          }
+
+          function introductionCandidate(text: string): string | null {
+            const patterns = [
+              /\b(?:meu nome (?:é|e)|me chamo|aqui quem fala (?:é|e)|quem fala (?:é|e)|aqui (?:é|e)(?: o| a)?|sou(?: o| a))\s+([^.!?;,\n]{2,80})/iu,
+              /\b(?:my name is|this is|i['’]?m)\s+([^.!?;,\n]{2,80})/iu,
+              /\b(?:me llamo|soy)\s+([^.!?;,\n]{2,80})/iu,
+            ];
+            for (const pattern of patterns) {
+              const match = pattern.exec(text);
+              const candidate = match ? cleanCandidate(match[1]) : null;
+              if (candidate) return candidate;
+            }
+            return null;
+          }
+
+          function addressedCandidate(text: string): string | null {
+            const match = /^(?:(?:oi|olá|ola|hey|hola|bom dia|boa tarde|boa noite)\s+)?@?([\p{L}][\p{L}'’-]{2,}(?:\s+[\p{L}][\p{L}'’-]{2,})?)\s*[,!:]/iu.exec(text.trim());
+            return match ? cleanCandidate(match[1]) : null;
+          }
+
+          function phonePairCandidate(text: string, phone: string | null): string | null {
+            if (!phone) return null;
+            const digits = text.replace(/\D/g, '');
+            const suffix = phone.slice(-8);
+            if (suffix.length < 8 || !digits.includes(suffix)) return null;
+            const patterns = [
+              /(?:contato|telefone|n[uú]mero|whatsapp)\s+(?:do|da|de)?\s*([\p{L}][\p{L}'’-]{2,}(?:\s+[\p{L}][\p{L}'’-]{2,}){0,2})/iu,
+              /([\p{L}][\p{L}'’-]{2,}(?:\s+[\p{L}][\p{L}'’-]{2,}){0,2})\s*[-–:]?\s*\+?\d[\d\s().-]{7,}/u,
+            ];
+            for (const pattern of patterns) {
+              const match = pattern.exec(text);
+              const candidate = match ? cleanCandidate(match[1]) : null;
+              if (candidate) return candidate;
+            }
+            return null;
+          }
+
+          function confidence(score: number): IdentityConfidence {
+            if (score >= 85) return 'high';
+            if (score >= 65) return 'medium';
+            if (score >= 50) return 'low';
+            return 'none';
+          }
+
+          export function inferProbableIdentity(input: { displayName: string; phone?: string | null; messages: ParsedWhatsAppMessage[]; sourceId: string }): ProbableIdentity {
+            if (!unknownLabel(input.displayName)) return { probableName: null, normalizedProbableName: '', confidence: 'none', score: 0, evidence: [] };
+            const phone = normalizePhone(input.phone || input.displayName);
+            const target = normalizeIdentityName(input.displayName);
+            const candidates = new Map<string, { name: string; max: number; evidence: IdentityInferenceEvidence[] }>();
+            const add = (name: string | null, score: number, kind: IdentityEvidenceKind, message: ParsedWhatsAppMessage) => {
+              if (!name) return;
+              const normalized = normalizeIdentityName(name);
+              if (!normalized) return;
+              const current = candidates.get(normalized) || { name, max: 0, evidence: [] };
+              current.max = Math.max(current.max, score);
+              current.evidence.push({ kind, score, sourceId: input.sourceId, messageIndex: message.index, dateKey: message.dateKey, sender: message.sender, snippet: snippet(message.text) });
+              candidates.set(normalized, current);
+            };
+            for (let index = 0; index < input.messages.length; index += 1) {
+              const message = input.messages[index];
+              const senderMatches = normalizeIdentityName(message.sender) === target || Boolean(phone && normalizePhone(message.sender) === phone);
+              if (senderMatches) {
+                add(introductionCandidate(message.text), 94, 'self_introduction', message);
+                const previous = input.messages[index - 1];
+                if (previous && normalizeIdentityName(previous.sender) !== target) add(addressedCandidate(previous.text), 64, 'direct_address_reply', previous);
+              } else {
+                add(phonePairCandidate(message.text, phone), 88, 'phone_name_pair', message);
+              }
+            }
+            const ranked = Array.from(candidates.entries()).map(([normalized, value]) => ({
+              normalized,
+              name: value.name,
+              score: Math.min(98, value.max + Math.max(0, value.evidence.length - 1) * 4),
+              evidence: value.evidence.sort((a, b) => b.score - a.score || b.messageIndex - a.messageIndex).slice(0, 5),
+            })).sort((a, b) => b.score - a.score || b.evidence.length - a.evidence.length);
+            const best = ranked[0];
+            if (!best || best.score < 50) return { probableName: null, normalizedProbableName: '', confidence: 'none', score: 0, evidence: [] };
+            const second = ranked[1];
+            const score = second && second.score >= best.score - 4 ? Math.min(best.score, 64) : best.score;
+            return { probableName: best.name, normalizedProbableName: best.normalized, confidence: confidence(score), score, evidence: best.evidence };
+          }
+          '''
+          write('src/personal/radar/identityInference.ts', '\n'.join(line[10:] if line.startswith('          ') else line for line in identity.splitlines()) + '\n')
+
+          conversation = r'''import { normalizeIdentityName } from '../radar/identityResolution';
+
+          function baseFileName(fileName: string): string {
+            return fileName.trim().replace(/\.(?:txt|zip)$/i, '').trim();
+          }
+
+          export function deriveConversationMetadata(fileName: string, participants: string[], selfNames: string[]) {
+            let label = baseFileName(fileName)
+              .replace(/^whatsapp\s+chat\s*[-–—:]?\s*(?:with|com)?\s*/i, '')
+              .replace(/^conversa\s+(?:do\s+)?whatsapp\s+(?:com|with)\s+/i, '')
+              .replace(/^chat\s+(?:do\s+)?whatsapp\s+(?:com|with)\s+/i, '')
+              .replace(/^whatsapp\s*[-–—:]\s*/i, '')
+              .replace(/^_?chat$/i, '')
+              .replace(/[_-]+/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            const self = new Set(selfNames.map(normalizeIdentityName).filter(Boolean));
+            const external = participants.filter(name => !self.has(normalizeIdentityName(name)));
+            if (!label || /^(?:chat|conversa|whatsapp)$/i.test(label)) {
+              if (external.length === 1) label = external[0];
+              else if (external.length > 1) label = `WhatsApp · ${external.length} participantes`;
+              else label = 'WhatsApp importado';
+            }
+            const filenameSuggestsGroup = /\b(?:grupo|group)\b/i.test(label);
+            const kind: 'group' | 'direct' | 'unknown' = filenameSuggestsGroup || external.length > 1 ? 'group' : external.length === 1 ? 'direct' : 'unknown';
+            return { label: label.slice(0, 160), kind, conversationKey: normalizeIdentityName(label).slice(0, 160) || 'whatsapp-importado' };
+          }
+          '''
+          write('src/personal/whatsapp/conversationIdentity.ts', '\n'.join(line[10:] if line.startswith('          ') else line for line in conversation.splitlines()) + '\n')
+
+          service = read('src/personal/radar/personalRadarService.ts')
+          service = replace_once(service,
+            "import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';\n",
+            "import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';\nimport { deriveConversationMetadata } from '../whatsapp/conversationIdentity';\nimport { inferProbableIdentity, IdentityInferenceEvidence } from './identityInference';\n",
+            'service imports')
+          service = replace_once(service,
+            "function validManualPriority(value: unknown): ManualPriority | undefined {\n  return ['normal', 'important', 'priority'].includes(String(value))\n    ? value as ManualPriority\n    : undefined;\n}\n",
+            "function validManualPriority(value: unknown): ManualPriority | undefined {\n  return ['normal', 'important', 'priority'].includes(String(value))\n    ? value as ManualPriority\n    : undefined;\n}\n\nfunction mergeIdentityEvidence(existingValue: unknown, incomingValue: unknown): IdentityInferenceEvidence[] {\n  const map = new Map<string, IdentityInferenceEvidence>();\n  const collect = (value: unknown) => {\n    if (!Array.isArray(value)) return;\n    for (const item of value as IdentityInferenceEvidence[]) {\n      if (!item || typeof item !== 'object') continue;\n      const key = `${String(item.sourceId || '')}:${Number(item.messageIndex ?? -1)}:${String(item.kind || '')}`;\n      if (!map.has(key)) map.set(key, item);\n    }\n  };\n  collect(existingValue); collect(incomingValue);\n  return Array.from(map.values()).sort((a, b) => b.score - a.score || String(b.dateKey).localeCompare(String(a.dateKey))).slice(0, 12);\n}\n\nfunction conversationSummary(conversation: Record<string, unknown>) {\n  return {\n    id: String(conversation.id || conversation.sourceId || ''),\n    sourceId: String(conversation.sourceId || conversation.id || ''),\n    conversationKey: String(conversation.conversationKey || conversation.sourceId || conversation.id || ''),\n    label: String(conversation.label || conversation.fileName || conversation.sourceId || 'WhatsApp'),\n    kind: String(conversation.kind || 'unknown'),\n    fileName: String(conversation.fileName || ''),\n    createdAt: String(conversation.createdAt || ''),\n    firstDateKey: typeof conversation.firstDateKey === 'string' ? conversation.firstDateKey : null,\n    lastDateKey: typeof conversation.lastDateKey === 'string' ? conversation.lastDateKey : null,\n    participantCount: Number(conversation.participantCount || (Array.isArray(conversation.participantNames) ? conversation.participantNames.length : 0)),\n    messageCount: Number(conversation.messageCount || 0),\n  };\n}\n",
+            'service helpers')
+          service = replace_once(service,
+            "    const parsed = parseWhatsAppExport(text);\n    const selfNames = normalizeSelfNames(input.selfNames);\n    const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250);\n    const createdAt = isoNow(this.now);\n",
+            "    const parsed = parseWhatsAppExport(text);\n    const selfNames = normalizeSelfNames(input.selfNames);\n    const conversation = deriveConversationMetadata(fileName, parsed.participants, selfNames);\n    const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250).map(person => {\n      const inference = inferProbableIdentity({ displayName: person.displayName, phone: person.phone, messages: parsed.messages, sourceId });\n      return { ...person, probableName: inference.probableName, normalizedProbableName: inference.normalizedProbableName, probableNameConfidence: inference.confidence, probableNameScore: inference.score, identityEvidence: inference.evidence };\n    });\n    const createdAt = isoNow(this.now);\n",
+            'service import enrichment')
+          service = replace_once(service,
+            "          identityAliases: uniqueStrings(existing.identityAliases, existing.displayName, person.displayName),\n          identityConfirmedAliases: uniqueStrings(existing.identityConfirmedAliases, person.normalizedName),\n          identityConfidence: strong.match.confidence,\n",
+            "          probableName: existing.probableName || person.probableName || null,\n          normalizedProbableName: existing.normalizedProbableName || person.normalizedProbableName || '',\n          probableNameConfidence: existing.probableNameConfidence || person.probableNameConfidence || 'none',\n          probableNameScore: Math.max(Number(existing.probableNameScore || 0), Number(person.probableNameScore || 0)),\n          identityEvidence: mergeIdentityEvidence(existing.identityEvidence, person.identityEvidence),\n          identityAliases: uniqueStrings(existing.identityAliases, existing.displayName, person.displayName, person.probableName),\n          identityConfirmedAliases: uniqueStrings(existing.identityConfirmedAliases, person.normalizedName),\n          identityConfidence: Math.max(strong.match.confidence, Number(person.probableNameScore || 0)),\n",
+            'service strong merge')
+          service = replace_once(service,
+            "        identityAliases: [person.displayName],\n        identityConfirmedAliases: [],\n        identityBlockedAliases: [],\n        identityConfidence: ambiguous.length ? ambiguous[0].confidence : 0,\n        identityResolution: ambiguous.length ? 'needs_review' : 'new_person',\n",
+            "        identityAliases: uniqueStrings(person.displayName, person.probableName),\n        identityConfirmedAliases: [],\n        identityBlockedAliases: [],\n        identityConfidence: Math.max(ambiguous.length ? ambiguous[0].confidence : 0, Number(person.probableNameScore || 0)),\n        identityResolution: ambiguous.length ? 'needs_review' : person.probableName ? 'probable_name' : 'new_person',\n",
+            'service new identity')
+          service = replace_once(service,
+            "          fileName,\n          ownerUid: context.actorUid,\n          createdAt,\n          firstDateKey: parsed.firstDateKey,\n",
+            "          fileName,\n          label: conversation.label,\n          kind: conversation.kind,\n          conversationKey: conversation.conversationKey,\n          ownerUid: context.actorUid,\n          createdAt,\n          firstDateKey: parsed.firstDateKey,\n",
+            'service source metadata')
+          service = replace_once(service,
+            "          fileName,\n          createdAt,\n          firstDateKey: parsed.firstDateKey,\n          lastDateKey: parsed.lastDateKey,\n          participantNames: parsed.participants.slice(0, 300),\n          messageCount: parsed.messages.length,\n",
+            "          fileName,\n          label: conversation.label,\n          kind: conversation.kind,\n          conversationKey: conversation.conversationKey,\n          createdAt,\n          firstDateKey: parsed.firstDateKey,\n          lastDateKey: parsed.lastDateKey,\n          participantNames: parsed.participants.slice(0, 300),\n          participantCount: parsed.participants.length,\n          messageCount: parsed.messages.length,\n",
+            'service conversation metadata')
+          service = replace_once(service,
+            "      identityReviewCount,\n    };\n  }\n\n  async getRadar(request: RadarRequestContext) {\n",
+            "      identityReviewCount,\n      conversationLabel: conversation.label,\n      conversationKind: conversation.kind,\n      conversationKey: conversation.conversationKey,\n    };\n  }\n\n  async getRadar(request: RadarRequestContext) {\n",
+            'service import result')
+          service = replace_once(service,
+            "    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);\n    const nowMs = this.now();\n",
+            "    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);\n    const conversationsRaw = await this.vault.list(request.authToken, context.actorUid, ['personalConversations'], 300);\n    const conversations = conversationsRaw.map(conversationSummary).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));\n    const sourceMap = new Map(conversations.map(item => [item.sourceId, item]));\n    const nowMs = this.now();\n",
+            'service get radar sources')
+          service = replace_once(service,
+            "      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs) && !person.notRelevant)\n      .map(person => ({ ...(person as Record<string, unknown> & { id: string }), effectivePotential: safeEffectivePotential(person) }));\n",
+            "      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs) && !person.notRelevant)\n      .map(person => {\n        const sourceIds = uniqueStrings(person.sourceIds, person.sourceId);\n        return { ...(person as Record<string, unknown> & { id: string }), sourceIds, sources: sourceIds.map(sourceId => sourceMap.get(sourceId)).filter(Boolean), effectivePotential: safeEffectivePotential(person) };\n      });\n",
+            'service join sources')
+          service = replace_once(service,
+            "    return { people: visible, count: visible.length };\n  }\n",
+            "    return { people: visible, count: visible.length, conversations };\n  }\n",
+            'service radar response')
+          service = replace_once(service,
+            "            sourceId,\n            sender: String(message?.sender || ''),\n",
+            "            sourceId,\n            sourceLabel: String(conversation.label || conversation.fileName || sourceId),\n            sourceKind: String(conversation.kind || 'unknown'),\n            sender: String(message?.sender || ''),\n",
+            'service search provenance')
+          write('src/personal/radar/personalRadarService.ts', service)
+
+          client = read('src/core/client/personalRadarClient.ts')
+          client = replace_once(client,
+            "export type RadarManualPriority = 'normal' | 'important' | 'priority';\n",
+            "export type RadarManualPriority = 'normal' | 'important' | 'priority';\n\nexport type RadarConversationSummary = { id: string; sourceId: string; conversationKey: string; label: string; kind: string; fileName: string; createdAt: string; firstDateKey?: string | null; lastDateKey?: string | null; participantCount: number; messageCount: number; };\nexport type RadarIdentityEvidence = { kind: string; score: number; sourceId: string; messageIndex: number; dateKey: string; sender: string; snippet: string; };\n",
+            'client types')
+          client = replace_once(client,
+            "  displayName: string;\n  normalizedName?: string;\n",
+            "  displayName: string;\n  normalizedName?: string;\n  probableName?: string | null;\n  normalizedProbableName?: string;\n  probableNameConfidence?: 'high' | 'medium' | 'low' | 'none';\n  probableNameScore?: number;\n  identityEvidence?: RadarIdentityEvidence[];\n  sources?: RadarConversationSummary[];\n",
+            'client person types')
+          client = replace_once(client,
+            "  async getRadar(): Promise<{ people: RadarClientPerson[]; count: number }> {\n",
+            "  async getRadar(): Promise<{ people: RadarClientPerson[]; count: number; conversations: RadarConversationSummary[] }> {\n",
+            'client radar type')
+          client = replace_once(client,
+            "    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0) };\n",
+            "    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0), conversations: Array.isArray(body.conversations) ? body.conversations : [] };\n",
+            'client radar response')
+          write('src/core/client/personalRadarClient.ts', client)
+
+          ui = read('src/features/radar/RadarPage.tsx')
+          ui = replace_once(ui,
+            "  RadarClientPerson,\n  RadarManualPriority,\n",
+            "  RadarClientPerson,\n  RadarConversationSummary,\n  RadarManualPriority,\n",
+            'ui import type')
+          ui = replace_once(ui,
+            "const potentialOrder: RadarPotentialLevel[] = ['very_high', 'high', 'medium', 'low', 'unknown'];\n",
+            "const sourceCopy = {\n  'pt-BR': { title: 'Conversas importadas', all: 'Todas as conversas', from: 'Veio de', group: 'Grupo', direct: 'Conversa', probable: 'Provável nome', original: 'Identificação no arquivo', how: 'Como o Connect chegou nisso', high: 'confiança alta', medium: 'confiança média', low: 'confiança baixa', none: 'sem confiança suficiente' },\n  'en-US': { title: 'Imported conversations', all: 'All conversations', from: 'From', group: 'Group', direct: 'Conversation', probable: 'Probable name', original: 'Identifier in file', how: 'How Connect inferred this', high: 'high confidence', medium: 'medium confidence', low: 'low confidence', none: 'not enough confidence' },\n  'es-ES': { title: 'Conversaciones importadas', all: 'Todas las conversaciones', from: 'Vino de', group: 'Grupo', direct: 'Conversación', probable: 'Nombre probable', original: 'Identificación en el archivo', how: 'Cómo Connect llegó a esto', high: 'confianza alta', medium: 'confianza media', low: 'confianza baja', none: 'sin confianza suficiente' },\n} satisfies Record<LanguageCode, Record<string, string>>;\n\nconst potentialOrder: RadarPotentialLevel[] = ['very_high', 'high', 'medium', 'low', 'unknown'];\n",
+            'ui source copy')
+          ui = replace_once(ui,
+            "  const t = copy[currentLang];\n",
+            "  const t = copy[currentLang];\n  const s = sourceCopy[currentLang];\n",
+            'ui source copy bind')
+          ui = replace_once(ui,
+            "  const [people, setPeople] = useState<RadarClientPerson[]>([]);\n",
+            "  const [people, setPeople] = useState<RadarClientPerson[]>([]);\n  const [conversations, setConversations] = useState<RadarConversationSummary[]>([]);\n  const [sourceFilter, setSourceFilter] = useState('all');\n",
+            'ui source state')
+          ui = replace_once(ui,
+            "      setPeople(result.people);\n      setPhones(Object.fromEntries(result.people.map(person => [person.id, person.phone || ''])));\n",
+            "      setPeople(result.people);\n      setConversations(result.conversations || []);\n      setPhones(Object.fromEntries(result.people.map(person => [person.id, person.phone || ''])));\n",
+            'ui refresh sources')
+          ui = replace_once(ui,
+            "  const visiblePeople = useMemo(() => people.filter(person => {\n    if (filter === 'favorites') return Boolean(person.favorite);\n",
+            "  const visiblePeople = useMemo(() => people.filter(person => {\n    const sourceIds = person.sourceIds?.length ? person.sourceIds : [person.sourceId];\n    if (sourceFilter !== 'all' && !sourceIds.includes(sourceFilter)) return false;\n    if (filter === 'favorites') return Boolean(person.favorite);\n",
+            'ui source filter')
+          ui = replace_once(ui,
+            "  }), [people, filter]);\n",
+            "  }), [people, filter, sourceFilter]);\n",
+            'ui filter deps')
+          ui = replace_once(ui,
+            "      <section className=\"grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center\">\n        <div className=\"flex gap-2 overflow-x-auto pb-1\">\n",
+            "      {conversations.length > 0 && <section className=\"rounded-[24px] border border-white/10 bg-white/[0.022] p-3 sm:p-4\"><div className=\"flex items-center gap-2 text-xs font-semibold text-slate-300\"><FileArchive size={15} className=\"text-indigo-300\" /> {s.title}</div><div className=\"mt-3 flex gap-2 overflow-x-auto pb-1\"><button onClick={() => setSourceFilter('all')} className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs transition ${sourceFilter === 'all' ? 'border-indigo-400/30 bg-indigo-400/15 text-indigo-100' : 'border-white/8 bg-black/10 text-slate-500 hover:text-white'}`}>{s.all}</button>{conversations.map(conversation => <button key={conversation.sourceId} onClick={() => setSourceFilter(conversation.sourceId)} className={`whitespace-nowrap rounded-xl border px-3 py-2 text-left text-xs transition ${sourceFilter === conversation.sourceId ? 'border-indigo-400/30 bg-indigo-400/15 text-indigo-100' : 'border-white/8 bg-black/10 text-slate-500 hover:text-white'}`}><span className=\"font-medium\">{conversation.label}</span><span className=\"ml-2 text-[10px] opacity-60\">{conversation.kind === 'group' ? s.group : conversation.kind === 'direct' ? s.direct : 'WhatsApp'} · {conversation.messageCount}</span></button>)}</div></section>}\n\n      <section className=\"grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center\">\n        <div className=\"flex gap-2 overflow-x-auto pb-1\">\n",
+            'ui conversation selector')
+          ui = replace_once(ui,
+            "<div className=\"text-xs font-medium text-slate-200\">{result.sender} · {result.dateKey}</div>",
+            "<div className=\"text-xs font-medium text-slate-200\">{result.sender} · {result.dateKey}{result.sourceLabel ? ` · ${result.sourceLabel}` : ''}</div>",
+            'ui search source')
+          ui = replace_once(ui,
+            "<div className=\"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] text-sm font-semibold text-white\">{person.displayName?.slice(0, 1)?.toUpperCase() || '?'}</div>",
+            "<div className=\"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] text-sm font-semibold text-white\">{(person.probableName || person.displayName)?.slice(0, 1)?.toUpperCase() || '?'}</div>",
+            'ui person avatar')
+          ui = replace_once(ui,
+            "<h2 className=\"truncate text-base font-semibold text-white\">{person.displayName}</h2>",
+            "<h2 className=\"truncate text-base font-semibold text-white\">{person.probableName || person.displayName}</h2>",
+            'ui probable heading')
+          ui = replace_once(ui,
+            "<span>{person.messageCount || 0} {t.messages}</span>{person.lastDateKey && <span>{person.lastDateKey}</span>}{person.sourceIds && person.sourceIds.length > 1 && <span>{person.sourceIds.length} fontes</span>}",
+            "<span>{person.messageCount || 0} {t.messages}</span>{person.lastDateKey && <span>{person.lastDateKey}</span>}{person.probableName && <span>{s.original}: {person.displayName}</span>}{person.sourceIds && person.sourceIds.length > 1 && <span>{person.sourceIds.length} fontes</span>}",
+            'ui original identity')
+          ui = replace_once(ui,
+            "            {candidate && <div className=\"mt-4 rounded-2xl border border-amber-300/15 bg-amber-300/[0.055] p-3\">",
+            "            {person.sources?.length ? <div className=\"mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500\"><span className=\"mr-1\">{s.from}:</span>{person.sources.map(source => <button key={source.sourceId} onClick={() => setSourceFilter(source.sourceId)} className=\"rounded-lg border border-white/8 bg-black/15 px-2 py-1 text-slate-400 hover:border-indigo-400/25 hover:text-indigo-200\">{source.label}</button>)}</div> : null}\n\n            {person.probableName && person.identityEvidence?.length ? <div className=\"mt-4 rounded-2xl border border-sky-300/15 bg-sky-300/[0.045] p-3\"><div className=\"text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200/80\">{s.probable} · {s[person.probableNameConfidence || 'none']}</div><div className=\"mt-1 text-sm font-medium text-sky-50\">{person.probableName}</div><div className=\"mt-2 text-[10px] font-medium text-slate-500\">{s.how}</div>{person.identityEvidence.slice(0, 2).map((item, index) => <div key={`${item.sourceId}-${item.messageIndex}-${index}`} className=\"mt-1.5 text-xs leading-5 text-slate-400\">“{item.snippet}” <span className=\"text-slate-600\">· {item.dateKey}</span></div>)}</div> : null}\n\n            {candidate && <div className=\"mt-4 rounded-2xl border border-amber-300/15 bg-amber-300/[0.055] p-3\">",
+            'ui provenance and inference')
+          ui = ui.replace('{selected.person.displayName}</div></div><button', '{selected.person.probableName || selected.person.displayName}</div></div><button', 1)
+          write('src/features/radar/RadarPage.tsx', ui)
+
+          tests = read('src/tests/personalRadarService.test.ts')
+          marker = "\nconsole.log(`✅ Passed ${passed} / ${total} tests.`);"
+          extra = r'''
+
+          {
+            const vault = new MemoryVault();
+            const service = new PersonalRadarService(provider(canonicalContext()), vault, () => Date.parse('2026-09-12T18:30:00Z'));
+            const request = { authToken: 'Bearer founder-token', organizationId: 'org-1' };
+            const text = [
+              '[12/09/2026, 15:00:00] +55 43 99999-1234: Oi, aqui é o Marcelo Santos. Como vocês organizam a escala do louvor?',
+              '[12/09/2026, 15:01:00] Ana Souza: Também queria entender a ferramenta.',
+              '[12/09/2026, 15:02:00] Daniel: Hoje usamos o MusicScale para repertório e confirmação.',
+              '[12/09/2026, 15:03:00] +55 43 99999-1234: Entendi, queria conhecer melhor.',
+            ].join('\n');
+            const imported = await service.importWhatsApp(request, {
+              fileName: 'Grupo Lideres de Louvor.txt',
+              contentBase64: Buffer.from(text, 'utf8').toString('base64'),
+              selfNames: ['Daniel'],
+            });
+            equal((imported as any).conversationLabel, 'Grupo Lideres de Louvor', 'import keeps a human-readable conversation source label');
+            equal((imported as any).conversationKind, 'group', 'group import remains identifiable as a group');
+            const radar = await service.getRadar(request);
+            equal((radar as any).conversations.length, 1, 'Radar exposes imported conversations separately');
+            equal((radar as any).conversations[0].label, 'Grupo Lideres de Louvor', 'conversation provenance keeps the imported source name');
+            const person = (radar.people as any[]).find(item => String(item.displayName).includes('99999'));
+            assert(Boolean(person), 'phone-based participant remains available');
+            equal(person.probableName, 'Marcelo Santos', 'unknown phone sender gets an explainable probable name from self-introduction');
+            equal(person.probableNameConfidence, 'high', 'self-introduction produces high-confidence identity evidence');
+            assert(Array.isArray(person.identityEvidence) && person.identityEvidence.some((item: any) => item.snippet.includes('Marcelo Santos')), 'probable name keeps the exact supporting message');
+            assert(Array.isArray(person.sources) && person.sources.some((source: any) => source.label === 'Grupo Lideres de Louvor'), 'person keeps visible source provenance');
+            const search = await service.search(request, 'conhecer');
+            equal((search.matches[0] as any).sourceLabel, 'Grupo Lideres de Louvor', 'history search returns the conversation source label');
+          }
+          '''
+          extra = '\n'.join(line[10:] if line.startswith('          ') else line for line in extra.splitlines())
+          tests = replace_once(tests, marker, extra + marker, 'service tests')
+          write('src/tests/personalRadarService.test.ts', tests)
+
+          print('SOURCE_AWARE_IDENTITY_APPLIED')
           PY
-      - name: Apply implementation
-        run: node scripts/apply-source-aware-identity.mjs
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Verify focused Radar behavior
+      - name: Verify implementation
         run: |
           npm run lint
           npm run test:radar-pilot
@@ -54,10 +396,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git checkout -- scripts/apply-source-aware-identity.mjs
+          if git diff --quiet -- src; then
+            echo "No source changes to commit"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src
-          git diff --cached --quiet && { echo "No implementation changes to commit"; exit 1; }
           git commit -m "Connect: source-aware imports and explainable probable identities"
           git push origin HEAD:feat/source-aware-identity-intelligence-01
