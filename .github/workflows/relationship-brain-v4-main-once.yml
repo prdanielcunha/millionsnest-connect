@@ -18,7 +18,9 @@ jobs:
         with:
           ref: feature/relationship-brain-v4-main
       - name: Apply main port
-        run: python .github/scripts/relationship_brain_v4_main_patch.py
+        run: |
+          python .github/scripts/relationship_brain_v4_main_patch.py
+          python .github/scripts/relationship_brain_v4_main_fix.py
       - name: Validate
         run: |
           npm ci --no-audit --no-fund
