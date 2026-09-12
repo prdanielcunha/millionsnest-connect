@@ -477,6 +477,12 @@ export class PersonalRadarService {
       const phone = normalizedPhone(raw?.phone);
       const nameKey = normalizedName(displayName);
       let person = existing.find(item => phone && normalizedPhone(item.phone) === phone);
+      let matchedByPhoneIdentity = Boolean(person && phone);
+      if (!person && phone) {
+        person = existing.find(item => uniqueStrings(item.displayName, item.probableName, item.identityAliases)
+          .some(alias => normalizedPhone(alias) === phone));
+        matchedByPhoneIdentity = Boolean(person);
+      }
       if (!person) person = existing.find(item => !item.phone && normalizedName(item.displayName) === nameKey);
       const id = person ? String(person.id) : `ct_${crypto.createHash('sha256').update(`${nameKey}|${phone}`).digest('hex').slice(0, 24)}`;
       const currentKinds = Array.isArray(person?.sourceKinds) ? person!.sourceKinds as string[] : (String(person?.sourceId || '').startsWith('wa_') ? ['whatsapp_export'] : []);
@@ -488,7 +494,14 @@ export class PersonalRadarService {
       writes.push({ path: ['personalPeople', id], data: {
         ...(person || {}), id, sourceId: String(person?.sourceId || 'contacts_import'), ownerUid: context.actorUid,
         displayName, phone: phone || person?.phone || null, sourceKinds,
-        signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],
+      identityAliases: uniqueStrings(person?.identityAliases, person?.displayName, person?.probableName, displayName),
+      identityConfirmedAliases: matchedByPhoneIdentity
+        ? uniqueStrings(person?.identityConfirmedAliases, normalizeIdentityName(displayName), normalizeIdentityName(person?.displayName))
+        : person?.identityConfirmedAliases,
+      identityResolution: matchedByPhoneIdentity ? 'contact_phone_confirmed' : person?.identityResolution,
+      identityConfidence: matchedByPhoneIdentity ? 100 : person?.identityConfidence,
+      probableName: matchedByPhoneIdentity ? null : person?.probableName,
+      signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],
         radarEligible: person?.radarEligible === undefined ? false : person.radarEligible,
         radarState: String(person?.radarState || 'active'), priority: Number(person?.priority ?? 99),
         salesStage: person?.salesStage || 'iniciar_conversa', importedAt: person?.importedAt || isoNow(this.now), updatedAt: isoNow(this.now),
