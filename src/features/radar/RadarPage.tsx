@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Check, ChevronRight, Copy, FileArchive, Loader2, MessageCircle,
-  Radar, Search, ShieldCheck, Sparkles, Trash2, Upload, UserRoundCheck,
+  AlertCircle, Check, ChevronDown, Copy, FileArchive, Filter, Loader2, MessageCircle,
+  Radar, Search, ShieldCheck, Sparkles, Star, Upload, UserRoundCheck, UsersRound, X,
 } from 'lucide-react';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
-import { PersonalRadarClient, RadarClientPerson } from '../../core/client/personalRadarClient';
+import {
+  PersonalRadarClient,
+  RadarClientPerson,
+  RadarManualPriority,
+  RadarPotentialLevel,
+} from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
 
 interface RadarPageProps {
@@ -14,6 +19,7 @@ interface RadarPageProps {
 
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
 type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
+type FilterMode = 'all' | 'favorites' | 'priority' | 'very_high' | 'review';
 
 type SelectedSignal = {
   person: RadarClientPerson;
@@ -22,70 +28,52 @@ type SelectedSignal = {
 
 const copy = {
   'pt-BR': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Com quem vale conversar primeiro?',
-    subtitle: 'O Radar prioriza quem já mostrou uma dor que o MusicScale resolve, depois quem já tem relação com você, pastores/líderes e, por último, os demais contatos pastorais — sempre com evidência e contexto.',
-    privacy: 'Cofre pessoal: visível somente para sua conta. Nada vira oportunidade comercial automaticamente.',
-    importTitle: 'Importar conversa', importHint: 'TXT ou ZIP exportado pelo próprio WhatsApp · até 5 MB',
-    selfName: 'Seu nome como aparece no export', choose: 'Escolher TXT ou ZIP', importing: 'Analisando com segurança…',
-    importAction: 'Importar e analisar', imported: 'Importação concluída', dedup: 'Este arquivo já estava no seu cofre. Nenhuma duplicação foi criada.',
-    people: 'Pessoas priorizadas', messages: 'mensagens',
-    signals: 'motivos com evidência', empty: 'Nenhum contato prioritário ainda', emptyDesc: 'Importe uma conversa autorizada. O Radar só mostra pessoas quando encontra um motivo real para priorizá-las.',
-    evidence: 'Evidência', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Promover manualmente', promoted: 'Oportunidade marcada',
-    phone: 'WhatsApp/telefone', savePhone: 'Salvar', snooze: 'Adiar 7 dias', ignore: 'Ignorar', sourceDelete: 'Excluir fonte',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE',
+    title: 'As pessoas certas, no momento certo.',
+    subtitle: 'O Connect organiza as conversas, encontra sinais reais de potencial e deixa sua decisão acima da automação.',
+    privacy: 'Cofre pessoal · privado · nenhuma pessoa vira lead automaticamente.',
+    importTitle: 'Trazer conversa do WhatsApp', importHint: 'TXT ou ZIP exportado pelo WhatsApp · até 5 MB',
+    selfName: 'Seu nome no export', choose: 'Escolher arquivo', importing: 'Analisando pessoas, conversas e duplicidades…',
+    importAction: 'Importar e analisar', imported: 'Importação concluída', dedup: 'Esse arquivo já estava no seu cofre. Nada foi duplicado.',
+    people: 'Pessoas', messages: 'mensagens', merged: 'contatos reaproveitados', review: 'para revisar',
+    empty: 'Nenhuma pessoa priorizada ainda', emptyDesc: 'Importe uma conversa autorizada para o Connect organizar os contatos e explicar por que alguém merece sua atenção.',
+    search: 'Buscar no histórico', searchPlaceholder: 'Pessoa, assunto, louvor, escala…', searchAction: 'Buscar', noSearch: 'Nenhum resultado.',
+    all: 'Todos', favorites: 'Favoritos', priority: 'Prioritários', veryHigh: 'Muito alto', duplicates: 'Revisar identidade',
+    potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridade', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritário',
+    unknown: 'Sem evidência', low: 'Baixo', medium: 'Médio', high: 'Alto', very_high: 'Muito alto',
+    identityPossible: 'Pode ser a mesma pessoa', merge: 'É a mesma', separate: 'São diferentes', undo: 'Desfazer vínculo',
+    identityMerged: 'Pessoas vinculadas. O histórico foi preservado.', identitySeparate: 'Certo. O Connect vai manter essas pessoas separadas.',
+    evidence: 'Por que apareceu', next: 'Próximo passo', compose: 'Criar abordagem', promote: 'Virar oportunidade', promoted: 'Oportunidade marcada',
+    phone: 'WhatsApp/telefone', snooze: 'Falar depois', ignore: 'Não relevante',
     composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Curto', conversation: 'Conversa', audio: 'Áudio', video: 'Vídeo',
     guidance: 'Sugestão para agora', why: 'Por quê', nextYes: 'Próximo pequeno sim', usedContext: 'Contexto usado', chooseOption: 'Escolha uma opção', style: 'Estilo',
     regenerate: 'Gerar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Adicione o telefone para abrir o WhatsApp.',
-    search: 'Pesquisar no seu histórico', searchPlaceholder: 'Pessoa, termo, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Nenhum resultado.',
-    deleteConfirm: 'Excluir esta fonte e todos os dados derivados dela do seu cofre pessoal?',
-    error: 'Não foi possível concluir esta operação.', noAuto: 'O envio é sempre manual neste piloto.',
+    error: 'Não foi possível concluir esta operação.', noAuto: 'O envio continua manual.', saved: 'Salvo', saving: 'Salvando…',
   },
   'en-US': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Who should you talk to first?',
-    subtitle: 'Radar prioritizes people who already showed a problem MusicScale can solve, then people who already know you, pastors/leaders, and finally other pastoral contacts — always with evidence and context.',
-    privacy: 'Personal vault: visible only to your account. Nothing becomes a commercial opportunity automatically.',
-    importTitle: 'Import conversation', importHint: 'TXT or ZIP exported by WhatsApp · up to 5 MB',
-    selfName: 'Your name as it appears in the export', choose: 'Choose TXT or ZIP', importing: 'Analyzing securely…',
-    importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. No duplicate was created.',
-    people: 'Prioritized people', messages: 'messages',
-    signals: 'evidence-backed reasons', empty: 'No priority contact yet', emptyDesc: 'Import an authorized conversation. Radar only surfaces people when there is a real reason to prioritize them.',
-    evidence: 'Evidence', next: 'Next step', compose: 'Create approach', promote: 'Promote manually', promoted: 'Opportunity marked',
-    phone: 'WhatsApp/phone', savePhone: 'Save', snooze: 'Snooze 7 days', ignore: 'Ignore', sourceDelete: 'Delete source',
-    composerTitle: 'MusicScale Composer', tone: 'Format', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video',
-    guidance: 'Suggested next move', why: 'Why', nextYes: 'Next small yes', usedContext: 'Context used', chooseOption: 'Choose an option', style: 'Style',
-    regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'Add a phone number to open WhatsApp.',
-    search: 'Search your history', searchPlaceholder: 'Person, term, schedule, WhatsApp…', searchAction: 'Search', noSearch: 'No results.',
-    deleteConfirm: 'Delete this source and all data derived from it from your personal vault?',
-    error: 'Could not complete this operation.', noAuto: 'Sending is always manual in this pilot.',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'The right people, at the right moment.',
+    subtitle: 'Connect organizes conversations, finds explainable potential signals, and keeps your judgment above automation.',
+    privacy: 'Personal vault · private · nobody becomes a lead automatically.',
+    importTitle: 'Bring a WhatsApp conversation', importHint: 'WhatsApp TXT or ZIP export · up to 5 MB', selfName: 'Your name in the export', choose: 'Choose file', importing: 'Analyzing people, conversations and duplicates…', importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. Nothing was duplicated.',
+    people: 'People', messages: 'messages', merged: 'contacts reused', review: 'to review', empty: 'No prioritized people yet', emptyDesc: 'Import an authorized conversation so Connect can organize contacts and explain why someone deserves attention.',
+    search: 'Search history', searchPlaceholder: 'Person, topic, worship, schedule…', searchAction: 'Search', noSearch: 'No results.',
+    all: 'All', favorites: 'Favorites', priority: 'Priority', veryHigh: 'Very high', duplicates: 'Review identity', potential: 'Potential', auto: 'suggested', priorityLabel: 'Priority', normal: 'Normal', important: 'Important', priorityTop: 'Priority', unknown: 'Not enough evidence', low: 'Low', medium: 'Medium', high: 'High', very_high: 'Very high',
+    identityPossible: 'May be the same person', merge: 'Same person', separate: 'Different people', undo: 'Undo link', identityMerged: 'People linked. History was preserved.', identitySeparate: 'Got it. Connect will keep these people separate.',
+    evidence: 'Why they surfaced', next: 'Next step', compose: 'Create approach', promote: 'Make opportunity', promoted: 'Opportunity marked', phone: 'WhatsApp/phone', snooze: 'Talk later', ignore: 'Not relevant',
+    composerTitle: 'MusicScale Composer', tone: 'Format', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video', guidance: 'Suggested next move', why: 'Why', nextYes: 'Next small yes', usedContext: 'Context used', chooseOption: 'Choose an option', style: 'Style', regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'Add a phone number to open WhatsApp.', error: 'Could not complete this operation.', noAuto: 'Sending stays manual.', saved: 'Saved', saving: 'Saving…',
   },
   'es-ES': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: '¿Con quién conviene hablar primero?',
-    subtitle: 'Radar prioriza a quienes ya mostraron un problema que MusicScale puede resolver, luego a quienes ya tienen relación contigo, pastores/líderes y, por último, otros contactos pastorales — siempre con evidencia y contexto.',
-    privacy: 'Cofre personal: visible solo para tu cuenta. Nada se convierte automáticamente en oportunidad comercial.',
-    importTitle: 'Importar conversación', importHint: 'TXT o ZIP exportado por WhatsApp · hasta 5 MB',
-    selfName: 'Tu nombre como aparece en la exportación', choose: 'Elegir TXT o ZIP', importing: 'Analizando de forma segura…',
-    importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. No se creó ningún duplicado.',
-    people: 'Personas priorizadas', messages: 'mensajes',
-    signals: 'motivos con evidencia', empty: 'Aún no hay contactos prioritarios', emptyDesc: 'Importa una conversación autorizada. Radar solo muestra personas cuando encuentra un motivo real para priorizarlas.',
-    evidence: 'Evidencia', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Promover manualmente', promoted: 'Oportunidad marcada',
-    phone: 'WhatsApp/teléfono', savePhone: 'Guardar', snooze: 'Posponer 7 días', ignore: 'Ignorar', sourceDelete: 'Eliminar fuente',
-    composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video',
-    guidance: 'Sugerencia para ahora', why: 'Por qué', nextYes: 'Próximo pequeño sí', usedContext: 'Contexto usado', chooseOption: 'Elige una opción', style: 'Estilo',
-    regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Agrega el teléfono para abrir WhatsApp.',
-    search: 'Buscar en tu historial', searchPlaceholder: 'Persona, término, escala, WhatsApp…', searchAction: 'Buscar', noSearch: 'Sin resultados.',
-    deleteConfirm: '¿Eliminar esta fuente y todos los datos derivados de ella de tu cofre personal?',
-    error: 'No fue posible completar esta operación.', noAuto: 'El envío siempre es manual en este piloto.',
+    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Las personas correctas, en el momento correcto.',
+    subtitle: 'Connect organiza conversaciones, encuentra señales explicables de potencial y mantiene tu decisión por encima de la automatización.',
+    privacy: 'Cofre personal · privado · nadie se convierte en lead automáticamente.', importTitle: 'Traer conversación de WhatsApp', importHint: 'Exportación TXT o ZIP de WhatsApp · hasta 5 MB', selfName: 'Tu nombre en la exportación', choose: 'Elegir archivo', importing: 'Analizando personas, conversaciones y duplicados…', importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. Nada fue duplicado.',
+    people: 'Personas', messages: 'mensajes', merged: 'contactos reutilizados', review: 'para revisar', empty: 'Aún no hay personas priorizadas', emptyDesc: 'Importa una conversación autorizada para que Connect organice los contactos y explique por qué alguien merece atención.',
+    search: 'Buscar en el historial', searchPlaceholder: 'Persona, tema, alabanza, escala…', searchAction: 'Buscar', noSearch: 'Sin resultados.', all: 'Todos', favorites: 'Favoritos', priority: 'Prioritarios', veryHigh: 'Muy alto', duplicates: 'Revisar identidad', potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridad', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritario', unknown: 'Sin evidencia', low: 'Bajo', medium: 'Medio', high: 'Alto', very_high: 'Muy alto',
+    identityPossible: 'Puede ser la misma persona', merge: 'Es la misma', separate: 'Son diferentes', undo: 'Deshacer vínculo', identityMerged: 'Personas vinculadas. El historial fue preservado.', identitySeparate: 'Listo. Connect mantendrá estas personas separadas.', evidence: 'Por qué apareció', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Crear oportunidad', promoted: 'Oportunidad marcada', phone: 'WhatsApp/teléfono', snooze: 'Hablar después', ignore: 'No relevante', composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video', guidance: 'Sugerencia para ahora', why: 'Por qué', nextYes: 'Próximo pequeño sí', usedContext: 'Contexto usado', chooseOption: 'Elige una opción', style: 'Estilo', regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Agrega el teléfono para abrir WhatsApp.', error: 'No fue posible completar esta operación.', noAuto: 'El envío sigue siendo manual.', saved: 'Guardado', saving: 'Guardando…',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
 
-function signalLabel(type: string, lang: LanguageCode): string {
-  const labels: Record<string, Record<LanguageCode, string>> = {
-    explicit_product_interest: { 'pt-BR': 'Potencial MusicScale', 'en-US': 'MusicScale fit', 'es-ES': 'Potencial MusicScale' },
-    commercial_followup_due: { 'pt-BR': 'Relacionamento ativo', 'en-US': 'Existing relationship', 'es-ES': 'Relación existente' },
-    unanswered_conversation: { 'pt-BR': 'Pastor / líder', 'en-US': 'Pastor / leader', 'es-ES': 'Pastor / líder' },
-    recurring_relevant_topic: { 'pt-BR': 'Contato pastoral', 'en-US': 'Pastoral contact', 'es-ES': 'Contacto pastoral' },
-  };
-  return labels[type]?.[lang] || type;
-}
+const potentialOrder: RadarPotentialLevel[] = ['very_high', 'high', 'medium', 'low', 'unknown'];
+const priorityOrder: RadarManualPriority[] = ['normal', 'important', 'priority'];
 
 function composerStyleLabel(style: ComposerStyle, lang: LanguageCode): string {
   const labels: Record<ComposerStyle, Record<LanguageCode, string>> = {
@@ -100,6 +88,14 @@ function composerStyleLabel(style: ComposerStyle, lang: LanguageCode): string {
   return labels[style][lang];
 }
 
+function potentialClasses(level: RadarPotentialLevel) {
+  if (level === 'very_high') return 'border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-100';
+  if (level === 'high') return 'border-indigo-400/25 bg-indigo-400/10 text-indigo-100';
+  if (level === 'medium') return 'border-sky-400/25 bg-sky-400/10 text-sky-100';
+  if (level === 'low') return 'border-white/10 bg-white/[0.04] text-slate-300';
+  return 'border-white/10 bg-transparent text-slate-500';
+}
+
 export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new PersonalRadarClient(session), [session]);
@@ -111,6 +107,8 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [filter, setFilter] = useState<FilterMode>('all');
   const [selected, setSelected] = useState<SelectedSignal | null>(null);
   const [tone, setTone] = useState<Tone>('curto');
   const [draft, setDraft] = useState('');
@@ -123,6 +121,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
   const [query, setQuery] = useState('');
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [lastMergeId, setLastMergeId] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -140,14 +139,30 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
 
   useEffect(() => { void refresh(); }, [client]);
 
+  const patchPerson = async (person: RadarClientPerson, update: Parameters<PersonalRadarClient['updatePerson']>[1]) => {
+    const previous = people;
+    const optimistic = people.map(item => item.id === person.id ? { ...item, ...update } : item);
+    setPeople(optimistic);
+    setSaving(current => ({ ...current, [person.id]: true }));
+    try {
+      const result = await client.updatePerson(person.id, update);
+      if (result.person) setPeople(current => current.map(item => item.id === person.id ? result.person : item));
+      setError('');
+    } catch (e) {
+      setPeople(previous);
+      setError(e instanceof Error ? e.message : t.error);
+    } finally {
+      setSaving(current => ({ ...current, [person.id]: false }));
+    }
+  };
+
   const importFile = async () => {
     if (!file || importing) return;
-    setImporting(true);
-    setError('');
-    setNotice('');
+    setImporting(true); setError(''); setNotice('');
     try {
       const result = await client.importWhatsApp(file, selfName.trim() ? [selfName.trim()] : []);
-      setNotice(result.status === 'deduplicated' ? t.dedup : `${t.imported} · ${result.messageCount} ${t.messages}`);
+      if (result.status === 'deduplicated') setNotice(t.dedup);
+      else setNotice(`${t.imported} · ${result.messageCount} ${t.messages} · ${result.mergedPeopleCount || 0} ${t.merged} · ${result.identityReviewCount || 0} ${t.review}`);
       setFile(null);
       if (fileRef.current) fileRef.current.value = '';
       await refresh();
@@ -160,8 +175,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
 
   const compose = async (selection = selected, requestedTone = tone, requestedStyle = composerStyle) => {
     if (!selection) return;
-    setDraftBusy(true);
-    setCopied(false);
+    setDraftBusy(true); setCopied(false);
     try {
       const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, { style: requestedStyle });
       setComposerPlan(result);
@@ -174,21 +188,33 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     }
   };
 
-  const openComposer = (person: RadarClientPerson, signal: RadarClientPerson['signals'][number]) => {
+  const openComposer = (person: RadarClientPerson) => {
+    const signal = person.signals?.[0];
+    if (!signal) return;
     const selection = { person, signal };
-    setSelected(selection);
-    setDraft('');
-    setComposerPlan(null);
-    const initialStyle: ComposerStyle = signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic' ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo';
+    setSelected(selection); setDraft(''); setComposerPlan(null); setTone('curto');
+    const initialStyle: ComposerStyle = signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic'
+      ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo';
     setComposerStyle(initialStyle);
-    setTone('curto');
     setTimeout(() => void compose(selection, 'curto', initialStyle), 0);
   };
 
-  const snoozePerson = async (person: RadarClientPerson) => {
+  const resolveIdentity = async (person: RadarClientPerson, candidatePersonId: string, action: 'merge' | 'keep_separate') => {
     try {
-      await client.updatePerson(person.id, { radarState: 'snoozed', snoozeDays: 7 });
-      if (selected?.person.id === person.id) setSelected(null);
+      const result = await client.resolveIdentity(person.id, candidatePersonId, action);
+      setNotice(action === 'merge' ? t.identityMerged : t.identitySeparate);
+      setLastMergeId(action === 'merge' ? result.mergeId || null : null);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.error);
+    }
+  };
+
+  const undoMerge = async () => {
+    if (!lastMergeId) return;
+    try {
+      await client.undoIdentityMerge(lastMergeId);
+      setLastMergeId(null); setNotice('');
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : t.error);
@@ -209,61 +235,80 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     }
   };
 
-  const totalSignals = people.reduce((sum, person) => sum + (person.signals?.length || 0), 0);
+  const visiblePeople = useMemo(() => people.filter(person => {
+    if (filter === 'favorites') return Boolean(person.favorite);
+    if (filter === 'priority') return person.manualPriority === 'priority';
+    if (filter === 'very_high') return (person.manualPotential || person.effectivePotential || person.automaticPotential) === 'very_high';
+    if (filter === 'review') return Boolean(person.identityReview?.length);
+    return true;
+  }), [people, filter]);
+
+  const filterItems: Array<[FilterMode, string]> = [
+    ['all', t.all], ['favorites', t.favorites], ['priority', t.priority], ['very_high', t.veryHigh], ['review', t.duplicates],
+  ];
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 pb-28 lg:pb-10">
-      <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl sm:p-7 lg:p-9">
-        <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+    <main className="mx-auto w-full max-w-7xl space-y-5 pb-32 lg:pb-10">
+      <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,.16),transparent_34%),linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))] p-5 shadow-2xl sm:p-7 lg:p-9">
+        <div className="relative grid gap-7 lg:grid-cols-[1fr_360px] lg:items-end">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-300"><Radar size={15} /> {t.eyebrow}</div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{t.title}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{t.subtitle}</p>
-            <div className="mt-5 inline-flex items-start gap-2 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3.5 py-3 text-xs leading-5 text-emerald-100">
-              <ShieldCheck size={15} className="mt-0.5 shrink-0" /> {t.privacy}
+            <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-5xl">{t.title}</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.07] px-3 py-2 text-xs text-emerald-100"><ShieldCheck size={14} /> {t.privacy}</div>
+          </div>
+          <div className="rounded-[26px] border border-white/10 bg-black/20 p-4 backdrop-blur-xl">
+            <div className="flex items-center justify-between"><div><div className="text-sm font-semibold text-white">{t.importTitle}</div><div className="mt-1 text-xs text-slate-500">{t.importHint}</div></div><FileArchive size={20} className="text-indigo-300" /></div>
+            <label className="mt-4 block text-[11px] font-medium text-slate-400">{t.selfName}<input value={selfName} onChange={e => setSelfName(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400/40" /></label>
+            <input ref={fileRef} type="file" accept=".txt,.zip,text/plain,application/zip" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button onClick={() => fileRef.current?.click()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-slate-200"><Upload size={15} /> {file?.name || t.choose}</button>
+              <button onClick={() => void importFile()} disabled={!file || importing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-3 text-xs font-semibold text-slate-950 disabled:opacity-35">{importing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}{importing ? t.importing : t.importAction}</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:min-w-[280px]">
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="text-2xl font-semibold text-white">{people.length}</div><div className="mt-1 text-[11px] text-slate-400">{t.people}</div></div>
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="text-2xl font-semibold text-white">{totalSignals}</div><div className="mt-1 text-[11px] text-slate-400">{t.signals}</div></div>
-          </div>
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
-        <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-500/10 text-indigo-300"><Upload size={18} /></div><div><h2 className="font-semibold text-white">{t.importTitle}</h2><p className="text-xs text-slate-500">{t.importHint}</p></div></div>
-          <label className="mt-5 block text-xs font-medium text-slate-300">{t.selfName}<input value={selfName} onChange={e => setSelfName(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400/40" /></label>
-          <input ref={fileRef} type="file" accept=".txt,.zip,text/plain,application/zip" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-          <button type="button" onClick={() => fileRef.current?.click()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.025] px-4 text-sm text-slate-300 hover:bg-white/[0.045]"><FileArchive size={17} /> {file?.name || t.choose}</button>
-          <button type="button" disabled={!file || importing} onClick={() => void importFile()} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-35">{importing ? <><Loader2 size={16} className="animate-spin" /> {t.importing}</> : <><Sparkles size={16} /> {t.importAction}</>}</button>
-          {notice && <div className="mt-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] px-3 py-2.5 text-xs text-emerald-200">{notice}</div>}
-        </div>
+      {(notice || error) && <div className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${error ? 'border-rose-400/20 bg-rose-400/[0.07] text-rose-100' : 'border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-100'}`}><div className="flex items-center gap-2">{error ? <AlertCircle size={16} /> : <Check size={16} />}{error || notice}</div>{lastMergeId && !error && <button onClick={() => void undoMerge()} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium">{t.undo}</button>}</div>}
 
-        <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Search size={17} /> {t.search}</div>
-          <form onSubmit={e => { e.preventDefault(); void runSearch(); }} className="mt-4 flex gap-2"><input value={query} onChange={e => setQuery(e.target.value)} placeholder={t.searchPlaceholder} className="min-h-11 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-indigo-400/40" /><button disabled={searchBusy || query.trim().length < 2} className="min-h-11 rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 disabled:opacity-35">{searchBusy ? <Loader2 size={16} className="animate-spin" /> : t.searchAction}</button></form>
-          {searchResults !== null && <div className="mt-4 max-h-64 space-y-2 overflow-y-auto">{searchResults.length === 0 ? <p className="text-sm text-slate-500">{t.noSearch}</p> : searchResults.map((result, index) => <div key={`${result.sourceId}-${index}`} className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="flex justify-between gap-3 text-xs"><span className="font-medium text-white">{result.sender}</span><span className="text-slate-500">{result.dateKey}</span></div><p className="mt-1 text-xs leading-5 text-slate-400">{result.snippet}</p></div>)}</div>}
+      <section className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {filterItems.map(([value, label]) => <button key={value} onClick={() => setFilter(value)} className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-xs font-medium transition ${filter === value ? 'border-indigo-400/30 bg-indigo-400/15 text-indigo-100' : 'border-white/10 bg-white/[0.025] text-slate-400 hover:text-white'}`}>{label}</button>)}
         </div>
+        <div className="flex min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.025] p-2 lg:w-[430px]"><Search size={17} className="ml-2 mt-2 text-slate-500" /><input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && void runSearch()} placeholder={t.searchPlaceholder} className="min-w-0 flex-1 bg-transparent px-1 text-sm text-white outline-none placeholder:text-slate-600" /><button onClick={() => void runSearch()} disabled={searchBusy || query.trim().length < 2} className="rounded-xl bg-white/[0.07] px-3 text-xs font-medium text-slate-200 disabled:opacity-30">{searchBusy ? <Loader2 size={14} className="animate-spin" /> : t.searchAction}</button></div>
       </section>
 
-      {error && <div className="flex items-start gap-2 rounded-2xl border border-red-400/15 bg-red-400/[0.06] px-4 py-3 text-sm text-red-200"><AlertCircle size={17} className="mt-0.5 shrink-0" /> {error}</div>}
+      {searchResults && <section className="rounded-[24px] border border-white/10 bg-white/[0.025] p-4"><div className="mb-3 flex items-center justify-between"><div className="text-sm font-semibold text-white">{t.search}</div><button onClick={() => setSearchResults(null)} className="rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white"><X size={16} /></button></div>{searchResults.length ? <div className="grid gap-2 md:grid-cols-2">{searchResults.slice(0, 12).map((result, index) => <div key={`${result.sourceId}-${index}`} className="rounded-2xl border border-white/8 bg-black/15 p-3"><div className="text-xs font-medium text-slate-200">{result.sender} · {result.dateKey}</div><div className="mt-1 text-xs leading-5 text-slate-500">{result.snippet}</div></div>)}</div> : <div className="text-sm text-slate-500">{t.noSearch}</div>}</section>}
 
-      <section className="space-y-4">
-        {loading ? <div className="grid min-h-52 place-items-center rounded-[26px] border border-white/10 bg-white/[0.025]"><Loader2 className="animate-spin text-slate-400" /></div> : people.length === 0 ? <div className="rounded-[26px] border border-white/10 bg-white/[0.025] p-10 text-center"><Radar className="mx-auto text-slate-600" /><h3 className="mt-4 font-semibold text-white">{t.empty}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{t.emptyDesc}</p></div> : people.map(person => (
-          <article key={person.id} className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03]">
-            <div className="flex flex-col gap-4 border-b border-white/8 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div><h3 className="text-lg font-semibold text-white">{person.displayName}</h3><p className="mt-1 text-xs text-slate-500">{person.lastDateKey || '—'} · {person.messageCount || 0} {t.messages}</p></div>
-              <div className="flex flex-wrap gap-2"><button onClick={async () => { await client.promote(person.id); setPromoted(prev => ({ ...prev, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06] px-3 text-xs font-medium text-emerald-200"><UserRoundCheck size={15} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={() => void snoozePerson(person)} className="min-h-10 rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] px-3 text-xs text-indigo-200">{t.snooze}</button><button onClick={async () => { await client.updatePerson(person.id, { radarState: 'ignored' }); if (selected?.person.id === person.id) setSelected(null); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-400">{t.ignore}</button><button title={t.sourceDelete} onClick={async () => { if (window.confirm(t.deleteConfirm)) { await client.deleteSource(person.sourceId); if (selected?.person.sourceId === person.sourceId) setSelected(null); await refresh(); } }} className="grid h-10 w-10 place-items-center rounded-xl border border-red-400/10 text-red-300/70 hover:bg-red-400/5"><Trash2 size={15} /></button></div>
+      {loading ? <div className="flex min-h-52 items-center justify-center text-slate-500"><Loader2 size={22} className="animate-spin" /></div> : visiblePeople.length === 0 ? <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center"><UsersRound size={28} className="mx-auto text-slate-600" /><div className="mt-4 text-base font-semibold text-white">{t.empty}</div><div className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">{t.emptyDesc}</div></div> : <section className="grid gap-3 xl:grid-cols-2">
+        {visiblePeople.map(person => {
+          const effectivePotential = (person.manualPotential || person.effectivePotential || person.automaticPotential || 'unknown') as RadarPotentialLevel;
+          const candidate = person.identityReview?.[0];
+          const primarySignal = person.signals?.[0];
+          return <article key={person.id} className={`group relative overflow-hidden rounded-[26px] border p-4 transition sm:p-5 ${person.favorite ? 'border-indigo-400/25 bg-indigo-400/[0.055] shadow-[0_18px_60px_rgba(79,70,229,.08)]' : 'border-white/10 bg-white/[0.028] hover:border-white/15 hover:bg-white/[0.04]'}`}>
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] text-sm font-semibold text-white">{person.displayName?.slice(0, 1)?.toUpperCase() || '?'}</div>
+              <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h2 className="truncate text-base font-semibold text-white">{person.displayName}</h2>{saving[person.id] && <Loader2 size={13} className="animate-spin text-indigo-300" />}</div><div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{person.messageCount || 0} {t.messages}</span>{person.lastDateKey && <span>{person.lastDateKey}</span>}{person.sourceIds && person.sourceIds.length > 1 && <span>{person.sourceIds.length} fontes</span>}</div></div>
+              <button onClick={() => void patchPerson(person, { favorite: !person.favorite })} aria-label={t.favorites} className={`rounded-xl border p-2.5 transition ${person.favorite ? 'border-amber-300/20 bg-amber-300/10 text-amber-200' : 'border-white/8 text-slate-600 hover:text-slate-200'}`}><Star size={17} fill={person.favorite ? 'currentColor' : 'none'} /></button>
             </div>
-            <div className="grid gap-3 p-4 lg:grid-cols-2">{person.signals.map(signal => <div key={signal.id} className="rounded-2xl border border-white/8 bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><span className="rounded-full border border-indigo-400/15 bg-indigo-400/[0.06] px-2.5 py-1 text-[10px] font-semibold text-indigo-200">{signalLabel(signal.type, currentLang)}</span><ChevronRight size={15} className="text-slate-600" /></div><p className="mt-3 text-sm leading-6 text-slate-200">{signal.reason}</p>{signal.evidence?.[0] && <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.evidence} · {signal.evidence[0].dateKey}</div><p className="mt-1 text-xs leading-5 text-slate-400">“{signal.evidence[0].snippet}”</p></div>}<div className="mt-3 text-xs leading-5 text-slate-400"><span className="font-semibold text-slate-300">{t.next}:</span> {signal.nextAction}</div><button onClick={() => openComposer(person, signal)} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3.5 text-xs font-semibold text-slate-950"><MessageCircle size={15} /> {t.compose}</button></div>)}</div>
-            <div className="flex flex-col gap-2 border-t border-white/8 bg-black/10 p-4 sm:flex-row sm:items-center"><label className="text-xs text-slate-500 sm:min-w-32">{t.phone}</label><input value={phones[person.id] || ''} onChange={e => setPhones(prev => ({ ...prev, [person.id]: e.target.value }))} placeholder="5543999999999" className="min-h-10 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><button onClick={async () => { await client.updatePerson(person.id, { phone: phones[person.id] }); await refresh(); }} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300">{t.savePhone}</button></div>
-          </article>
-        ))}
-      </section>
 
-      {selected && <section className="sticky bottom-4 z-30 rounded-[26px] border border-indigo-400/20 bg-[#101522]/95 p-4 shadow-2xl backdrop-blur-2xl sm:p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start"><div className="lg:w-60"><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.displayName}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto', t.short], ['conversa', t.conversation], ['audio', t.audio], ['video', t.video]] as Array<[Tone, string]>).map(([value, label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value); }} className={`rounded-lg px-2.5 py-1.5 text-xs ${tone === value ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0 flex-1">{composerPlan && <div className="mb-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border border-indigo-400/15 bg-indigo-400/[0.05] p-3 sm:col-span-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">{t.guidance} · {composerPlan.stageLabel}</div><p className="mt-1 text-xs leading-5 text-slate-200">{composerPlan.recommendation}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.why}</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.why}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.nextYes}</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.nextSmallYes}</p></div><div className="rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Dica</div><p className="mt-1 text-xs leading-5 text-slate-400">{composerPlan.tip}</p></div></div>}<div className="mb-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.style}</div><div className="mt-2 flex flex-wrap gap-1.5">{(['amigavel','profissional','descontraido','objetivo','proximo','pastoral','consultivo'] as ComposerStyle[]).map((value) => <button key={value} onClick={() => { setComposerStyle(value); void compose(selected, tone, value); }} className={`rounded-lg px-2.5 py-1.5 text-xs ${composerStyle === value ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-400'}`}>{composerStyleLabel(value, currentLang)}</button>)}</div></div>{composerPlan?.factsUsed?.length > 0 && <div className="mb-3 rounded-xl border border-white/8 bg-black/15 p-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.usedContext}</div><div className="mt-2 space-y-1.5">{composerPlan.factsUsed.map((fact:string,index:number) => <p key={`${fact}-${index}`} className="text-xs leading-5 text-slate-400">{fact}</p>)}</div></div>}{composerPlan?.options?.length > 1 && <div className="mb-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t.chooseOption}</div><div className="mt-2 grid gap-2">{composerPlan.options.map((option:any,index:number) => <button key={option.id || index} onClick={() => setDraft(option.text)} className={`rounded-xl border p-3 text-left text-xs leading-5 ${draft === option.text ? 'border-indigo-400/40 bg-indigo-400/[0.07] text-slate-100' : 'border-white/8 bg-black/15 text-slate-400'}`}><span className="mr-2 font-semibold text-indigo-300">{index + 1}.</span>{option.text}</button>)}</div></div>}<div className="relative">{draftBusy ? <div className="grid min-h-24 place-items-center rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400"><div className="flex items-center gap-2"><Loader2 size={15} className="animate-spin" /> {t.regenerate}…</div></div> : <textarea value={draft} onChange={e => { setDraft(e.target.value); setCopied(false); }} rows={5} className="min-h-28 w-full resize-y rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100 outline-none focus:border-indigo-400/40" />}</div><div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{t.regenerate}</button>{phones[selected.person.id] ? <button onClick={() => window.open(`https://wa.me/${(phones[selected.person.id] || '').replace(/\D/g, '')}?text=${encodeURIComponent(draft)}`, '_blank', 'noopener,noreferrer')} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button> : <span className="text-xs text-slate-500">{t.noPhone}</span>}<span className="ml-auto text-[10px] text-slate-500">{t.noAuto}</span></div></div></div></section>}
+            {candidate && <div className="mt-4 rounded-2xl border border-amber-300/15 bg-amber-300/[0.055] p-3"><div className="flex items-center gap-2 text-xs font-semibold text-amber-100"><UserRoundCheck size={15} /> {t.identityPossible}</div><div className="mt-1 text-xs text-amber-100/70">{candidate.displayName} · {candidate.confidence}%</div><div className="mt-3 flex gap-2"><button onClick={() => void resolveIdentity(person, candidate.personId, 'merge')} className="rounded-xl bg-amber-200 px-3 py-2 text-[11px] font-semibold text-slate-950">{t.merge}</button><button onClick={() => void resolveIdentity(person, candidate.personId, 'keep_separate')} className="rounded-xl border border-amber-200/15 px-3 py-2 text-[11px] font-medium text-amber-50">{t.separate}</button></div></div>}
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <label className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.potential}</span><div className="mt-2 flex items-center gap-2"><span className={`rounded-lg border px-2 py-1 text-[11px] ${potentialClasses(effectivePotential)}`}>{t[effectivePotential]}</span><select value={person.manualPotential || ''} onChange={e => void patchPerson(person, { manualPotential: e.target.value ? e.target.value as RadarPotentialLevel : null })} className="min-w-0 flex-1 appearance-none bg-transparent text-right text-[11px] text-slate-400 outline-none"><option value="">{t.auto}</option>{potentialOrder.map(level => <option key={level} value={level}>{t[level]}</option>)}</select><ChevronDown size={12} className="text-slate-600" /></div></label>
+              <label className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.priorityLabel}</span><div className="mt-2 flex items-center gap-2"><select value={person.manualPriority || 'normal'} onChange={e => void patchPerson(person, { manualPriority: e.target.value as RadarManualPriority })} className="w-full appearance-none bg-transparent text-sm font-medium text-slate-200 outline-none">{priorityOrder.map(value => <option key={value} value={value}>{value === 'normal' ? t.normal : value === 'important' ? t.important : t.priorityTop}</option>)}</select><ChevronDown size={12} className="text-slate-600" /></div></label>
+            </div>
+
+            {primarySignal && <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600"><Sparkles size={12} /> {t.evidence}</div><p className="mt-2 text-sm leading-5 text-slate-300">{primarySignal.reason}</p>{primarySignal.evidence?.[0]?.snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">“{primarySignal.evidence[0].snippet}”</p>}<div className="mt-3 text-xs text-indigo-200">{t.next}: {primarySignal.nextAction}</div></div>}
+
+            <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => openComposer(person)} disabled={!primarySignal} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-semibold text-slate-950 disabled:opacity-30"><Sparkles size={14} /> {t.compose}</button><button onClick={async () => { await client.promote(person.id); setPromoted(current => ({ ...current, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300"><UserRoundCheck size={14} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={() => void patchPerson(person, { radarState: 'snoozed', snoozeDays: 7 })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-500 hover:text-white">{t.snooze}</button><button onClick={() => void patchPerson(person, { notRelevant: true })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-600 hover:text-rose-200">{t.ignore}</button></div>
+
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/8 bg-black/10 px-3 py-2"><MessageCircle size={13} className="text-slate-600" /><input value={phones[person.id] || ''} onChange={e => setPhones(current => ({ ...current, [person.id]: e.target.value }))} onBlur={() => { const value = phones[person.id]?.trim() || ''; if (value !== (person.phone || '')) void patchPerson(person, { phone: value || null }); }} placeholder={t.phone} className="min-w-0 flex-1 bg-transparent text-xs text-slate-300 outline-none placeholder:text-slate-700" /></div>
+          </article>;
+        })}
+      </section>}
+
+      {selected && <section className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-5xl rounded-[28px] border border-indigo-400/20 bg-[#0b0f18]/95 p-4 shadow-[0_24px_90px_rgba(0,0,0,.6)] backdrop-blur-2xl sm:inset-x-5 sm:p-5 lg:bottom-5"><div className="flex items-start justify-between gap-3"><div><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.displayName}</div></div><button onClick={() => setSelected(null)} className="rounded-xl border border-white/8 p-2 text-slate-500 hover:text-white"><X size={16} /></button></div><div className="mt-4 grid gap-4 lg:grid-cols-[220px_1fr]"><div><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.style}</div><div className="mt-2 flex flex-wrap gap-1.5">{(['amigavel','profissional','objetivo','proximo','pastoral','consultivo'] as ComposerStyle[]).map(style => <button key={style} onClick={() => { setComposerStyle(style); void compose(selected, tone, style); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${composerStyle === style ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{composerStyleLabel(style, currentLang)}</button>)}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto',t.short],['conversa',t.conversation],['audio',t.audio],['video',t.video]] as Array<[Tone,string]>).map(([value,label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value, composerStyle); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${tone === value ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0"><textarea value={draft} onChange={e => setDraft(e.target.value)} className="min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100 outline-none focus:border-indigo-400/30" placeholder={draftBusy ? t.regenerate : ''} />{composerPlan?.why && <div className="mt-2 text-xs leading-5 text-slate-500"><span className="text-slate-400">{t.why}:</span> {composerPlan.why}</div>}<div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{draftBusy ? <Loader2 size={14} className="animate-spin" /> : t.regenerate}</button>{phones[selected.person.id] ? <button onClick={() => window.open(`https://wa.me/${(phones[selected.person.id] || '').replace(/\D/g, '')}?text=${encodeURIComponent(draft)}`, '_blank', 'noopener,noreferrer')} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-300 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button> : <span className="text-xs text-slate-600">{t.noPhone}</span>}<span className="ml-auto hidden text-[10px] text-slate-600 sm:inline">{t.noAuto}</span></div></div></div></section>}
     </main>
   );
 };
