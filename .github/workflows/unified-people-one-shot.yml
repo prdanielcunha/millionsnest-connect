@@ -1,0 +1,43 @@
+name: Unified People One Shot
+on:
+  push:
+    branches: [feature/unified-people-outreach-01]
+    paths:
+      - .github/workflows/unified-people-one-shot.yml
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/unified-people-outreach-01
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply unified people patch
+        run: python scripts/unified_people_patch.py
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Verify
+        run: |
+          npm run lint
+          npm run test:radar-pilot
+          npm run test:core-http
+          npm run test:authority
+          npm run test:gatewaytenant
+          npm run test:firebase-hosting
+          npm run test:release-policy
+          npm run build
+          npm run build:core
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src
+          git diff --cached --quiet && exit 0
+          git commit -m "Add unified People outreach workspace"
+          git push
