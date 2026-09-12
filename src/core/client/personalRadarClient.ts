@@ -63,6 +63,7 @@ export type RadarClientPerson = {
   identityAliases?: string[];
   lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
   lastCommercialAt?: string | null;
+  lastCommercialDraft?: string | null;
   signals: Array<{
     id: string;
     type: string;
@@ -237,6 +238,7 @@ export class PersonalRadarClient {
       manualPotential?: RadarPotentialLevel | null;
       notRelevant?: boolean;
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      commercialDraft?: string;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {

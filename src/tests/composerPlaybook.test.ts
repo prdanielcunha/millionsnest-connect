@@ -26,4 +26,11 @@ const continued=buildComposerPlan({person:{displayName:'João',lastCommercialAct
 assert(continued.options.every(option=>!/^Oi[,!]|^Olá[,!]|^Ô,/.test(option.text)),'later contacts do not restart with a first-contact greeting');
 assert(continued.options.some(option=>/Voltando|Fiquei pensando|nossa conversa/i.test(option.text)),'later contacts explicitly continue prior context');
 assert(continued.recommendation.includes('Continue do ponto anterior'),'continuation guidance tells Composer not to restart the conversation');
+
+const remembered=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'sent_manual',lastCommercialAt:'2026-09-01T12:00:00Z',salesStage:'iniciar_conversa',lastCommercialDraft:'Oi, João! Tudo bem? Como vocês organizam as escalas hoje?',recentConversationMessages:[{dateKey:'2026-09-03',snippet:'A gente ainda faz tudo pelo WhatsApp e as cifras ficam espalhadas.'}]},signal,objective:'iniciar_conversa',style:'amigavel'});
+assert(remembered.objective!=='iniciar_conversa','existing relationship cannot silently fall back to cold first-contact objective');
+assert(remembered.relationship.continuation===true,'relationship brain recognizes prior history');
+assert(remembered.relationship.respondedAfterLastContact===true,'relationship brain recognizes later imported message by date');
+assert(remembered.options.every(option=>!/^Oi[,!]|^Olá[,!]|^Ô,/i.test(option.text)),'relationship-aware messages never restart with cold greeting');
+assert(remembered.factsUsed.some(fact=>/mensagem anterior/i.test(fact)),'composer remembers prior draft to reduce repetition');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);

@@ -31,6 +31,7 @@ export type ComposerPlan = {
   nextSmallYes: string;
   estimatedDurationSeconds?: number;
   factsUsed: string[];
+  relationship: RelationshipComposerContext;
   options: ComposerOption[];
 };
 
@@ -39,15 +40,112 @@ type PersonLike = {
   signals?: unknown;
   lastCommercialAction?: unknown;
   lastCommercialAt?: unknown;
+  lastCommercialDraft?: unknown;
   salesStage?: unknown;
+  followUpAt?: unknown;
+  lastDateKey?: unknown;
+  recentConversationMessages?: unknown;
 };
 
-function hasConversationContinuity(person: PersonLike, signal: RadarSignal): boolean {
-  const stage = String(person.salesStage || '').trim();
-  return Boolean(person.lastCommercialAction)
-    || Boolean(person.lastCommercialAt)
-    || (stage.length > 0 && stage !== 'iniciar_conversa')
+export type RelationshipComposerContext = {
+  state: 'first_contact' | 'active_reply' | 'waiting_reply' | 'followup_due' | 'dormant' | 'continuation';
+  continuation: boolean;
+  respondedAfterLastContact: boolean;
+  followUpDue: boolean;
+  daysSinceLastContact: number | null;
+  previousAction: string | null;
+  previousStage: string | null;
+  latestInboundDateKey: string | null;
+  latestInboundSnippet: string | null;
+  hasPreviousDraft: boolean;
+  suggestedObjective: ComposerObjective;
+};
+
+function recentMessages(value: unknown): Array<{ dateKey: string; snippet: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => ({
+    dateKey: String((item as any)?.dateKey || ''),
+    snippet: String((item as any)?.snippet || (item as any)?.text || '').replace(/\s+/g, ' ').trim().slice(0, 280),
+  })).filter(item => item.dateKey || item.snippet).slice(0, 8);
+}
+
+function isKnownObjective(value: string): value is ComposerObjective {
+  return ['iniciar_conversa','descobrir_dor','pedir_video','explicar_dor','convidar_trial','acompanhar_trial','retomar_conversa','fechar'].includes(value);
+}
+
+function buildRelationshipContext(person: PersonLike, signal: RadarSignal): RelationshipComposerContext {
+  const now = Date.now();
+  const previousAction = String(person.lastCommercialAction || '').trim() || null;
+  const rawStage = String(person.salesStage || '').trim();
+  const previousStage = rawStage || null;
+  const lastCommercialAt = String(person.lastCommercialAt || '').trim();
+  const contactMs = Date.parse(lastCommercialAt);
+  const daysSinceLastContact = Number.isFinite(contactMs) ? Math.max(0, Math.floor((now - contactMs) / 86_400_000)) : null;
+  const followMs = Date.parse(String(person.followUpAt || ''));
+  const followUpDue = Number.isFinite(followMs) && followMs <= now;
+  const latest = recentMessages(person.recentConversationMessages)[0] || null;
+  const latestInboundDateKey = latest?.dateKey || (String(person.lastDateKey || '').trim() || null);
+  const latestInboundSnippet = latest?.snippet || null;
+  const commercialDay = lastCommercialAt ? lastCommercialAt.slice(0, 10) : '';
+  const respondedAfterLastContact = Boolean(commercialDay && latestInboundDateKey && latestInboundDateKey > commercialDay);
+  const continuation = Boolean(previousAction) || Boolean(lastCommercialAt)
+    || Boolean(previousStage && previousStage !== 'iniciar_conversa')
     || signal.type === 'commercial_followup_due';
+
+  let state: RelationshipComposerContext['state'] = 'first_contact';
+  if (continuation) {
+    if (respondedAfterLastContact) state = 'active_reply';
+    else if (followUpDue || signal.type === 'commercial_followup_due') state = 'followup_due';
+    else if (previousAction === 'sent_manual') state = 'waiting_reply';
+    else if (daysSinceLastContact !== null && daysSinceLastContact >= 21) state = 'dormant';
+    else state = 'continuation';
+  }
+
+  let suggestedObjective: ComposerObjective;
+  if (!continuation) suggestedObjective = hasProductInterest(signal) ? 'descobrir_dor' : 'iniciar_conversa';
+  else if (respondedAfterLastContact) suggestedObjective = 'descobrir_dor';
+  else if (previousStage === 'convidar_trial' || previousStage === 'acompanhar_trial') suggestedObjective = 'acompanhar_trial';
+  else if (followUpDue || state === 'waiting_reply' || state === 'dormant') suggestedObjective = 'retomar_conversa';
+  else suggestedObjective = previousStage && isKnownObjective(previousStage) && previousStage !== 'iniciar_conversa'
+    ? previousStage
+    : 'retomar_conversa';
+
+  return {
+    state, continuation, respondedAfterLastContact, followUpDue, daysSinceLastContact,
+    previousAction, previousStage, latestInboundDateKey, latestInboundSnippet,
+    hasPreviousDraft: Boolean(String(person.lastCommercialDraft || '').trim()), suggestedObjective,
+  };
+}
+
+function normalizedTokens(value: string): Set<string> {
+  return new Set(value.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(token => token.length > 2));
+}
+
+function similarity(left: string, right: string): number {
+  if (!left || !right) return 0;
+  const a = normalizedTokens(left); const b = normalizedTokens(right);
+  if (!a.size || !b.size) return 0;
+  let hit = 0; for (const token of a) if (b.has(token)) hit += 1;
+  return hit / new Set([...a, ...b]).size;
+}
+
+function rankNovel(texts: string[], previousDraft: unknown): string[] {
+  const previous = String(previousDraft || '').trim();
+  return previous ? [...texts].sort((a,b) => similarity(a, previous) - similarity(b, previous)) : texts;
+}
+
+function adaptTiming(text: string, relationship: RelationshipComposerContext): string {
+  if (!relationship.continuation) return text;
+  if (relationship.daysSinceLastContact !== null && relationship.daysSinceLastContact >= 21) {
+    return text.replace(/Voltando naquele ponto/gi, 'Faz um tempinho desde nossa conversa; voltando naquele ponto')
+      .replace(/Passando só para retomar/gi, 'Faz um tempinho desde nossa conversa; retomando');
+  }
+  if (relationship.daysSinceLastContact !== null && relationship.daysSinceLastContact <= 1) {
+    return text.replace(/Voltando naquele ponto/gi, 'Pegando o gancho daquele ponto')
+      .replace(/Passando só para retomar/gi, 'Pegando o gancho do que a gente estava falando');
+  }
+  return text;
 }
 
 function firstName(value: unknown): string {
@@ -237,10 +335,14 @@ export function buildComposerPlan(input: {
   channel?: ComposerChannel;
   objective?: ComposerObjective;
 }): ComposerPlan {
-  const stage = resolveStage(input.signal, input.objective);
-  const objective = input.objective || defaultObjective(stage);
+  const relationship = buildRelationshipContext(input.person, input.signal);
+  const requestedObjective = input.objective;
+  const objective = relationship.continuation && requestedObjective === 'iniciar_conversa'
+    ? relationship.suggestedObjective
+    : requestedObjective || relationship.suggestedObjective;
+  const stage = resolveStage(input.signal, objective);
   const style = input.style || defaultStyle(input.signal);
-  const continuation = hasConversationContinuity(input.person, input.signal);
+  const continuation = relationship.continuation;
   const name = firstName(input.person.displayName);
   const t = topic(input.signal);
   const channel: ComposerChannel = input.channel || (objective === 'retomar_conversa' ? 'followup' : 'texto');
@@ -264,10 +366,22 @@ export function buildComposerPlan(input: {
     texts = openingVariants(name, input.signal, style, continuation);
   }
 
-  const factsUsed = input.signal.evidence.slice(0, 3).map(item => `${item.dateKey}: ${item.snippet}`);
+  texts = rankNovel(texts.map(text => adaptTiming(text.trim(), relationship)), input.person.lastCommercialDraft);
+  const factsUsed = input.signal.evidence.slice(0, 4).map(item => `${item.dateKey}: ${item.snippet}`);
+  if (relationship.previousAction && input.person.lastCommercialAt) factsUsed.unshift(`Última ação registrada: ${relationship.previousAction} · ${String(input.person.lastCommercialAt).slice(0, 10)}`);
+  if (relationship.hasPreviousDraft) factsUsed.unshift('A mensagem anterior está registrada para evitar repetição de abordagem.');
+  const continuityRecommendation = relationship.state === 'active_reply'
+    ? 'A pessoa falou novamente depois do último contato registrado. Continue a partir do que ela trouxe; não volte para uma abertura fria.'
+    : relationship.state === 'followup_due'
+      ? 'O follow-up chegou. Retome o ponto anterior com naturalidade, sem repetir saudação ou a mesma pergunta.'
+      : relationship.state === 'waiting_reply'
+        ? 'Já houve envio registrado. Evite repetir a mensagem anterior e faça um follow-up leve, com uma única pergunta.'
+        : relationship.state === 'dormant'
+          ? 'Faz tempo desde o último contato. Reative o contexto sem fingir intimidade e sem começar do zero.'
+          : 'Continue do ponto anterior, sem novo cumprimento de primeiro contato e sem repetir a pergunta já usada.';
   const recommendation = stage <= 2
     ? continuation
-      ? 'Continue do ponto anterior. Não cumprimente como se fosse uma conversa nova e faça só uma pergunta por vez.'
+      ? continuityRecommendation
       : 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
     : stage === 4
       ? 'Peça permissão antes de mandar o vídeo. O próximo passo é um pequeno “sim”.'
@@ -280,7 +394,11 @@ export function buildComposerPlan(input: {
             : 'Avance uma etapa por vez e adapte a próxima mensagem à resposta real.';
 
   const why = continuation
-    ? `Já existe contato anterior registrado. A mensagem deve continuar a conversa sobre ${t}, sem reiniciar com outro cumprimento.`
+    ? relationship.respondedAfterLastContact
+      ? `Há uma mensagem mais recente no histórico depois do último contato registrado. O Composer usa esse contexto sobre ${t} e evita reiniciar a conversa.`
+      : relationship.followUpDue
+        ? `O acompanhamento está no prazo ou vencido. A mensagem retoma ${t} sem repetir uma abertura de primeiro contato.`
+        : `Já existe contato anterior registrado. A mensagem continua a conversa sobre ${t}, considera a etapa anterior e evita repetir a abordagem.`
     : hasProductInterest(input.signal)
     ? `A própria conversa trouxe uma dor ligada a ${t}, então vale começar por esse contexto real.`
     : hasRelationship(input.signal)
@@ -316,7 +434,8 @@ export function buildComposerPlan(input: {
     tip,
     nextSmallYes,
     estimatedDurationSeconds: effectiveChannel === 'audio' ? (stage === 3 ? 45 : 30) : undefined,
-    factsUsed,
+    factsUsed: factsUsed.slice(0, 6),
+    relationship,
     options: texts.slice(0, 3).map((text, index) => ({
       id: `option_${index + 1}`,
       text,
