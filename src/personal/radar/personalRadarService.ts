@@ -4,6 +4,20 @@ import { FirestorePersonalVault, VaultWrite } from '../storage/firestorePersonal
 import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
 import { deriveRadarPeople, RadarPerson, RadarSignal } from './radarSignals';
 import { buildComposerPlan, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
+import {
+  automaticPotentialFromPriority,
+  compareIdentity,
+  manualPriorityRank,
+  mergeSignals,
+  newPersonDocumentId,
+  normalizeIdentityName,
+  normalizePhone,
+  potentialRank,
+  safeEffectivePotential,
+  uniqueStrings,
+  ManualPriority,
+  PotentialLevel,
+} from './identityResolution';
 
 export type RadarComposerTone = 'curto' | 'conversa' | 'audio' | 'video';
 
@@ -85,6 +99,30 @@ function resolveSnoozeDays(value: unknown): number {
   return days;
 }
 
+function latestDate(a: unknown, b: unknown): string | null {
+  const left = typeof a === 'string' ? a : '';
+  const right = typeof b === 'string' ? b : '';
+  return left >= right ? (left || null) : (right || null);
+}
+
+function earliestDate(a: unknown, b: unknown): string | null {
+  const values = [a, b].filter((value): value is string => typeof value === 'string' && Boolean(value));
+  if (!values.length) return null;
+  return values.sort()[0];
+}
+
+function validPotential(value: unknown): PotentialLevel | undefined {
+  return ['very_high', 'high', 'medium', 'low', 'unknown'].includes(String(value))
+    ? value as PotentialLevel
+    : undefined;
+}
+
+function validManualPriority(value: unknown): ManualPriority | undefined {
+  return ['normal', 'important', 'priority'].includes(String(value))
+    ? value as ManualPriority
+    : undefined;
+}
+
 export class PersonalRadarService {
   constructor(
     private readonly contextProvider: CanonicalContextProvider,
@@ -114,14 +152,16 @@ export class PersonalRadarService {
     const bytes = safeBase64(input.contentBase64);
     const text = extractWhatsAppText(fileName, bytes);
     const sourceId = sourceIdFromText(text);
-    const existing = await this.vault.get(request.authToken, context.actorUid, ['personalSources', sourceId]);
-    if (existing) {
+    const existingSource = await this.vault.get(request.authToken, context.actorUid, ['personalSources', sourceId]);
+    if (existingSource) {
       return {
         status: 'deduplicated' as const,
         sourceId,
-        messageCount: Number(existing.messageCount || 0),
-        participantCount: Number(existing.participantCount || 0),
-        radarCount: Number(existing.radarCount || 0),
+        messageCount: Number(existingSource.messageCount || 0),
+        participantCount: Number(existingSource.participantCount || 0),
+        radarCount: Number(existingSource.radarCount || 0),
+        mergedPeopleCount: 0,
+        identityReviewCount: 0,
       };
     }
 
@@ -130,6 +170,98 @@ export class PersonalRadarService {
     const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250);
     const createdAt = isoNow(this.now);
     const chunks = chunkMessages(parsed.messages);
+    const existingPeople = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
+    const workingPeople = [...existingPeople];
+    const peopleWrites: VaultWrite[] = [];
+    let mergedPeopleCount = 0;
+    let identityReviewCount = 0;
+
+    for (const person of people) {
+      const rankedMatches = workingPeople
+        .map(existing => ({ existing, match: compareIdentity(person, existing) }))
+        .filter(item => item.match.kind !== 'none')
+        .sort((a, b) => b.match.confidence - a.match.confidence);
+
+      const strong = rankedMatches.find(item => item.match.kind === 'strong');
+      const ambiguous = rankedMatches
+        .filter(item => item.match.kind === 'ambiguous')
+        .slice(0, 3)
+        .map(item => ({
+          personId: String(item.existing.id),
+          displayName: String(item.existing.displayName || ''),
+          confidence: item.match.confidence,
+          reasons: item.match.reasons,
+        }));
+
+      const priority = personPriority(person);
+      const automaticPotential = automaticPotentialFromPriority(priority);
+
+      if (strong) {
+        const existing = strong.existing;
+        const merged = {
+          ...existing,
+          id: String(existing.id),
+          displayName: String(existing.displayName || person.displayName),
+          normalizedName: String(existing.normalizedName || person.normalizedName),
+          phone: normalizePhone(existing.phone) || normalizePhone(person.phone),
+          messageCount: Number(existing.messageCount || 0) + person.messageCount,
+          firstDateKey: earliestDate(existing.firstDateKey, person.firstDateKey),
+          lastDateKey: latestDate(existing.lastDateKey, person.lastDateKey),
+          signals: mergeSignals(existing.signals, person.signals),
+          sourceId: String(existing.sourceId || sourceId),
+          sourceIds: uniqueStrings(existing.sourceIds, existing.sourceId, sourceId),
+          identityAliases: uniqueStrings(existing.identityAliases, existing.displayName, person.displayName),
+          identityConfirmedAliases: uniqueStrings(existing.identityConfirmedAliases, person.normalizedName),
+          identityConfidence: strong.match.confidence,
+          identityResolution: 'auto_strong_match',
+          identityReview: [],
+          priority: Math.min(Number(existing.priority ?? 99), priority),
+          automaticPotential: potentialRank(existing.automaticPotential) <= potentialRank(automaticPotential)
+            ? existing.automaticPotential || automaticPotential
+            : automaticPotential,
+          favorite: Boolean(existing.favorite),
+          manualPriority: validManualPriority(existing.manualPriority) || 'normal',
+          manualPotential: validPotential(existing.manualPotential) || null,
+          notRelevant: Boolean(existing.notRelevant),
+          radarState: existing.radarState || 'active',
+          snoozedUntil: existing.snoozedUntil || null,
+          importedAt: existing.importedAt || createdAt,
+          updatedAt: createdAt,
+        };
+        peopleWrites.push({ path: ['personalPeople', String(existing.id)], data: merged });
+        const index = workingPeople.findIndex(item => item.id === existing.id);
+        if (index >= 0) workingPeople[index] = merged;
+        mergedPeopleCount += 1;
+        continue;
+      }
+
+      const documentId = newPersonDocumentId(sourceId, person);
+      if (ambiguous.length) identityReviewCount += 1;
+      const record = {
+        ...person,
+        id: documentId,
+        sourceId,
+        sourceIds: [sourceId],
+        ownerUid: context.actorUid,
+        importedAt: createdAt,
+        radarState: 'active',
+        snoozedUntil: null,
+        priority,
+        automaticPotential,
+        manualPotential: null,
+        manualPriority: 'normal',
+        favorite: false,
+        notRelevant: false,
+        identityAliases: [person.displayName],
+        identityConfirmedAliases: [],
+        identityBlockedAliases: [],
+        identityConfidence: ambiguous.length ? ambiguous[0].confidence : 0,
+        identityResolution: ambiguous.length ? 'needs_review' : 'new_person',
+        identityReview: ambiguous,
+      };
+      peopleWrites.push({ path: ['personalPeople', documentId], data: record });
+      workingPeople.push(record);
+    }
 
     const writes: VaultWrite[] = [
       {
@@ -145,6 +277,8 @@ export class PersonalRadarService {
           messageCount: parsed.messages.length,
           participantCount: parsed.participants.length,
           radarCount: people.length,
+          mergedPeopleCount,
+          identityReviewCount,
           sourceHash: sourceId.replace(/^wa_/, ''),
           organizationHint: request.organizationId,
           privacyScope: 'owner_only',
@@ -161,6 +295,8 @@ export class PersonalRadarService {
           messageCount: parsed.messages.length,
           participantCount: parsed.participants.length,
           radarCount: people.length,
+          mergedPeopleCount,
+          identityReviewCount,
         },
       },
       {
@@ -180,25 +316,9 @@ export class PersonalRadarService {
       },
       ...chunks.map((messages, index) => ({
         path: ['personalConversations', sourceId, 'messageChunks', String(index).padStart(4, '0')],
-        data: {
-          sourceId,
-          chunkIndex: index,
-          messages,
-        },
+        data: { sourceId, chunkIndex: index, messages },
       })),
-      ...people.map(person => ({
-        path: ['personalPeople', `${sourceId}_${person.id}`],
-        data: {
-          ...person,
-          id: `${sourceId}_${person.id}`,
-          sourceId,
-          ownerUid: context.actorUid,
-          importedAt: createdAt,
-          radarState: 'active',
-          snoozedUntil: null,
-          priority: personPriority(person),
-        },
-      })),
+      ...peopleWrites,
     ];
 
     await this.vault.writeMany(request.authToken, context.actorUid, writes);
@@ -208,6 +328,8 @@ export class PersonalRadarService {
       messageCount: parsed.messages.length,
       participantCount: parsed.participants.length,
       radarCount: people.length,
+      mergedPeopleCount,
+      identityReviewCount,
     });
 
     return {
@@ -216,21 +338,30 @@ export class PersonalRadarService {
       messageCount: parsed.messages.length,
       participantCount: parsed.participants.length,
       radarCount: people.length,
+      mergedPeopleCount,
+      identityReviewCount,
     };
   }
 
   async getRadar(request: RadarRequestContext) {
     const context = await this.resolvePilotContext(request);
-    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_000);
+    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
     const nowMs = this.now();
-    const active = people
-      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs))
+    const visible = people
+      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs) && !person.notRelevant)
+      .map(person => ({ ...person, effectivePotential: safeEffectivePotential(person) }))
       .sort((a, b) => {
+        const favorite = Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
+        if (favorite !== 0) return favorite;
+        const manual = manualPriorityRank(a.manualPriority) - manualPriorityRank(b.manualPriority);
+        if (manual !== 0) return manual;
+        const potential = potentialRank(a.effectivePotential) - potentialRank(b.effectivePotential);
+        if (potential !== 0) return potential;
         const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
         if (rank !== 0) return rank;
         return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
       });
-    return { people: active, count: active.length };
+    return { people: visible, count: visible.length };
   }
 
   async search(request: RadarRequestContext, rawQuery: string) {
@@ -267,7 +398,6 @@ export class PersonalRadarService {
         if (matches.length >= 100) break;
       }
     }
-
     return { query: rawQuery.trim(), matches };
   }
 
@@ -278,13 +408,17 @@ export class PersonalRadarService {
       phone?: string | null;
       radarState?: 'active' | 'ignored' | 'snoozed';
       snoozeDays?: number;
+      favorite?: boolean;
+      manualPriority?: ManualPriority;
+      manualPotential?: PotentialLevel | null;
+      notRelevant?: boolean;
     },
   ) {
     const context = await this.resolvePilotContext(request);
     const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
     if (!person) throw new Error('PERSON_NOT_FOUND');
-    const digits = typeof input.phone === 'string' ? input.phone.replace(/\D/g, '') : '';
-    if (digits && (digits.length < 10 || digits.length > 15)) throw new Error('PHONE_INVALID');
+    const digits = input.phone === undefined ? undefined : normalizePhone(input.phone);
+    if (typeof input.phone === 'string' && input.phone.trim() && !digits) throw new Error('PHONE_INVALID');
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
       : String(person.radarState || 'active');
@@ -297,18 +431,144 @@ export class PersonalRadarService {
       snoozedUntil = null;
     }
 
-    await this.vault.writeMany(request.authToken, context.actorUid, [{
-      path: ['personalPeople', personDocumentId],
-      data: {
-        ...person,
-        id: personDocumentId,
-        phone: digits || person.phone || null,
-        radarState,
-        snoozedUntil,
-        updatedAt: isoNow(this.now),
+    const manualPriority = input.manualPriority === undefined
+      ? validManualPriority(person.manualPriority) || 'normal'
+      : validManualPriority(input.manualPriority);
+    if (!manualPriority) throw new Error('MANUAL_PRIORITY_INVALID');
+    const requestedPotential = input.manualPotential === null ? null : validPotential(input.manualPotential);
+    if (input.manualPotential !== undefined && input.manualPotential !== null && !requestedPotential) {
+      throw new Error('MANUAL_POTENTIAL_INVALID');
+    }
+
+    const updated = {
+      ...person,
+      id: personDocumentId,
+      phone: digits === undefined ? person.phone || null : digits,
+      radarState,
+      snoozedUntil,
+      favorite: input.favorite === undefined ? Boolean(person.favorite) : input.favorite,
+      manualPriority,
+      manualPotential: input.manualPotential === undefined ? person.manualPotential || null : requestedPotential,
+      notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
+      updatedAt: isoNow(this.now),
+    };
+    await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);
+    return {
+      success: true,
+      person: { ...updated, effectivePotential: safeEffectivePotential(updated) },
+    };
+  }
+
+  async resolveIdentity(
+    request: RadarRequestContext,
+    personDocumentId: string,
+    candidatePersonId: string,
+    action: 'merge' | 'keep_separate',
+  ) {
+    const context = await this.resolvePilotContext(request);
+    if (personDocumentId === candidatePersonId) throw new Error('IDENTITY_SAME_PERSON');
+    const [source, target] = await Promise.all([
+      this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]),
+      this.vault.get(request.authToken, context.actorUid, ['personalPeople', candidatePersonId]),
+    ]);
+    if (!source || !target) throw new Error('PERSON_NOT_FOUND');
+    const now = isoNow(this.now);
+
+    if (action === 'keep_separate') {
+      const sourceName = normalizeIdentityName(source.normalizedName || source.displayName);
+      const targetName = normalizeIdentityName(target.normalizedName || target.displayName);
+      await this.vault.writeMany(request.authToken, context.actorUid, [
+        {
+          path: ['personalPeople', personDocumentId],
+          data: {
+            ...source,
+            identityBlockedAliases: uniqueStrings(source.identityBlockedAliases, targetName),
+            identityResolution: 'confirmed_separate',
+            identityReview: [],
+            updatedAt: now,
+          },
+        },
+        {
+          path: ['personalPeople', candidatePersonId],
+          data: {
+            ...target,
+            identityBlockedAliases: uniqueStrings(target.identityBlockedAliases, sourceName),
+            updatedAt: now,
+          },
+        },
+      ]);
+      return { success: true, action, personId: personDocumentId };
+    }
+
+    const mergeId = `merge_${crypto.randomUUID()}`;
+    const merged = {
+      ...target,
+      id: candidatePersonId,
+      phone: normalizePhone(target.phone) || normalizePhone(source.phone),
+      messageCount: Number(target.messageCount || 0) + Number(source.messageCount || 0),
+      firstDateKey: earliestDate(target.firstDateKey, source.firstDateKey),
+      lastDateKey: latestDate(target.lastDateKey, source.lastDateKey),
+      signals: mergeSignals(target.signals, Array.isArray(source.signals) ? source.signals as RadarSignal[] : []),
+      sourceIds: uniqueStrings(target.sourceIds, target.sourceId, source.sourceIds, source.sourceId),
+      identityAliases: uniqueStrings(target.identityAliases, target.displayName, source.identityAliases, source.displayName),
+      identityConfirmedAliases: uniqueStrings(
+        target.identityConfirmedAliases,
+        normalizeIdentityName(target.normalizedName || target.displayName),
+        normalizeIdentityName(source.normalizedName || source.displayName),
+      ),
+      identityConfidence: 100,
+      identityResolution: 'user_confirmed_merge',
+      identityReview: [],
+      favorite: Boolean(target.favorite) || Boolean(source.favorite),
+      manualPriority: manualPriorityRank(source.manualPriority) < manualPriorityRank(target.manualPriority)
+        ? source.manualPriority
+        : target.manualPriority,
+      manualPotential: potentialRank(safeEffectivePotential(source)) < potentialRank(safeEffectivePotential(target))
+        ? source.manualPotential || safeEffectivePotential(source)
+        : target.manualPotential || safeEffectivePotential(target),
+      notRelevant: Boolean(target.notRelevant) && Boolean(source.notRelevant),
+      priority: Math.min(Number(target.priority ?? 99), Number(source.priority ?? 99)),
+      automaticPotential: potentialRank(target.automaticPotential) <= potentialRank(source.automaticPotential)
+        ? target.automaticPotential
+        : source.automaticPotential,
+      updatedAt: now,
+    };
+
+    await this.vault.writeMany(request.authToken, context.actorUid, [
+      { path: ['personalPeople', candidatePersonId], data: merged },
+      {
+        path: ['identityMergeHistory', mergeId],
+        data: {
+          id: mergeId,
+          sourcePersonId: personDocumentId,
+          targetPersonId: candidatePersonId,
+          sourceBefore: source,
+          targetBefore: target,
+          status: 'merged',
+          createdAt: now,
+          ownerUid: context.actorUid,
+        },
       },
-    }]);
-    return { success: true, radarState, snoozedUntil };
+    ]);
+    await this.vault.deleteMany(request.authToken, context.actorUid, [['personalPeople', personDocumentId]]);
+    return { success: true, action, personId: candidatePersonId, mergeId };
+  }
+
+  async undoIdentityMerge(request: RadarRequestContext, mergeId: string) {
+    const context = await this.resolvePilotContext(request);
+    const history = await this.vault.get(request.authToken, context.actorUid, ['identityMergeHistory', mergeId]);
+    if (!history || history.status !== 'merged') throw new Error('IDENTITY_MERGE_NOT_FOUND');
+    const sourceBefore = history.sourceBefore as Record<string, unknown> | undefined;
+    const targetBefore = history.targetBefore as Record<string, unknown> | undefined;
+    const sourcePersonId = String(history.sourcePersonId || '');
+    const targetPersonId = String(history.targetPersonId || '');
+    if (!sourceBefore || !targetBefore || !sourcePersonId || !targetPersonId) throw new Error('IDENTITY_MERGE_INVALID');
+    await this.vault.writeMany(request.authToken, context.actorUid, [
+      { path: ['personalPeople', sourcePersonId], data: { ...sourceBefore, id: sourcePersonId } },
+      { path: ['personalPeople', targetPersonId], data: { ...targetBefore, id: targetPersonId } },
+      { path: ['identityMergeHistory', mergeId], data: { ...history, status: 'undone', undoneAt: isoNow(this.now) } },
+    ]);
+    return { success: true, mergeId, sourcePersonId, targetPersonId };
   }
 
   async promoteOpportunity(request: RadarRequestContext, personDocumentId: string) {
@@ -393,9 +653,30 @@ export class PersonalRadarService {
     );
     const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
     const opportunityDocs = await this.vault.list(request.authToken, context.actorUid, ['relationshipOpportunities'], 1_500);
+    const peopleToDelete = people.filter(person => {
+      const sourceIds = Array.isArray(person.sourceIds) ? person.sourceIds : [person.sourceId];
+      return sourceIds.length === 1 && sourceIds.includes(sourceId);
+    });
+    const peopleToUpdate = people.filter(person => {
+      const sourceIds = Array.isArray(person.sourceIds) ? person.sourceIds : [person.sourceId];
+      return sourceIds.length > 1 && sourceIds.includes(sourceId);
+    });
+    if (peopleToUpdate.length) {
+      await this.vault.writeMany(request.authToken, context.actorUid, peopleToUpdate.map(person => ({
+        path: ['personalPeople', person.id],
+        data: {
+          ...person,
+          sourceIds: (person.sourceIds as unknown[]).filter(item => item !== sourceId),
+          sourceId: person.sourceId === sourceId
+            ? String((person.sourceIds as unknown[]).find(item => item !== sourceId) || '')
+            : person.sourceId,
+          updatedAt: isoNow(this.now),
+        },
+      })));
+    }
     const paths: string[][] = [
       ...chunks.map(chunk => ['personalConversations', sourceId, 'messageChunks', chunk.id]),
-      ...people.filter(person => person.sourceId === sourceId).map(person => ['personalPeople', person.id]),
+      ...peopleToDelete.map(person => ['personalPeople', person.id]),
       ...opportunityDocs.filter(item => item.sourceId === sourceId).map(item => ['relationshipOpportunities', item.id]),
       ['personalConversations', sourceId],
       ['importRuns', sourceId],
