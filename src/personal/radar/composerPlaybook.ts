@@ -119,16 +119,97 @@ function defaultStyle(signal: RadarSignal): ComposerStyle {
 }
 
 function greeting(name: string, style: ComposerStyle): string {
-  if (style === 'pastoral') return name ? `Olá, ${name}! Tudo bem?` : 'Olá! Tudo bem?';
-  if (style === 'descontraido') return name ? `Ô, ${name}!` : 'Oi!';
-  return name ? `Oi, ${name}! Tudo bem?` : 'Oi! Tudo bem?';
+  const suffix = name ? `, ${name}` : '';
+  if (style === 'profissional') return name ? `Olá, ${name}. Espero que esteja bem.` : 'Olá. Espero que esteja bem.';
+  if (style === 'descontraido') return name ? `Fala, ${name}! Tudo certo?` : 'Fala! Tudo certo?';
+  if (style === 'objetivo') return name ? `${name},` : 'Olá,';
+  if (style === 'proximo') return name ? `Oi, ${name}! Tudo certo por aí?` : 'Oi! Tudo certo por aí?';
+  if (style === 'pastoral') return name ? `Olá, ${name}! Espero que esteja tudo bem com você e com a igreja.` : 'Olá! Espero que esteja tudo bem por aí na igreja.';
+  if (style === 'consultivo') return name ? `Oi, ${name}! Quero entender um pouco melhor a realidade de vocês.` : 'Oi! Quero entender um pouco melhor a realidade de vocês.';
+  return `Oi${suffix}! Tudo bem?`;
 }
 
 function soften(style: ComposerStyle, text: string): string {
-  if (style === 'objetivo') return text.replace(/Tudo bem\?\s*/g, '').replace(/Queria te fazer uma pergunta rapidinha:/g, 'Uma pergunta rápida:');
-  if (style === 'profissional') return text.replace('Ô, ', 'Olá, ').replace('rapidinho', 'brevemente').replace('uma coisa', 'um ponto');
-  if (style === 'pastoral') return text.replace('vocês', 'vocês aí na igreja');
-  return text;
+  let result = text;
+
+  if (style === 'amigavel') {
+    return result
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Me conta uma coisa?')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Me conta uma coisa?')
+      .replace(/acho que faz sentido/g, 'acho que pode te ajudar')
+      .replace(/O que mais dá trabalho/g, 'O que mais pesa na rotina');
+  }
+
+  if (style === 'profissional') {
+    return result
+      .replace(/\bA gente\b/g, 'Nós')
+      .replace(/\ba gente\b/g, 'nós')
+      .replace(/acho que faz sentido/g, 'acredito que vale a pena')
+      .replace(/Posso te mandar/g, 'Posso lhe enviar')
+      .replace(/posso te mandar/g, 'posso lhe enviar')
+      .replace(/te mostrar/g, 'lhe mostrar')
+      .replace(/te explico/g, 'lhe explico')
+      .replace(/rapidinho/g, 'brevemente')
+      .replace(/curtinho/g, 'breve')
+      .replace(/vídeo bem rápido/g, 'vídeo breve')
+      .replace(/equipe daí/g, 'equipe da sua igreja');
+  }
+
+  if (style === 'descontraido') {
+    return result
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Me diz uma coisa:')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Me diz uma coisa:')
+      .replace(/Em vez de te explicar tudo por texto/g, 'Pra não ficar naquele textão')
+      .replace(/Se você quiser/g, 'Se quiser')
+      .replace(/Você conseguiu ver com calma\?/g, 'Deu pra dar uma olhada?');
+  }
+
+  if (style === 'objetivo') {
+    return result
+      .replace(/Espero que esteja bem\.\s*/g, '')
+      .replace(/Tudo bem\?\s*/g, '')
+      .replace(/Tudo certo\?\s*/g, '')
+      .replace(/Tudo certo por aí\?\s*/g, '')
+      .replace(/Queria te fazer uma pergunta rapidinha:/g, 'Pergunta direta:')
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Pergunta direta:')
+      .replace(/Pelo que você comentou sobre/g, 'Sobre')
+      .replace(/Pensando no que você falou sobre/g, 'Sobre')
+      .replace(/acho que faz sentido te mostrar uma coisa\./g, 'vale te mostrar isso.')
+      .replace(/Em vez de te explicar tudo por texto,/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  if (style === 'proximo') {
+    return result
+      .replace(/Pelo que você comentou sobre/g, 'Lembrei do que você comentou sobre')
+      .replace(/Pensando no que você falou sobre/g, 'Lembrei do que você falou sobre')
+      .replace(/Passando só para retomar/g, 'Lembrei de você e quis retomar')
+      .replace(/Se fizer sentido/g, 'Se isso fizer sentido pra você')
+      .replace(/Quer que eu te mostre/g, 'Quer que eu te mostre do jeito mais simples');
+  }
+
+  if (style === 'pastoral') {
+    return result
+      .replace(/acho que faz sentido/g, 'creio que pode fazer sentido')
+      .replace(/Pensando na rotina de vocês/g, 'Pensando com cuidado na rotina da igreja de vocês')
+      .replace(/Se você pudesse resolver só uma parte/g, 'Pensando na realidade da igreja, se vocês pudessem resolver uma parte')
+      .replace(/Quer que eu te mostre/g, 'Se fizer sentido para vocês, posso mostrar')
+      .replace(/O teste ajudou de verdade/g, 'O teste serviu bem à rotina de vocês');
+  }
+
+  if (style === 'consultivo') {
+    return result
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Para eu entender melhor:')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Para eu entender melhor:')
+      .replace(/O que mais dá trabalho/g, 'Qual é hoje o maior gargalo')
+      .replace(/Se você pudesse resolver só uma parte/g, 'Se tivesse que priorizar um único ponto')
+      .replace(/acho que faz sentido te mostrar uma coisa\./g, 'pelo cenário que você trouxe, vale avaliar uma alternativa.')
+      .replace(/Quer que eu te mostre especificamente essa parte\?/g, 'Faz sentido eu te mostrar somente essa parte para avaliarmos se resolve o problema?')
+      .replace(/Ficou alguma dúvida ou alguma parte que você queria ver melhor\?/g, 'Qual ponto ainda precisa ficar mais claro para você avaliar se isso resolve a necessidade?');
+  }
+
+  return result;
 }
 
 function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {

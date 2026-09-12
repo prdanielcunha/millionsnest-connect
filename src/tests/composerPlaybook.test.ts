@@ -27,4 +27,13 @@ const demo=buildComposerPlan({person:{displayName:'João'},signal,objective:'env
 assert(demo.stage===5 && demo.options.every(o=>/MusicScale|escala|louvor/i.test(o.text)),'demo stage creates short video scripts');
 const diagnosis=buildComposerPlan({person:{displayName:'João'},signal,objective:'diagnosticar'});
 assert(diagnosis.stage===6 && diagnosis.options.every(o=>o.text.includes('?')),'diagnosis stage asks instead of pitching');
+const styles = ['amigavel','profissional','descontraido','objetivo','proximo','pastoral','consultivo'] as const;
+const styleMessages = styles.map(style => buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style}).options[0].text);
+assert(new Set(styleMessages).size===styles.length,'all seven Composer styles produce visibly distinct copy');
+const friendlyCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'amigavel'}).options[0].text;
+const professionalCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'profissional'}).options[0].text;
+const consultativeCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'consultivo'}).options[0].text;
+assert(friendlyCopy!==professionalCopy && professionalCopy!==consultativeCopy && friendlyCopy!==consultativeCopy,'friendly, professional and consultative copy are not aliases');
+assert(/Espero que esteja bem|lhe |Nós /.test(professionalCopy),'professional style uses professional wording');
+assert(/entender|gargalo|avaliar/i.test(consultativeCopy),'consultative style uses diagnostic wording');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);
