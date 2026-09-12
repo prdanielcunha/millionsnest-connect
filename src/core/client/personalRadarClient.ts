@@ -1,31 +1,37 @@
 import { LiveConnectSession } from './liveConnectSession';
 
-export type SavedMessageModel = {
-  id: string;
-  label: string;
-  text: string;
-  objective: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
-  tone: 'curto' | 'conversa' | 'audio' | 'video';
-  createdAt: string;
-  updatedAt?: string;
+export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
+export type RadarManualPriority = 'normal' | 'important' | 'priority';
+
+export type RadarIdentityReviewCandidate = {
+  personId: string;
+  displayName: string;
+  confidence: number;
+  reasons: string[];
 };
 
 export type RadarClientPerson = {
   id: string;
   sourceId: string;
+  sourceIds?: string[];
   displayName: string;
+  normalizedName?: string;
   phone?: string | null;
   lastDateKey?: string | null;
   messageCount?: number;
   radarState?: string;
   snoozedUntil?: string | null;
   priority?: number;
-  salesStage?: string | null;
-  lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
-  lastCommercialAt?: string | null;
-  followUpAt?: string | null;
-  sourceKinds?: string[];
-  radarEligible?: boolean;
+  automaticPotential?: RadarPotentialLevel;
+  manualPotential?: RadarPotentialLevel | null;
+  effectivePotential?: RadarPotentialLevel;
+  manualPriority?: RadarManualPriority;
+  favorite?: boolean;
+  notRelevant?: boolean;
+  identityResolution?: string;
+  identityConfidence?: number;
+  identityReview?: RadarIdentityReviewCandidate[];
+  identityAliases?: string[];
   signals: Array<{
     id: string;
     type: string;
@@ -126,18 +132,41 @@ export class PersonalRadarClient {
   async updatePerson(
     personId: string,
     update: {
-      phone?: string;
+      phone?: string | null;
       radarState?: 'active' | 'ignored' | 'snoozed';
       snoozeDays?: number;
-      salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
-      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
-      followUpDays?: number;
+      favorite?: boolean;
+      manualPriority?: RadarManualPriority;
+      manualPotential?: RadarPotentialLevel | null;
+      notRelevant?: boolean;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
       method: 'PATCH',
       headers: this.headers(true),
       body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...update }),
+    });
+    return parseResponse(response);
+  }
+
+  async resolveIdentity(personId: string, candidatePersonId: string, action: 'merge' | 'keep_separate') {
+    const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}/identity`, {
+      method: 'POST',
+      headers: this.headers(true),
+      body: JSON.stringify({
+        organizationId: this.session.expectedOrganizationId,
+        candidatePersonId,
+        action,
+      }),
+    });
+    return parseResponse(response);
+  }
+
+  async undoIdentityMerge(mergeId: string) {
+    const response = await fetch(`/api/personal/identity-merges/${encodeURIComponent(mergeId)}/undo`, {
+      method: 'POST',
+      headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId }),
     });
     return parseResponse(response);
   }
