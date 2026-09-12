@@ -469,6 +469,8 @@ export class PersonalSourcesService {
         fileName,
         contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
         selfNames,
+        sourceScope: groupId,
+        relatedSourceIds: uniqueStrings(group.rawSourceIds),
       });
       rawSourceId = String(baseResult.sourceId || '');
       radarCount = Number(baseResult.radarCount || 0);

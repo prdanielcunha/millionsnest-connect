@@ -43,9 +43,11 @@ function isoNow(now: () => number): string {
 function normalizedName(value: unknown): string { return String(value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' '); }
 function normalizedPhone(value: unknown): string { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 10 && digits.length <= 15 ? digits : ''; }
 
-function sourceIdFromText(text: string): string {
+function sourceIdFromText(text: string, scope?: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim();
-  return `wa_${crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24)}`;
+  const safeScope = typeof scope === 'string' ? scope.trim().slice(0, 200) : '';
+  const material = safeScope ? `${normalized}\n::scope:${safeScope}` : normalized;
+  return `wa_${crypto.createHash('sha256').update(material).digest('hex').slice(0, 24)}`;
 }
 
 function safeBase64(value: unknown): Buffer {
@@ -198,14 +200,14 @@ export class PersonalRadarService {
 
   async importWhatsApp(
     request: RadarRequestContext,
-    input: { fileName: string; contentBase64: string; selfNames?: string[] },
+    input: { fileName: string; contentBase64: string; selfNames?: string[]; sourceScope?: string; relatedSourceIds?: string[] },
   ) {
     const context = await this.resolvePilotContext(request);
     const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 240) : '';
     if (!fileName) throw new Error('IMPORT_FILENAME_REQUIRED');
     const bytes = safeBase64(input.contentBase64);
     const text = extractWhatsAppText(fileName, bytes);
-    const sourceId = sourceIdFromText(text);
+    const sourceId = sourceIdFromText(text, input.sourceScope);
     const existingSource = await this.vault.get(request.authToken, context.actorUid, ['personalSources', sourceId]);
     if (existingSource) {
       return {
@@ -233,10 +235,21 @@ export class PersonalRadarService {
     const peopleWrites: VaultWrite[] = [];
     let mergedPeopleCount = 0;
     let identityReviewCount = 0;
+    const relatedSourceIds = new Set(uniqueStrings(input.relatedSourceIds).slice(0, 240));
 
     for (const person of people) {
       const rankedMatches = workingPeople
-        .map(existing => ({ existing, match: compareIdentity(person, existing) }))
+        .map(existing => {
+        let match = compareIdentity(person, existing);
+        const existingSources = uniqueStrings(existing.sourceIds, existing.sourceId);
+        const sameConversationSender = relatedSourceIds.size > 0
+          && existingSources.some(source => relatedSourceIds.has(source))
+          && normalizeIdentityName(existing.displayName) === normalizeIdentityName(person.displayName);
+        if (sameConversationSender && match.kind !== 'conflict') {
+          match = { kind: 'strong' as const, confidence: 98, reasons: ['same_conversation_sender'] };
+        }
+        return { existing, match };
+      })
         .filter(item => item.match.kind !== 'none')
         .sort((a, b) => b.match.confidence - a.match.confidence);
 
