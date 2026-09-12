@@ -77,17 +77,17 @@ jobs:
 
           sources = Path('src/personal/sources/personalSourcesService.ts')
           s = sources.read_text()
-          old = """        contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
-                selfNames,
-          """
-          new = """        contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
-                selfNames,
-                sourceScope: groupId,
-                relatedSourceIds: uniqueStrings(group.rawSourceIds),
-          """
-          if old not in s:
-              raise SystemExit('Personal Sources delta import marker not found')
-          sources.write_text(s.replace(old, new, 1))
+          anchor = "      const baseResult = await this.radar.importWhatsApp(request, {"
+          start = s.find(anchor)
+          if start < 0:
+              raise SystemExit('Personal Sources base import anchor not found')
+          tail = s[start:]
+          needle = "        selfNames,\n      });"
+          replacement = "        selfNames,\n        sourceScope: groupId,\n        relatedSourceIds: uniqueStrings(group.rawSourceIds),\n      });"
+          if needle not in tail:
+              raise SystemExit('Personal Sources selfNames marker not found after base import anchor')
+          tail = tail.replace(needle, replacement, 1)
+          sources.write_text(s[:start] + tail)
           PY
       - name: Commit identity continuity fix
         shell: bash
