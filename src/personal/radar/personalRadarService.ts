@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { CanonicalContextProvider, CanonicalCoreContext } from '../../core/runtime/connectCore';
 import { FirestorePersonalVault, VaultWrite } from '../storage/firestorePersonalVault';
 import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from '../whatsapp/whatsappExport';
+import { deriveConversationMetadata } from '../whatsapp/conversationIdentity';
+import { inferProbableIdentity, IdentityInferenceEvidence } from './identityInference';
 import { deriveRadarPeople, RadarPerson, RadarSignal } from './radarSignals';
 import { buildComposerPlan, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
 import {
@@ -123,6 +125,36 @@ function validManualPriority(value: unknown): ManualPriority | undefined {
     : undefined;
 }
 
+function mergeIdentityEvidence(existingValue: unknown, incomingValue: unknown): IdentityInferenceEvidence[] {
+  const map = new Map<string, IdentityInferenceEvidence>();
+  const collect = (value: unknown) => {
+    if (!Array.isArray(value)) return;
+    for (const item of value as IdentityInferenceEvidence[]) {
+      if (!item || typeof item !== 'object') continue;
+      const key = `${String(item.sourceId || '')}:${Number(item.messageIndex ?? -1)}:${String(item.kind || '')}`;
+      if (!map.has(key)) map.set(key, item);
+    }
+  };
+  collect(existingValue); collect(incomingValue);
+  return Array.from(map.values()).sort((a, b) => b.score - a.score || String(b.dateKey).localeCompare(String(a.dateKey))).slice(0, 12);
+}
+
+function conversationSummary(conversation: Record<string, unknown>) {
+  return {
+    id: String(conversation.id || conversation.sourceId || ''),
+    sourceId: String(conversation.sourceId || conversation.id || ''),
+    conversationKey: String(conversation.conversationKey || conversation.sourceId || conversation.id || ''),
+    label: String(conversation.label || conversation.fileName || conversation.sourceId || 'WhatsApp'),
+    kind: String(conversation.kind || 'unknown'),
+    fileName: String(conversation.fileName || ''),
+    createdAt: String(conversation.createdAt || ''),
+    firstDateKey: typeof conversation.firstDateKey === 'string' ? conversation.firstDateKey : null,
+    lastDateKey: typeof conversation.lastDateKey === 'string' ? conversation.lastDateKey : null,
+    participantCount: Number(conversation.participantCount || (Array.isArray(conversation.participantNames) ? conversation.participantNames.length : 0)),
+    messageCount: Number(conversation.messageCount || 0),
+  };
+}
+
 export class PersonalRadarService {
   constructor(
     private readonly contextProvider: CanonicalContextProvider,
@@ -167,7 +199,11 @@ export class PersonalRadarService {
 
     const parsed = parseWhatsAppExport(text);
     const selfNames = normalizeSelfNames(input.selfNames);
-    const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250);
+    const conversation = deriveConversationMetadata(fileName, parsed.participants, selfNames);
+    const people = deriveRadarPeople({ messages: parsed.messages, selfNames }).slice(0, 250).map(person => {
+      const inference = inferProbableIdentity({ displayName: person.displayName, phone: person.phone, messages: parsed.messages, sourceId });
+      return { ...person, probableName: inference.probableName, normalizedProbableName: inference.normalizedProbableName, probableNameConfidence: inference.confidence, probableNameScore: inference.score, identityEvidence: inference.evidence };
+    });
     const createdAt = isoNow(this.now);
     const chunks = chunkMessages(parsed.messages);
     const existingPeople = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
@@ -210,9 +246,14 @@ export class PersonalRadarService {
           signals: mergeSignals(existing.signals, person.signals),
           sourceId: String(existing.sourceId || sourceId),
           sourceIds: uniqueStrings(existing.sourceIds, existing.sourceId, sourceId),
-          identityAliases: uniqueStrings(existing.identityAliases, existing.displayName, person.displayName),
+          probableName: existing.probableName || person.probableName || null,
+          normalizedProbableName: existing.normalizedProbableName || person.normalizedProbableName || '',
+          probableNameConfidence: existing.probableNameConfidence || person.probableNameConfidence || 'none',
+          probableNameScore: Math.max(Number(existing.probableNameScore || 0), Number(person.probableNameScore || 0)),
+          identityEvidence: mergeIdentityEvidence(existing.identityEvidence, person.identityEvidence),
+          identityAliases: uniqueStrings(existing.identityAliases, existing.displayName, person.displayName, person.probableName),
           identityConfirmedAliases: uniqueStrings(existing.identityConfirmedAliases, person.normalizedName),
-          identityConfidence: strong.match.confidence,
+          identityConfidence: Math.max(strong.match.confidence, Number(person.probableNameScore || 0)),
           identityResolution: 'auto_strong_match',
           identityReview: [],
           priority: Math.min(Number(existing.priority ?? 99), priority),
@@ -252,11 +293,11 @@ export class PersonalRadarService {
         manualPriority: 'normal',
         favorite: false,
         notRelevant: false,
-        identityAliases: [person.displayName],
+        identityAliases: uniqueStrings(person.displayName, person.probableName),
         identityConfirmedAliases: [],
         identityBlockedAliases: [],
-        identityConfidence: ambiguous.length ? ambiguous[0].confidence : 0,
-        identityResolution: ambiguous.length ? 'needs_review' : 'new_person',
+        identityConfidence: Math.max(ambiguous.length ? ambiguous[0].confidence : 0, Number(person.probableNameScore || 0)),
+        identityResolution: ambiguous.length ? 'needs_review' : person.probableName ? 'probable_name' : 'new_person',
         identityReview: ambiguous,
       };
       peopleWrites.push({ path: ['personalPeople', documentId], data: record });
@@ -270,6 +311,9 @@ export class PersonalRadarService {
           id: sourceId,
           type: 'whatsapp_export',
           fileName,
+          label: conversation.label,
+          kind: conversation.kind,
+          conversationKey: conversation.conversationKey,
           ownerUid: context.actorUid,
           createdAt,
           firstDateKey: parsed.firstDateKey,
@@ -306,10 +350,14 @@ export class PersonalRadarService {
           sourceId,
           ownerUid: context.actorUid,
           fileName,
+          label: conversation.label,
+          kind: conversation.kind,
+          conversationKey: conversation.conversationKey,
           createdAt,
           firstDateKey: parsed.firstDateKey,
           lastDateKey: parsed.lastDateKey,
           participantNames: parsed.participants.slice(0, 300),
+          participantCount: parsed.participants.length,
           messageCount: parsed.messages.length,
           selfNames,
         },
@@ -340,16 +388,25 @@ export class PersonalRadarService {
       radarCount: people.length,
       mergedPeopleCount,
       identityReviewCount,
+      conversationLabel: conversation.label,
+      conversationKind: conversation.kind,
+      conversationKey: conversation.conversationKey,
     };
   }
 
   async getRadar(request: RadarRequestContext) {
     const context = await this.resolvePilotContext(request);
     const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
+    const conversationsRaw = await this.vault.list(request.authToken, context.actorUid, ['personalConversations'], 300);
+    const conversations = conversationsRaw.map(conversationSummary).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const sourceMap = new Map(conversations.map(item => [item.sourceId, item]));
     const nowMs = this.now();
     const visible: Array<Record<string, unknown> & { id: string; effectivePotential: PotentialLevel }> = people
       .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs) && !person.notRelevant)
-      .map(person => ({ ...(person as Record<string, unknown> & { id: string }), effectivePotential: safeEffectivePotential(person) }));
+      .map(person => {
+        const sourceIds = uniqueStrings(person.sourceIds, person.sourceId);
+        return { ...(person as Record<string, unknown> & { id: string }), sourceIds, sources: sourceIds.map(sourceId => sourceMap.get(sourceId)).filter(Boolean), effectivePotential: safeEffectivePotential(person) };
+      });
     visible.sort((a, b) => {
       const favorite = Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
       if (favorite !== 0) return favorite;
@@ -361,7 +418,7 @@ export class PersonalRadarService {
       if (rank !== 0) return rank;
       return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
     });
-    return { people: visible, count: visible.length };
+    return { people: visible, count: visible.length, conversations };
   }
 
   async search(request: RadarRequestContext, rawQuery: string) {
@@ -388,6 +445,8 @@ export class PersonalRadarService {
           if (!haystack.includes(query)) continue;
           matches.push({
             sourceId,
+            sourceLabel: String(conversation.label || conversation.fileName || sourceId),
+            sourceKind: String(conversation.kind || 'unknown'),
             sender: String(message?.sender || ''),
             dateKey: String(message?.dateKey || ''),
             timestampLocal: String(message?.timestampLocal || ''),

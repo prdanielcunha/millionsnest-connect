@@ -3,6 +3,9 @@ import { LiveConnectSession } from './liveConnectSession';
 export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type RadarManualPriority = 'normal' | 'important' | 'priority';
 
+export type RadarConversationSummary = { id: string; sourceId: string; conversationKey: string; label: string; kind: string; fileName: string; createdAt: string; firstDateKey?: string | null; lastDateKey?: string | null; participantCount: number; messageCount: number; };
+export type RadarIdentityEvidence = { kind: string; score: number; sourceId: string; messageIndex: number; dateKey: string; sender: string; snippet: string; };
+
 export type RadarIdentityReviewCandidate = {
   personId: string;
   displayName: string;
@@ -16,6 +19,12 @@ export type RadarClientPerson = {
   sourceIds?: string[];
   displayName: string;
   normalizedName?: string;
+  probableName?: string | null;
+  normalizedProbableName?: string;
+  probableNameConfidence?: 'high' | 'medium' | 'low' | 'none';
+  probableNameScore?: number;
+  identityEvidence?: RadarIdentityEvidence[];
+  sources?: RadarConversationSummary[];
   phone?: string | null;
   lastDateKey?: string | null;
   messageCount?: number;
@@ -93,14 +102,14 @@ export class PersonalRadarClient {
     return parseResponse(response);
   }
 
-  async getRadar(): Promise<{ people: RadarClientPerson[]; count: number }> {
+  async getRadar(): Promise<{ people: RadarClientPerson[]; count: number; conversations: RadarConversationSummary[] }> {
     const response = await fetch('/api/personal/radar', {
       method: 'GET',
       headers: this.headers(),
       cache: 'no-store',
     });
     const body = await parseResponse(response);
-    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0) };
+    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0), conversations: Array.isArray(body.conversations) ? body.conversations : [] };
   }
 
   async search(query: string) {
