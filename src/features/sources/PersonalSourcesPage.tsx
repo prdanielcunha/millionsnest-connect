@@ -3,7 +3,6 @@ import {
   ArchiveRestore,
   ArrowRight,
   Check,
-  Clock3,
   Copy,
   Database,
   FileArchive,

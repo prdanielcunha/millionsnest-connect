@@ -599,7 +599,7 @@ export class PersonalSourcesService {
       summaries.set(raw, this.virtualSummary(conversation, peopleByRaw.get(raw)?.size || 0));
     }
 
-    const people = (base.people as Array<Record<string, unknown> & { id: string }>).map(person => {
+    const people: Array<Record<string, unknown> & { id: string }> = (base.people as Array<Record<string, unknown> & { id: string }>).map(person => {
       const rawSourceIds = uniqueStrings(person.sourceIds, person.sourceId);
       const groupedSourceIds = uniqueStrings(rawSourceIds.map(raw => rawToGroup.get(raw) || raw));
       return {
