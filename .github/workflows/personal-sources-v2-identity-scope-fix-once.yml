@@ -1,0 +1,115 @@
+name: Personal Sources V2 Identity Scope Fix Once
+
+on:
+  push:
+    branches:
+      - feature/personal-sources-v2-relationship-memory
+    paths:
+      - .github/workflows/personal-sources-v2-identity-scope-fix-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/personal-sources-v2-relationship-memory
+      - name: Preserve sender identity across incremental slices
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          radar = Path('src/personal/radar/personalRadarService.ts')
+          text = radar.read_text()
+
+          old = """function sourceIdFromText(text: string): string {
+            const normalized = text.replace(/\\r\\n?/g, '\\n').trim();
+            return `wa_${crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24)}`;
+          }"""
+          new = """function sourceIdFromText(text: string, scope?: string): string {
+            const normalized = text.replace(/\\r\\n?/g, '\\n').trim();
+            const safeScope = typeof scope === 'string' ? scope.trim().slice(0, 200) : '';
+            const material = safeScope ? `${normalized}\\n::scope:${safeScope}` : normalized;
+            return `wa_${crypto.createHash('sha256').update(material).digest('hex').slice(0, 24)}`;
+          }"""
+          if old not in text:
+              raise SystemExit('sourceIdFromText block not found')
+          text = text.replace(old, new, 1)
+
+          old = "    input: { fileName: string; contentBase64: string; selfNames?: string[] },"
+          new = "    input: { fileName: string; contentBase64: string; selfNames?: string[]; sourceScope?: string; relatedSourceIds?: string[] },"
+          if old not in text:
+              raise SystemExit('import input signature not found')
+          text = text.replace(old, new, 1)
+
+          old = "    const sourceId = sourceIdFromText(text);"
+          new = "    const sourceId = sourceIdFromText(text, input.sourceScope);"
+          if old not in text:
+              raise SystemExit('sourceId assignment not found')
+          text = text.replace(old, new, 1)
+
+          old = """    const peopleWrites: VaultWrite[] = [];
+            let mergedPeopleCount = 0;
+            let identityReviewCount = 0;
+
+            for (const person of people) {
+              const rankedMatches = workingPeople
+                .map(existing => ({ existing, match: compareIdentity(person, existing) }))
+                .filter(item => item.match.kind !== 'none')
+                .sort((a, b) => b.match.confidence - a.match.confidence);"""
+          new = """    const peopleWrites: VaultWrite[] = [];
+            let mergedPeopleCount = 0;
+            let identityReviewCount = 0;
+            const relatedSourceIds = new Set(uniqueStrings(input.relatedSourceIds).slice(0, 240));
+
+            for (const person of people) {
+              const rankedMatches = workingPeople
+                .map(existing => {
+                  let match = compareIdentity(person, existing);
+                  const existingSources = uniqueStrings(existing.sourceIds, existing.sourceId);
+                  const sameConversationSender = relatedSourceIds.size > 0
+                    && existingSources.some(source => relatedSourceIds.has(source))
+                    && normalizeIdentityName(existing.displayName) === normalizeIdentityName(person.displayName);
+                  if (sameConversationSender && match.kind !== 'conflict') {
+                    match = { kind: 'strong', confidence: 98, reasons: ['same_conversation_sender'] };
+                  }
+                  return { existing, match };
+                })
+                .filter(item => item.match.kind !== 'none')
+                .sort((a, b) => b.match.confidence - a.match.confidence);"""
+          if old not in text:
+              raise SystemExit('rankedMatches block not found')
+          text = text.replace(old, new, 1)
+          radar.write_text(text)
+
+          sources = Path('src/personal/sources/personalSourcesService.ts')
+          s = sources.read_text()
+          old = """      const baseResult = await this.radar.importWhatsApp(request, {
+                fileName,
+                contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
+                selfNames,
+              });"""
+          new = """      const baseResult = await this.radar.importWhatsApp(request, {
+                fileName,
+                contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
+                selfNames,
+                sourceScope: groupId,
+                relatedSourceIds: uniqueStrings(group.rawSourceIds),
+              });"""
+          if old not in s:
+              raise SystemExit('Personal Sources base import call not found')
+          sources.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit identity continuity fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/personal/radar/personalRadarService.ts src/personal/sources/personalSourcesService.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: preserve sender identity across incremental imports"
+          git push origin HEAD:feature/personal-sources-v2-relationship-memory
