@@ -1,0 +1,56 @@
+name: Sync Personal Sources V2 Main Once
+
+on:
+  push:
+    branches:
+      - sync/personal-sources-v2-main-01
+    paths:
+      - .github/workflows/sync-personal-sources-v2-main-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: sync/personal-sources-v2-main-01
+          fetch-depth: 0
+      - name: Apply only the certified V2 feature delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=628bb92ac5bf3d5c15f08272e9d18f734ce14e66
+          FEATURE=9a82a05837990d2ed45e493645299315004e3ea9
+          git fetch origin "$BASE" "$FEATURE"
+          git diff --binary "$BASE" "$FEATURE" -- \
+            docs/PERSONAL_SOURCES_V2.md \
+            package.json \
+            src/App.tsx \
+            src/components/layout/Shell.tsx \
+            src/core/client/liveSurfacePolicy.ts \
+            src/core/client/personalRadarClient.ts \
+            src/features/contacts/Person360Panel.tsx \
+            src/features/sources/PersonalSourcesPage.tsx \
+            src/personal/radar/personalRadarService.ts \
+            src/personal/sources/personalSourcesHttp.ts \
+            src/personal/sources/personalSourcesService.ts \
+            src/server/createConnectServer.ts \
+            src/tests/contactPhoneIdentity.test.ts \
+            src/tests/liveSurfacePolicy.test.ts \
+            src/tests/personalSourcesV2Service.test.ts \
+            > /tmp/personal-sources-v2.patch
+          test -s /tmp/personal-sources-v2.patch
+          git apply --3way --index /tmp/personal-sources-v2.patch
+          git diff --cached --check
+      - name: Commit synchronized feature delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: sync Personal Sources V2 relationship memory to main"
+          git push origin HEAD:sync/personal-sources-v2-main-01
