@@ -1,0 +1,55 @@
+name: Fix Main V2 GetPeople Once
+
+on:
+  push:
+    branches:
+      - sync/personal-sources-v2-main-01
+    paths:
+      - .github/workflows/fix-main-v2-getpeople-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: sync/personal-sources-v2-main-01
+      - name: Use grouped Radar people on main
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/personal/sources/personalSourcesService.ts')
+          s = p.read_text()
+          old = (
+              "    const context = await this.resolveContext(request);\n"
+              "    const peopleResult = await this.radar.getPeople(request);\n"
+              "    const person = (peopleResult.people as Array<Record<string, unknown> & { id: string }>).find(item => String(item.id) === personId);\n"
+              "    if (!person) throw new Error('PERSON_NOT_FOUND');\n"
+              "    const grouped = await this.buildGroupedRadar(request);\n"
+              "    const groupedPerson = grouped.people.find(item => String(item.id) === personId) || person;"
+          )
+          new = (
+              "    const context = await this.resolveContext(request);\n"
+              "    const grouped = await this.buildGroupedRadar(request);\n"
+              "    const person = grouped.people.find(item => String(item.id) === personId);\n"
+              "    if (!person) throw new Error('PERSON_NOT_FOUND');\n"
+              "    const groupedPerson = person;"
+          )
+          if old not in s:
+              raise SystemExit('getPeople compatibility anchor missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+      - name: Commit compatibility fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/personal/sources/personalSourcesService.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: adapt Personal Sources person context to main Radar"
+          git push origin HEAD:sync/personal-sources-v2-main-01
