@@ -68,6 +68,7 @@ function humanSummary(error: unknown): string {
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
   if (code === 'FOLLOW_UP_DAYS_INVALID') return 'Escolha um acompanhamento entre 1 e 90 dias.';
   if (code === 'SALES_STAGE_INVALID' || code === 'COMMERCIAL_ACTION_INVALID') return 'O estado comercial informado é inválido.';
+  if (code.startsWith('MESSAGE_MODEL_')) return 'Não foi possível salvar este modelo de mensagem.';
   return 'Não foi possível concluir esta operação do Radar.';
 }
 
@@ -174,6 +175,34 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
       return res.status(200).json(result);
     }),
   );
+
+
+  router.get('/message-models', execute(async (req, res) => {
+    const result = await service.listMessageModels({ authToken: authToken(req), organizationId: organizationId(req) });
+    return res.status(200).json({ success: true, ...result });
+  }));
+
+  router.post('/message-models', express.json({ limit: '32kb' }), execute(async (req, res) => {
+    const body = req.body as Record<string, unknown>;
+    const result = await service.saveMessageModel(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      {
+        label: body.label,
+        text: body.text,
+        objective: typeof body.objective === 'string' ? body.objective as ComposerObjective : undefined,
+        tone: typeof body.tone === 'string' ? body.tone as RadarComposerTone : undefined,
+      },
+    );
+    return res.status(201).json(result);
+  }));
+
+  router.delete('/message-models/:modelId', execute(async (req, res) => {
+    const result = await service.deleteMessageModel(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      safeId(req.params.modelId),
+    );
+    return res.status(200).json(result);
+  }));
 
   router.post(
     '/composer/draft',

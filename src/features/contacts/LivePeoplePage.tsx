@@ -83,23 +83,50 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
     title: 'Pessoas', subtitle: 'Todos os seus relacionamentos em um só lugar. Escolha a pessoa, veja a etapa e saiba exatamente o que falar agora.',
     add: 'Nome do contato', import: 'Importar contatos do iPhone (.vcf)', search: 'Buscar pessoa, telefone ou origem…', empty: 'Nenhuma pessoa encontrada.',
     stage: 'Etapa da conversa', messages: 'O que enviar agora', generate: 'Gerar 3 mensagens', whatsapp: 'Abrir WhatsApp', mark: 'Marcar como enviado',
-    chooser: 'Sem número salvo: o WhatsApp abre com o texto pronto para você escolher o contato.', save: 'Salvar pessoa', sources: 'Origem', phone: 'Telefone / WhatsApp', savePhone: 'Salvar número', models: 'Modelos salvos', saveModel: 'Salvar como modelo', copy: 'Copiar', followup: 'Lembrar em', days: 'dias', timeline: 'Status comercial', noSignal: 'Contato disponível para abordagem direta.'
+    chooser: 'Sem número salvo: o WhatsApp abre com o texto pronto para você escolher o contato.', save: 'Salvar pessoa', sources: 'Origem', phone: 'Telefone / WhatsApp', savePhone: 'Salvar número', models: 'Modelos na nuvem', saveModel: 'Salvar como modelo', copy: 'Copiar', followup: 'Lembrar em', days: 'dias', timeline: 'Status comercial', noSignal: 'Contato disponível para abordagem direta.'
   } : currentLang === 'es-ES' ? {
     title: 'Personas', subtitle: 'Todas tus relaciones en un solo lugar. Elige la persona, mira la etapa y sabe exactamente qué decir ahora.',
     add: 'Nombre del contacto', import: 'Importar contactos del iPhone (.vcf)', search: 'Buscar persona, teléfono u origen…', empty: 'No se encontraron personas.',
     stage: 'Etapa de la conversación', messages: 'Qué enviar ahora', generate: 'Generar 3 mensajes', whatsapp: 'Abrir WhatsApp', mark: 'Marcar como enviado',
-    chooser: 'Sin número guardado: WhatsApp abre con el texto listo para que elijas el contacto.', save: 'Guardar persona', sources: 'Origen', phone: 'Teléfono / WhatsApp', savePhone: 'Guardar número', models: 'Modelos guardados', saveModel: 'Guardar como modelo', copy: 'Copiar', followup: 'Recordar en', days: 'días', timeline: 'Estado comercial', noSignal: 'Contacto disponible para contacto directo.'
+    chooser: 'Sin número guardado: WhatsApp abre con el texto listo para que elijas el contacto.', save: 'Guardar persona', sources: 'Origen', phone: 'Teléfono / WhatsApp', savePhone: 'Guardar número', models: 'Modelos en la nube', saveModel: 'Guardar como modelo', copy: 'Copiar', followup: 'Recordar en', days: 'días', timeline: 'Estado comercial', noSignal: 'Contacto disponible para contacto directo.'
   } : {
     title: 'People', subtitle: 'All your relationships in one place. Pick a person, see the stage and know exactly what to say next.',
     add: 'Contact name', import: 'Import iPhone contacts (.vcf)', search: 'Search person, phone or source…', empty: 'No people found.',
     stage: 'Conversation stage', messages: 'What to send now', generate: 'Generate 3 messages', whatsapp: 'Open WhatsApp', mark: 'Mark as sent',
-    chooser: 'No saved number: WhatsApp opens with the text ready so you can choose the contact.', save: 'Save person', sources: 'Source', phone: 'Phone / WhatsApp', savePhone: 'Save number', models: 'Saved models', saveModel: 'Save as model', copy: 'Copy', followup: 'Remind in', days: 'days', timeline: 'Commercial status', noSignal: 'Contact available for direct outreach.'
+    chooser: 'No saved number: WhatsApp opens with the text ready so you can choose the contact.', save: 'Save person', sources: 'Source', phone: 'Phone / WhatsApp', savePhone: 'Save number', models: 'Cloud models', saveModel: 'Save as model', copy: 'Copy', followup: 'Remind in', days: 'days', timeline: 'Commercial status', noSignal: 'Contact available for direct outreach.'
   };
 
   const storageKey = `mn-connect-message-models:${session.actorUid || 'me'}`;
   useEffect(() => {
-    try { setModels(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setModels([]); }
-  }, [storageKey]);
+    let active = true;
+    const loadCloudModels = async () => {
+      try {
+        let remote = await client.getMessageModels();
+        let cloud = remote.models as SavedModel[];
+        let legacy: SavedModel[] = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          legacy = Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+        } catch { legacy = []; }
+        if (legacy.length) {
+          for (const model of legacy) {
+            const duplicate = cloud.some(item => item.text === model.text && item.objective === model.objective && item.tone === model.tone);
+            if (!duplicate && model.text && model.objective && model.tone) {
+              await client.saveMessageModel({ label: model.label || 'Modelo migrado', text: model.text, objective: model.objective, tone: model.tone });
+            }
+          }
+          localStorage.removeItem(storageKey);
+          remote = await client.getMessageModels();
+          cloud = remote.models as SavedModel[];
+        }
+        if (active) setModels(cloud);
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : 'Não foi possível carregar os modelos da nuvem.');
+      }
+    };
+    void loadCloudModels();
+    return () => { active = false; };
+  }, [client, storageKey]);
 
   const refresh = async () => {
     setLoading(true);
@@ -173,10 +200,22 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
     await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'sent_manual', followUpDays });
     setNotice(`Envio registrado. Acompanhamento em ${followUpDays} dia${followUpDays === 1 ? '' : 's'}.`); await refresh();
   };
-  const saveModel = () => {
+  const saveModel = async () => {
     if (!draft.trim()) return;
-    const item: SavedModel = { id: `${Date.now()}`, label: `${label(currentStage, currentLang)} · ${tone}`, text: draft.trim(), objective, tone, createdAt: new Date().toISOString() };
-    const next = [item, ...models].slice(0, 30); setModels(next); localStorage.setItem(storageKey, JSON.stringify(next)); setNotice('Modelo salvo neste dispositivo.');
+    setBusy(true); setError('');
+    try {
+      const result = await client.saveMessageModel({
+        label: `${label(currentStage, currentLang)} · ${tone}`,
+        text: draft.trim(),
+        objective,
+        tone,
+      });
+      setModels(previous => [result.model as SavedModel, ...previous.filter(item => item.id !== result.model.id)].slice(0, 30));
+      localStorage.removeItem(storageKey);
+      setNotice('Modelo salvo na nuvem do Firebase.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível salvar o modelo na nuvem.');
+    } finally { setBusy(false); }
   };
   const applyTransform = (kind: 'short' | 'human' | 'professional' | 'objective' | 'noemoji' | 'cta') => {
     if (!draft) return;
@@ -223,7 +262,7 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
             <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={7} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white outline-none"/>
             <div className="flex flex-wrap gap-2">{[['short','Encurtar'],['human','Mais humano'],['professional','Mais profissional'],['objective','Mais objetivo'],['noemoji','Sem emojis'],['cta','CTA leve']].map(([kind,labelText])=><button key={kind} onClick={()=>applyTransform(kind as any)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.04]">{labelText}</button>)}</div>
             {Array.isArray(plan.factsUsed)&&plan.factsUsed.length>0&&<div className="rounded-xl border border-white/10 bg-black/10 p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Contexto usado</div><div className="mt-2 space-y-1 text-xs text-slate-400">{plan.factsUsed.map((fact:string,index:number)=><div key={index}>• {fact}</div>)}</div></div>}
-            <div className="grid gap-2 sm:grid-cols-2"><button onClick={()=>void copyDraft()} disabled={!draft} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-medium text-white disabled:opacity-40"><Clipboard size={16}/>{text.copy}</button><button onClick={saveModel} disabled={!draft} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-medium text-white disabled:opacity-40"><Save size={16}/>{text.saveModel}</button></div>
+            <div className="grid gap-2 sm:grid-cols-2"><button onClick={()=>void copyDraft()} disabled={!draft} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-medium text-white disabled:opacity-40"><Clipboard size={16}/>{text.copy}</button><button onClick={()=>void saveModel()} disabled={!draft||busy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-medium text-white disabled:opacity-40"><Save size={16}/>{text.saveModel}</button></div>
             <button onClick={()=>void openWhatsApp()} disabled={!draft} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 text-sm font-semibold text-slate-950 disabled:opacity-40"><Send size={17}/>{text.whatsapp}</button>{!normalizePhone(selected.phone)&&<p className="text-center text-xs text-slate-500">{text.chooser}</p>}
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-3"><span className="text-xs text-slate-500">{text.followup}</span><select value={followUpDays} onChange={e=>setFollowUpDays(Number(e.target.value))} className="min-h-10 flex-1 bg-transparent text-sm text-white outline-none"><option value={1}>1 {text.days}</option><option value={2}>2 {text.days}</option><option value={3}>3 {text.days}</option><option value={7}>7 {text.days}</option><option value={14}>14 {text.days}</option><option value={30}>30 {text.days}</option></select></div><button onClick={()=>void markSent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-4 text-sm font-medium text-emerald-200"><Check size={16}/>{text.mark}</button></div>
           </div>}

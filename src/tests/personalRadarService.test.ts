@@ -153,6 +153,21 @@ console.log('--- Running Personal Radar Service Tests ---');
   await service.updatePerson(request, person.id, { commercialAction: 'sent_manual', followUpDays: 2 });
   equal((vault.records.get(`personalPeople/${person.id}`) as any).lastCommercialAction, 'sent_manual', 'manual send is explicit');
   assert(typeof (vault.records.get(`personalPeople/${person.id}`) as any).followUpAt === 'string', 'manual send schedules follow-up');
+  const savedModel = await service.saveMessageModel(request, {
+    label: 'Descoberta · curto',
+    text: 'Oi! Como vocês organizam hoje as escalas do louvor?',
+    objective: 'descobrir_dor',
+    tone: 'curto',
+  });
+  equal(savedModel.success, true, 'message model is persisted in the owner-scoped cloud vault');
+  assert(vault.records.has(`messageModels/${savedModel.model.id}`), 'message model is stored under the personal Firestore vault');
+  const cloudModels = await service.listMessageModels(request);
+  equal(cloudModels.count, 1, 'saved message models are loaded from the cloud vault');
+  equal((cloudModels.models[0] as any).text, 'Oi! Como vocês organizam hoje as escalas do louvor?', 'cloud model preserves message text');
+  const removedModel = await service.deleteMessageModel(request, savedModel.model.id);
+  equal(removedModel.deleted, true, 'cloud message model can be deleted');
+  equal((await service.listMessageModels(request)).count, 0, 'deleted cloud model no longer appears');
+
   let invalidStageRejected = false;
   try { await service.updatePerson(request, person.id, { salesStage: 'invalid' as any }); } catch (error) { invalidStageRejected = error instanceof Error && error.message === 'SALES_STAGE_INVALID'; }
   assert(invalidStageRejected, 'invalid commercial stage fails closed');
