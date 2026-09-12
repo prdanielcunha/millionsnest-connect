@@ -1,0 +1,44 @@
+name: Composer Pastoral Voice
+
+on:
+  push:
+    branches:
+      - feature/composer-pastoral-voice-01
+    paths:
+      - .github/workflows/composer-pastoral-voice.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/composer-pastoral-voice-01
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply Composer voice refinement
+        run: python .github/scripts/apply_composer_pastoral_voice.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate
+        run: |
+          npm run lint
+          npm run test:radar-pilot
+          npm run build
+          npm run build:core
+      - name: Commit verified product changes and remove one-shot files
+        run: |
+          rm .github/workflows/composer-pastoral-voice.yml
+          rm .github/scripts/apply_composer_pastoral_voice.py
+          rm -rf dist-core
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Refine Composer voices for pastoral WhatsApp outreach"
+          git push origin HEAD:feature/composer-pastoral-voice-01
