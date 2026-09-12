@@ -1,0 +1,35 @@
+name: Validate Radar Smart Contacts Production Patch
+
+on:
+  push:
+    branches:
+      - release/radar-smart-contacts-production
+    paths:
+      - .github/workflows/apply-radar-smart-contacts-production.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: release/radar-smart-contacts-production
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run test:core-http
+      - run: npm run test:radar-pilot
+      - run: npm run test:zerocost
+      - run: npm run test:gatewaytenant
+      - run: npm run test:authority
+      - run: npm run test:chartdelivery
+      - run: npm run test:firebase-hosting
+      - run: npm run test:release-policy
+      - run: npm run build
+      - run: npm run build:core
