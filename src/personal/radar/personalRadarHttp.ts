@@ -1,6 +1,7 @@
 import express from 'express';
 import { PersonalRadarService, RadarComposerTone } from './personalRadarService';
 import { ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
+import { ManualPriority, PotentialLevel } from './identityResolution';
 
 function authToken(req: express.Request): string {
   const raw = req.headers.authorization;
@@ -36,7 +37,7 @@ function statusFor(error: unknown): number {
   const code = error instanceof Error ? error.message : 'UNKNOWN';
   if (code === 'AUTH_REQUIRED') return 401;
   if (['RADAR_CONTEXT_DENIED', 'RADAR_PILOT_FORBIDDEN', 'RADAR_TENANT_MISMATCH'].includes(code)) return 403;
-  if (['PERSON_NOT_FOUND', 'SIGNAL_NOT_FOUND'].includes(code)) return 404;
+  if (['PERSON_NOT_FOUND', 'SIGNAL_NOT_FOUND', 'IDENTITY_MERGE_NOT_FOUND'].includes(code)) return 404;
   if (['IMPORT_FILE_SIZE_INVALID', 'IMPORT_MESSAGE_LIMIT_EXCEEDED'].includes(code)) return 413;
   if (code.startsWith('FIRESTORE_')) return 503;
   return 400;
@@ -65,6 +66,10 @@ function humanSummary(error: unknown): string {
   if (code === 'SIGNAL_NOT_FOUND') return 'Este sinal não está mais disponível.';
   if (code === 'SEARCH_QUERY_INVALID') return 'Digite pelo menos dois caracteres para pesquisar.';
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
+  if (code === 'MANUAL_PRIORITY_INVALID') return 'Escolha uma prioridade válida.';
+  if (code === 'MANUAL_POTENTIAL_INVALID') return 'Escolha um nível de potencial válido.';
+  if (code === 'IDENTITY_SAME_PERSON') return 'Escolha duas pessoas diferentes para revisar a identidade.';
+  if (code === 'IDENTITY_MERGE_NOT_FOUND') return 'Este vínculo não está mais disponível para desfazer.';
   return 'Não foi possível concluir esta operação do Radar.';
 }
 
@@ -133,10 +138,45 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
         { authToken: authToken(req), organizationId: organizationId(req) },
         safeId(req.params.personId),
         {
-          phone: typeof body.phone === 'string' ? body.phone : undefined,
+          phone: body.phone === null || typeof body.phone === 'string' ? body.phone as string | null : undefined,
           radarState: typeof body.radarState === 'string' ? body.radarState as any : undefined,
           snoozeDays: typeof body.snoozeDays === 'number' ? body.snoozeDays : undefined,
+          favorite: typeof body.favorite === 'boolean' ? body.favorite : undefined,
+          manualPriority: typeof body.manualPriority === 'string' ? body.manualPriority as ManualPriority : undefined,
+          manualPotential: body.manualPotential === null || typeof body.manualPotential === 'string'
+            ? body.manualPotential as PotentialLevel | null
+            : undefined,
+          notRelevant: typeof body.notRelevant === 'boolean' ? body.notRelevant : undefined,
         },
+      );
+      return res.status(200).json(result);
+    }),
+  );
+
+  router.post(
+    '/people/:personId/identity',
+    express.json({ limit: '16kb' }),
+    execute(async (req, res) => {
+      const body = req.body as Record<string, unknown>;
+      const action = body.action === 'merge' || body.action === 'keep_separate' ? body.action : '';
+      if (!action) throw new Error('IDENTITY_ACTION_INVALID');
+      const result = await service.resolveIdentity(
+        { authToken: authToken(req), organizationId: organizationId(req) },
+        safeId(req.params.personId),
+        safeId(String(body.candidatePersonId || '')),
+        action,
+      );
+      return res.status(200).json(result);
+    }),
+  );
+
+  router.post(
+    '/identity-merges/:mergeId/undo',
+    express.json({ limit: '8kb' }),
+    execute(async (req, res) => {
+      const result = await service.undoIdentityMerge(
+        { authToken: authToken(req), organizationId: organizationId(req) },
+        safeId(req.params.mergeId),
       );
       return res.status(200).json(result);
     }),
