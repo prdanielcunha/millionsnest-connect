@@ -113,8 +113,9 @@ if marker not in s: raise SystemExit('http marker missing')
 s=s.replace(marker, routes+marker,1)
 p.write_text(s)
 
-# live surface policy test now includes the real People surface for governance users
+# live surface policy tests now include the real People surface for governance users
 p=Path('src/tests/liveSurfacePolicy.test.ts'); s=p.read_text()
 s=s.replace("['overview', 'radar']", "['overview', 'radar', 'contacts']")
 s=s.replace("governance live users see only real Core and Radar surfaces", "governance live users see real Core, Radar and People surfaces")
+s=s.replace("ok(!isLiveRouteEnabled('contacts', true), 'Contacts is not advertised as live before its backend is connected');", "ok(isLiveRouteEnabled('contacts', true), 'People/Contacts is live for governance users');")
 p.write_text(s)
