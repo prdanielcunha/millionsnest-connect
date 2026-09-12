@@ -52,56 +52,41 @@ jobs:
               raise SystemExit('sourceId assignment not found')
           text = text.replace(old, new, 1)
 
-          old = """    const peopleWrites: VaultWrite[] = [];
-            let mergedPeopleCount = 0;
-            let identityReviewCount = 0;
+          old = "    let identityReviewCount = 0;\n"
+          new = "    let identityReviewCount = 0;\n    const relatedSourceIds = new Set(uniqueStrings(input.relatedSourceIds).slice(0, 240));\n"
+          if old not in text:
+              raise SystemExit('identityReviewCount marker not found')
+          text = text.replace(old, new, 1)
 
-            for (const person of people) {
-              const rankedMatches = workingPeople
-                .map(existing => ({ existing, match: compareIdentity(person, existing) }))
-                .filter(item => item.match.kind !== 'none')
-                .sort((a, b) => b.match.confidence - a.match.confidence);"""
-          new = """    const peopleWrites: VaultWrite[] = [];
-            let mergedPeopleCount = 0;
-            let identityReviewCount = 0;
-            const relatedSourceIds = new Set(uniqueStrings(input.relatedSourceIds).slice(0, 240));
-
-            for (const person of people) {
-              const rankedMatches = workingPeople
-                .map(existing => {
+          old = "        .map(existing => ({ existing, match: compareIdentity(person, existing) }))"
+          new = """        .map(existing => {
                   let match = compareIdentity(person, existing);
                   const existingSources = uniqueStrings(existing.sourceIds, existing.sourceId);
                   const sameConversationSender = relatedSourceIds.size > 0
                     && existingSources.some(source => relatedSourceIds.has(source))
                     && normalizeIdentityName(existing.displayName) === normalizeIdentityName(person.displayName);
                   if (sameConversationSender && match.kind !== 'conflict') {
-                    match = { kind: 'strong', confidence: 98, reasons: ['same_conversation_sender'] };
+                    match = { kind: 'strong' as const, confidence: 98, reasons: ['same_conversation_sender'] };
                   }
                   return { existing, match };
-                })
-                .filter(item => item.match.kind !== 'none')
-                .sort((a, b) => b.match.confidence - a.match.confidence);"""
+                })"""
           if old not in text:
-              raise SystemExit('rankedMatches block not found')
+              raise SystemExit('rankedMatches map line not found')
           text = text.replace(old, new, 1)
           radar.write_text(text)
 
           sources = Path('src/personal/sources/personalSourcesService.ts')
           s = sources.read_text()
-          old = """      const baseResult = await this.radar.importWhatsApp(request, {
-                fileName,
-                contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
+          old = """        contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
                 selfNames,
-              });"""
-          new = """      const baseResult = await this.radar.importWhatsApp(request, {
-                fileName,
-                contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
+          """
+          new = """        contentBase64: Buffer.from(deltaText, 'utf8').toString('base64'),
                 selfNames,
                 sourceScope: groupId,
                 relatedSourceIds: uniqueStrings(group.rawSourceIds),
-              });"""
+          """
           if old not in s:
-              raise SystemExit('Personal Sources base import call not found')
+              raise SystemExit('Personal Sources delta import marker not found')
           sources.write_text(s.replace(old, new, 1))
           PY
       - name: Commit identity continuity fix
