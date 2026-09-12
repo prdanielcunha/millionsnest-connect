@@ -1,4 +1,5 @@
 import { bootstrapLiveConnectSession } from '../core/client/liveConnectSession';
+import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from '../core/client/connectLaunchBridge';
 
 let passed = 0;
 let total = 0;
@@ -264,5 +265,11 @@ console.log('--- Running Live Connect Session Tests ---');
   }
   equal(code, 'FIREBASE_CONFIG_UNAVAILABLE', 'malformed Hosting config fails with a stable safe diagnostic');
 }
+
+equal(buildHubConnectLaunchUrl(), 'https://www.millionsnest.com/connect/launch', 'direct Connect boot uses canonical Hub launch bridge');
+ok(shouldRedirectToHubConnectLaunch('HANDOFF_REQUIRED'), 'direct access without handoff redirects through Hub SSO');
+ok(shouldRedirectToHubConnectLaunch('HANDOFF_EXPIRED'), 'expired handoff transparently revalidates through Hub');
+ok(shouldRedirectToHubConnectLaunch('HANDOFF_INVALID'), 'invalid handoff is discarded and revalidated through Hub');
+ok(!shouldRedirectToHubConnectLaunch('ORGANIZATION_ACCESS_DENIED'), 'authorization denial never becomes a redirect loop');
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);

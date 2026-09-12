@@ -14,6 +14,7 @@ import {
   LiveConnectSession,
 } from './core/client/liveConnectSession';
 import { isGlobalGovernanceRole } from './core/roles/systemRoles';
+import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -134,8 +135,13 @@ export default function App() {
       })
       .catch((error) => {
         if (!mounted) return;
+        const errorCode = safeBootstrapErrorCode(error);
+        if (shouldRedirectToHubConnectLaunch(errorCode)) {
+          window.location.replace(buildHubConnectLaunchUrl());
+          return;
+        }
         setLiveSession(null);
-        setLiveBootErrorCode(safeBootstrapErrorCode(error));
+        setLiveBootErrorCode(errorCode);
         setLiveBootState('failed');
       });
     return () => { mounted = false; };
