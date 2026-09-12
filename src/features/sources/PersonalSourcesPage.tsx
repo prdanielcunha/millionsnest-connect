@@ -26,6 +26,7 @@ import {
 } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
 import { Person360Panel } from '../contacts/Person360Panel';
+import { openWhatsAppDraft } from '../../core/client/whatsappDelivery';
 
 type Props = {
   session: LiveConnectSession;
@@ -208,18 +209,14 @@ export const PersonalSourcesPage: React.FC<Props> = ({ session, currentLang, onN
     if (!item?.draft) return;
     await navigator.clipboard.writeText(item.draft);
     setCopiedId(String(item.personId));
-    try { await client.updatePerson(String(item.personId), { commercialAction: 'copied' }); } catch { /* draft remains usable */ }
+    try { await client.updatePerson(String(item.personId), { commercialAction: 'copied', commercialDraft: item.draft }); } catch { /* draft remains usable */ }
     setTimeout(() => setCopiedId(''), 1800);
   };
 
-  const openWhatsApp = async (item: any) => {
+  const openWhatsApp = (item: any) => {
     if (!item?.draft) return;
-    try { await client.updatePerson(String(item.personId), { commercialAction: 'whatsapp_opened' }); } catch { /* opening WhatsApp remains manual */ }
-    const phone = normalizePhone(item.phone);
-    const url = phone
-      ? `https://wa.me/${phone}?text=${encodeURIComponent(item.draft)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(item.draft)}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openWhatsAppDraft(item.draft, item.phone);
+    void client.updatePerson(String(item.personId), { commercialAction: 'whatsapp_opened', commercialDraft: item.draft }).catch(() => undefined);
   };
 
   const deleteSource = async () => {

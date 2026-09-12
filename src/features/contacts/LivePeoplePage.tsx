@@ -3,6 +3,7 @@ import { Check, Clipboard, ContactRound, FileUp, Loader2, MessageCircle, Plus, S
 import { PersonalRadarClient, RadarClientPerson } from '../../core/client/personalRadarClient';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
 import { LanguageCode } from '../../types';
+import { openWhatsAppDraft } from '../../core/client/whatsappDelivery';
 
 type Objective = 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
@@ -197,19 +198,19 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
   const copyDraft = async () => {
     if (!selected || !draft) return;
     await navigator.clipboard.writeText(draft);
-    await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'copied' });
+    await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'copied', commercialDraft: draft });
     setNotice('Mensagem copiada.'); await refresh();
   };
-  const openWhatsApp = async () => {
+  const openWhatsApp = () => {
     if (!selected || !draft) return;
-    await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'whatsapp_opened' });
-    const number = normalizePhone(selected.phone);
-    const url = number ? `https://wa.me/${number}?text=${encodeURIComponent(draft)}` : `https://api.whatsapp.com/send?text=${encodeURIComponent(draft)}`;
-    window.open(url, '_blank', 'noopener,noreferrer'); await refresh();
+    openWhatsAppDraft(draft, selected.phone);
+    void client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'whatsapp_opened', commercialDraft: draft })
+      .then(() => refresh())
+      .catch(() => undefined);
   };
   const markSent = async () => {
     if (!selected) return;
-    await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'sent_manual', followUpDays });
+    await client.updatePerson(selected.id, { salesStage: objective, commercialAction: 'sent_manual', commercialDraft: draft, followUpDays });
     setNotice(`Envio registrado. Acompanhamento em ${followUpDays} dia${followUpDays === 1 ? '' : 's'}.`); await refresh();
   };
   const saveModel = async () => {
@@ -270,7 +271,7 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
           <div className="mt-2 flex flex-wrap gap-2">{STYLES.map(item=><button key={item.value} onClick={()=>{setStyle(item.value); void generate(objective,tone,item.value);}} disabled={busy} className={`rounded-lg border px-3 py-1.5 text-xs ${style===item.value?'border-indigo-400/35 bg-indigo-400/[0.08] text-indigo-100':'border-white/10 text-slate-500'}`}>{item.label}</button>)}</div>
 
           {!plan && !busy && <button onClick={()=>void generate()} className="mt-4 w-full rounded-2xl border border-dashed border-indigo-400/25 bg-indigo-400/[0.04] p-4 text-left transition hover:bg-indigo-400/[0.07]"><div className="text-sm font-medium text-indigo-100">Gerar mensagem para {label(currentStage,currentLang)}</div><div className="mt-1 text-xs leading-5 text-slate-500">Toque aqui ou escolha uma etapa acima. O Connect prepara 3 opções editáveis e depois você abre o WhatsApp com o texto pronto.</div></button>}
-          {plan && <div className="mt-4 space-y-3"><div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Sugestão para agora</div><div className="mt-1 text-sm text-white">{plan.recommendation||plan.stageLabel||label(currentStage,currentLang)}</div></div><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Próximo pequeno sim</div><div className="mt-1 text-sm text-white">{plan.nextSmallYes||'Avance somente um passo.'}</div></div></div>
+          {plan && <div className="mt-4 space-y-3"><div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Sugestão para agora</div><div className="mt-1 text-sm text-white">{plan.recommendation||plan.stageLabel||label(currentStage,currentLang)}</div></div><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Próximo pequeno sim</div><div className="mt-1 text-sm text-white">{plan.nextSmallYes||'Avance somente um passo.'}</div></div></div>{plan.relationship&&<div className="rounded-xl border border-indigo-400/20 bg-indigo-400/[0.05] p-3"><div className="text-[10px] uppercase tracking-wider text-indigo-300">Leitura inteligente do relacionamento</div><div className="mt-1 text-xs leading-5 text-slate-300">{plan.relationship.state==='active_reply'?'A pessoa falou novamente depois do último contato registrado.':plan.relationship.state==='followup_due'?'O follow-up está no prazo ou vencido.':plan.relationship.state==='waiting_reply'?'Já houve envio registrado e ainda não há resposta posterior confirmada no histórico importado.':plan.relationship.state==='dormant'?'A conversa está há algum tempo sem contato registrado.':plan.relationship.state==='first_contact'?'Primeiro contato confirmado pelo histórico disponível.':'Há contexto anterior e a conversa deve continuar de onde parou.'}{plan.relationship.daysSinceLastContact!==null?` · ${plan.relationship.daysSinceLastContact} dia(s) desde a última ação registrada.`:''}</div></div>}
             {Array.isArray(plan.options)&&plan.options.length>0&&<div className="grid gap-2">{plan.options.slice(0,3).map((option:any,index:number)=><button key={index} onClick={()=>setDraft(option.text||'')} className={`rounded-xl border p-3 text-left text-sm leading-6 ${draft===(option.text||'')?'border-indigo-400/35 bg-indigo-400/[0.08] text-white':'border-white/10 bg-black/10 text-slate-300'}`}><span className="mr-2 text-[10px] text-indigo-300">OPÇÃO {index+1}</span>{option.text}</button>)}</div>}
             <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={7} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white outline-none"/>
             <div className="flex flex-wrap gap-2">{[['short','Encurtar'],['human','Mais humano'],['professional','Mais profissional'],['objective','Mais objetivo'],['noemoji','Sem emojis'],['cta','CTA leve']].map(([kind,labelText])=><button key={kind} onClick={()=>applyTransform(kind as any)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.04]">{labelText}</button>)}</div>
