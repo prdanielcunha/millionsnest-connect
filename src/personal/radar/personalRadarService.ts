@@ -102,6 +102,24 @@ function resolveSnoozeDays(value: unknown): number {
   return days;
 }
 
+const SALES_STAGES = new Set<ComposerObjective>([
+  'iniciar_conversa', 'descobrir_dor', 'contar_historia', 'pedir_video', 'enviar_video',
+  'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',
+]);
+const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
+const MESSAGE_MODEL_TONES = new Set<RadarComposerTone>(['curto', 'conversa', 'audio', 'video']);
+
+function resolveFollowUpDays(value: unknown): number {
+  const days = value === undefined ? 2 : Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('FOLLOW_UP_DAYS_INVALID');
+  return days;
+}
+
+function isFollowUpDue(person: Record<string, unknown>, nowMs: number): boolean {
+  const at = Date.parse(String(person.followUpAt || ''));
+  return Number.isFinite(at) && at <= nowMs;
+}
+
 function latestDate(a: unknown, b: unknown): string | null {
   const left = typeof a === 'string' ? a : '';
   const right = typeof b === 'string' ? b : '';
@@ -460,6 +478,9 @@ export class PersonalRadarService {
       manualPriority?: ManualPriority;
       manualPotential?: PotentialLevel | null;
       notRelevant?: boolean;
+      salesStage?: ComposerObjective;
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      followUpDays?: number;
     },
   ) {
     const context = await this.resolvePilotContext(request);
@@ -508,6 +529,10 @@ export class PersonalRadarService {
       manualPriority,
       manualPotential: input.manualPotential === undefined ? person.manualPotential || null : requestedPotential,
       notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
+      salesStage: input.salesStage === undefined ? person.salesStage || null : input.salesStage,
+      lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,
+      lastCommercialAt: commercialAt,
+      followUpAt,
       updatedAt: isoNow(this.now),
     };
     await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);

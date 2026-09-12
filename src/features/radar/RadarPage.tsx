@@ -19,6 +19,7 @@ interface RadarPageProps {
 
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
 type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
+type ComposerObjective = 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
 type FilterMode = 'all' | 'favorites' | 'priority' | 'very_high' | 'review';
 
 type SelectedSignal = {
@@ -94,6 +95,13 @@ function potentialClasses(level: RadarPotentialLevel) {
   if (level === 'medium') return 'border-sky-400/25 bg-sky-400/10 text-sky-100';
   if (level === 'low') return 'border-white/10 bg-white/[0.04] text-slate-300';
   return 'border-white/10 bg-transparent text-slate-500';
+}
+
+function normalizePhoneForUse(value?: string | null): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return '';
+  if (/(0{7,}|9{8,}|1{8,})$/.test(digits)) return '';
+  return digits;
 }
 
 export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {

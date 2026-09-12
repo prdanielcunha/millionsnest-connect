@@ -1,5 +1,15 @@
 import { LiveConnectSession } from './liveConnectSession';
 
+export type SavedMessageModel = {
+  id: string;
+  label: string;
+  text: string;
+  objective: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+  tone: 'curto' | 'conversa' | 'audio' | 'video';
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type RadarManualPriority = 'normal' | 'important' | 'priority';
 
@@ -32,6 +42,12 @@ export type RadarClientPerson = {
   identityConfidence?: number;
   identityReview?: RadarIdentityReviewCandidate[];
   identityAliases?: string[];
+  salesStage?: string | null;
+  lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
+  lastCommercialAt?: string | null;
+  followUpAt?: string | null;
+  sourceKinds?: string[];
+  radarEligible?: boolean;
   signals: Array<{
     id: string;
     type: string;
@@ -139,6 +155,9 @@ export class PersonalRadarClient {
       manualPriority?: RadarManualPriority;
       manualPotential?: RadarPotentialLevel | null;
       notRelevant?: boolean;
+      salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      followUpDays?: number;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
