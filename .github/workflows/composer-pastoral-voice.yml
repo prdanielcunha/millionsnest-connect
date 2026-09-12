@@ -6,6 +6,8 @@ on:
       - feature/composer-pastoral-voice-01
     paths:
       - .github/workflows/composer-pastoral-voice.yml
+      - .github/scripts/apply_composer_pastoral_voice.py
+      - .github/scripts/fix_composer_pastoral_voice_test.py
 
 permissions:
   contents: write
