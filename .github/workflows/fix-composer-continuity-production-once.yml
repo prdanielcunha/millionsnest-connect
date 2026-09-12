@@ -1,0 +1,35 @@
+name: Fix Composer Continuity Production Once
+
+on:
+  push:
+    branches:
+      - fix/composer-continuity-production
+    paths:
+      - .github/workflows/fix-composer-continuity-production-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: fix/composer-continuity-production
+      - name: Apply production continuity patch
+        run: python .github/scripts/fix_composer_continuity_production.py
+      - name: Validate production patch
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run test:radar-pilot
+          npm run build
+          npm run build:core
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/personal/radar/composerPlaybook.ts src/features/radar/RadarPage.tsx src/tests/composerPlaybook.test.ts
+          git commit -m "fix: continue existing Composer conversations"
+          git push origin HEAD:fix/composer-continuity-production
