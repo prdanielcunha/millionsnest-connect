@@ -25,10 +25,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      - uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 22
-          cache: npm
+      - name: Runtime info
+        run: |
+          node --version
+          npm --version
       - name: Repair temporary patcher quoting
         run: |
           python - <<'PY'
