@@ -1,0 +1,35 @@
+name: Relationship Brain V4 Once
+
+on:
+  push:
+    branches:
+      - feature/relationship-brain-v4
+    paths:
+      - .github/workflows/relationship-brain-v4-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/relationship-brain-v4
+      - name: Apply Relationship Brain V4
+        run: python .github/scripts/relationship_brain_v4_patch.py
+      - name: Validate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run test:radar-pilot
+          npm run build
+          npm run build:core
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/personal/radar/composerPlaybook.ts src/personal/radar/personalRadarService.ts src/core/client/personalRadarClient.ts src/features/radar/RadarPage.tsx src/features/sources/PersonalSourcesPage.tsx src/features/contacts/LivePeoplePage.tsx src/tests/composerPlaybook.test.ts src/core/client/whatsappDelivery.ts
+          git commit -m "feat: add Relationship Brain V4 and universal WhatsApp delivery"
+          git push origin HEAD:feature/relationship-brain-v4
