@@ -35,6 +35,7 @@ export type RadarRequestContext = {
 };
 
 const DAY_MS = 86_400_000;
+const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
 
 function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
@@ -484,6 +485,7 @@ export class PersonalRadarService {
       manualPriority?: ManualPriority;
       manualPotential?: PotentialLevel | null;
       notRelevant?: boolean;
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
     },
   ) {
     const context = await this.resolvePilotContext(request);
@@ -494,6 +496,10 @@ export class PersonalRadarService {
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
       : String(person.radarState || 'active');
+    if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) {
+      throw new Error('COMMERCIAL_ACTION_INVALID');
+    }
+    const commercialAt = input.commercialAction ? isoNow(this.now) : (person.lastCommercialAt || null);
 
     let snoozedUntil = person.snoozedUntil || null;
     if (input.radarState === 'snoozed') {
@@ -522,6 +528,8 @@ export class PersonalRadarService {
       manualPriority,
       manualPotential: input.manualPotential === undefined ? person.manualPotential || null : requestedPotential,
       notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
+      lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,
+      lastCommercialAt: commercialAt,
       updatedAt: isoNow(this.now),
     };
     await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);
