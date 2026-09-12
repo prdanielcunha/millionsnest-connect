@@ -1,9 +1,10 @@
 export const LIVE_OVERVIEW_ROUTE = 'overview' as const;
 export const LIVE_RADAR_ROUTE = 'radar' as const;
+export const LIVE_SOURCES_ROUTE = 'sources' as const;
 
 export function getLiveNavigationRouteIds(showRadar: boolean): string[] {
   return showRadar
-    ? [LIVE_OVERVIEW_ROUTE, LIVE_RADAR_ROUTE]
+    ? [LIVE_OVERVIEW_ROUTE, LIVE_RADAR_ROUTE, LIVE_SOURCES_ROUTE]
     : [LIVE_OVERVIEW_ROUTE];
 }
 

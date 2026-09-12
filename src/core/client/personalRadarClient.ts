@@ -3,7 +3,26 @@ import { LiveConnectSession } from './liveConnectSession';
 export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type RadarManualPriority = 'normal' | 'important' | 'priority';
 
-export type RadarConversationSummary = { id: string; sourceId: string; conversationKey: string; label: string; kind: string; fileName: string; createdAt: string; firstDateKey?: string | null; lastDateKey?: string | null; participantCount: number; messageCount: number; };
+export type RadarConversationSummary = {
+  id: string;
+  sourceId: string;
+  conversationKey: string;
+  label: string;
+  kind: string;
+  fileName: string;
+  createdAt: string;
+  updatedAt?: string;
+  lastImportedAt?: string;
+  firstDateKey?: string | null;
+  lastDateKey?: string | null;
+  participantCount: number;
+  messageCount: number;
+  peopleCount?: number;
+  importCount?: number;
+  lastAddedMessageCount?: number;
+  rawSourceIds?: string[];
+  syncMode?: 'incremental' | 'legacy';
+};
 export type RadarIdentityEvidence = { kind: string; score: number; sourceId: string; messageIndex: number; dateKey: string; sender: string; snippet: string; };
 
 export type RadarIdentityReviewCandidate = {
@@ -17,6 +36,7 @@ export type RadarClientPerson = {
   id: string;
   sourceId: string;
   sourceIds?: string[];
+  rawSourceIds?: string[];
   displayName: string;
   normalizedName?: string;
   probableName?: string | null;
@@ -54,6 +74,26 @@ export type RadarClientPerson = {
   }>;
 };
 
+
+export type PersonalSourceDetail = {
+  source: RadarConversationSummary;
+  participants: Array<{ name: string; messageCount: number }>;
+  people: Array<{
+    id: string;
+    displayName: string;
+    originalName: string;
+    phone?: string | null;
+    messageCount: number;
+    lastDateKey?: string | null;
+    favorite?: boolean;
+    manualPriority?: string;
+    effectivePotential?: string;
+    signal?: Record<string, unknown> | null;
+  }>;
+  recentMessages: Array<{ index: number; sender: string; text: string; dateKey: string; timestampLocal: string }>;
+  imports: Array<{ id: string; fileName: string; createdAt: string; incomingMessageCount: number; addedMessageCount: number; status: string }>;
+};
+
 async function fileToBase64(file: File): Promise<string> {
   if (file.size <= 0 || file.size > 5 * 1024 * 1024) throw new Error('IMPORT_FILE_SIZE_INVALID');
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -89,7 +129,7 @@ export class PersonalRadarClient {
 
   async importWhatsApp(file: File, selfNames: string[]) {
     const contentBase64 = await fileToBase64(file);
-    const response = await fetch('/api/personal/imports/whatsapp', {
+    const response = await fetch('/api/personal/v2/imports/whatsapp', {
       method: 'POST',
       headers: this.headers(true),
       body: JSON.stringify({
@@ -103,7 +143,7 @@ export class PersonalRadarClient {
   }
 
   async getRadar(): Promise<{ people: RadarClientPerson[]; count: number; conversations: RadarConversationSummary[] }> {
-    const response = await fetch('/api/personal/radar', {
+    const response = await fetch('/api/personal/v2/radar', {
       method: 'GET',
       headers: this.headers(),
       cache: 'no-store',
@@ -112,8 +152,61 @@ export class PersonalRadarClient {
     return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0), conversations: Array.isArray(body.conversations) ? body.conversations : [] };
   }
 
+
+  async getSources(): Promise<{
+    sources: RadarConversationSummary[];
+    count: number;
+    totals: { conversations: number; people: number; messages: number; imports: number };
+    recentImports: Array<{ id: string; groupId: string; fileName: string; createdAt: string; incomingMessageCount: number; addedMessageCount: number; status: string }>;
+  }> {
+    const response = await fetch('/api/personal/v2/sources', { method: 'GET', headers: this.headers(), cache: 'no-store' });
+    const body = await parseResponse(response);
+    return {
+      sources: Array.isArray(body.sources) ? body.sources : [],
+      count: Number(body.count || 0),
+      totals: body.totals || { conversations: 0, people: 0, messages: 0, imports: 0 },
+      recentImports: Array.isArray(body.recentImports) ? body.recentImports : [],
+    };
+  }
+
+  async getSource(sourceId: string): Promise<PersonalSourceDetail> {
+    const response = await fetch(`/api/personal/v2/sources/${encodeURIComponent(sourceId)}`, {
+      method: 'GET', headers: this.headers(), cache: 'no-store',
+    });
+    return parseResponse(response);
+  }
+
+  async getPersonContext(personId: string) {
+    const response = await fetch(`/api/personal/v2/people/${encodeURIComponent(personId)}/context`, {
+      method: 'GET', headers: this.headers(), cache: 'no-store',
+    });
+    return parseResponse(response);
+  }
+
+  async getRelationshipBrief() {
+    const response = await fetch('/api/personal/v2/brief', { method: 'GET', headers: this.headers(), cache: 'no-store' });
+    return parseResponse(response);
+  }
+
+  async prepareSourceOutreach(
+    sourceId: string,
+    input: {
+      limit?: number;
+      tone?: 'curto' | 'conversa' | 'audio' | 'video';
+      style?: 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
+      channel?: 'texto' | 'audio' | 'video' | 'followup';
+      objective?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+    } = {},
+  ) {
+    const response = await fetch(`/api/personal/v2/sources/${encodeURIComponent(sourceId)}/outreach`, {
+      method: 'POST', headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...input }),
+    });
+    return parseResponse(response);
+  }
+
   async search(query: string) {
-    const url = new URL('/api/personal/search', window.location.origin);
+    const url = new URL('/api/personal/v2/search', window.location.origin);
     url.searchParams.set('q', query);
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -199,7 +292,7 @@ export class PersonalRadarClient {
   }
 
   async deleteSource(sourceId: string) {
-    const response = await fetch(`/api/personal/sources/${encodeURIComponent(sourceId)}`, {
+    const response = await fetch(`/api/personal/v2/sources/${encodeURIComponent(sourceId)}`, {
       method: 'DELETE',
       headers: this.headers(),
     });
