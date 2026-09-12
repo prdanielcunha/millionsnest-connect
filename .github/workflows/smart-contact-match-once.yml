@@ -1,0 +1,103 @@
+name: Smart Contact Match Once
+
+on:
+  push:
+    branches:
+      - feature/personal-sources-v2-relationship-memory
+    paths:
+      - .github/workflows/smart-contact-match-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/personal-sources-v2-relationship-memory
+      - name: Resolve phone-labelled WhatsApp people against imported contacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          radar = Path('src/personal/radar/personalRadarService.ts')
+          text = radar.read_text()
+
+          old = """      let person = existing.find(item => phone && normalizedPhone(item.phone) === phone);
+                if (!person) person = existing.find(item => !item.phone && normalizedName(item.displayName) === nameKey);
+                const id = person ? String(person.id) : `ct_${crypto.createHash('sha256').update(`${nameKey}|${phone}`).digest('hex').slice(0, 24)}`;"""
+          new = """      let person = existing.find(item => phone && normalizedPhone(item.phone) === phone);
+                let matchedByPhoneIdentity = Boolean(person && phone);
+                if (!person && phone) {
+                  person = existing.find(item => {
+                    const aliases = uniqueStrings(item.displayName, item.probableName, item.identityAliases);
+                    return aliases.some(alias => normalizedPhone(alias) === phone);
+                  });
+                  matchedByPhoneIdentity = Boolean(person);
+                }
+                if (!person) person = existing.find(item => !item.phone && normalizedName(item.displayName) === nameKey);
+                const id = person ? String(person.id) : `ct_${crypto.createHash('sha256').update(`${nameKey}|${phone}`).digest('hex').slice(0, 24)}`;"""
+          if old not in text:
+              raise SystemExit('contact match block not found')
+          text = text.replace(old, new, 1)
+
+          old = """        displayName, phone: phone || person?.phone || null, sourceKinds,
+                signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],"""
+          new = """        displayName, phone: phone || person?.phone || null, sourceKinds,
+                identityAliases: uniqueStrings(person?.identityAliases, person?.displayName, person?.probableName, displayName),
+                identityConfirmedAliases: matchedByPhoneIdentity
+                  ? uniqueStrings(person?.identityConfirmedAliases, normalizeIdentityName(displayName), normalizeIdentityName(person?.displayName))
+                  : person?.identityConfirmedAliases,
+                identityResolution: matchedByPhoneIdentity ? 'contact_phone_confirmed' : person?.identityResolution,
+                identityConfidence: matchedByPhoneIdentity ? 100 : person?.identityConfidence,
+                probableName: matchedByPhoneIdentity ? null : person?.probableName,
+                signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],"""
+          if old not in text:
+              raise SystemExit('contact write block not found')
+          text = text.replace(old, new, 1)
+          radar.write_text(text)
+
+          test = Path('src/tests/personalSourcesV2Service.test.ts')
+          t = test.read_text()
+          marker = "\nconsole.log(`✅ Passed ${passed} / ${total} tests.`);\n"
+          if marker not in t:
+              raise SystemExit('test final marker not found')
+          block = r'''
+
+          {
+            const vault = new MemoryVault();
+            const contextProvider = provider(canonicalContext());
+            const radar = new PersonalRadarService(contextProvider, vault);
+            const request = { authToken: 'Bearer founder-token', organizationId: 'org-1' };
+            const phoneExport = payload([
+              '[12/09/2026, 12:00:00] +55 43 99999-0000: Olá, aqui é sobre a escala do louvor.',
+            ]);
+            await radar.importWhatsApp(request, phoneExport);
+            const before = await radar.getPeople(request);
+            equal(before.count, 1, 'phone-labelled WhatsApp sender starts as one private person');
+            equal(String(before.people[0].displayName), '+55 43 99999-0000', 'raw phone label is preserved before address-book evidence');
+
+            await radar.importContacts(request, [{ name: 'João Carlos', phone: '+55 43 99999-0000' }]);
+            const after = await radar.getPeople(request);
+            equal(after.count, 1, 'address-book import enriches rather than duplicating a phone-labelled WhatsApp person');
+            equal(String(after.people[0].displayName), 'João Carlos', 'exact address-book phone upgrades the visible contact name');
+            equal(String(after.people[0].identityResolution), 'contact_phone_confirmed', 'exact phone match records why the identity was upgraded');
+            equal(Number(after.people[0].identityConfidence), 100, 'exact address-book phone is treated as confirmed user-provided identity evidence');
+            assert(Array.isArray(after.people[0].identityAliases) && (after.people[0].identityAliases as string[]).includes('+55 43 99999-0000'), 'original WhatsApp phone label remains as an identity alias');
+          }
+          '''
+          t = t.replace(marker, block + marker, 1)
+          test.write_text(t)
+          PY
+      - name: Commit smart contact matching
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/personal/radar/personalRadarService.ts src/tests/personalSourcesV2Service.test.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: enrich imported WhatsApp identities from exact contact phones"
+          git push origin HEAD:feature/personal-sources-v2-relationship-memory
