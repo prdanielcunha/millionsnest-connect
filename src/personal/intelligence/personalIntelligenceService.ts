@@ -7,11 +7,11 @@ import { PersonalSourcesService } from '../sources/personalSourcesService';
 
 const DAY_MS = 86_400_000;
 
-export type IntelligenceEnvironment = Pick<NodeJS.ProcessEnv,
+export type IntelligenceEnvironment = Partial<Pick<NodeJS.ProcessEnv,
   | 'CONNECT_GOOGLE_DRIVE_IMPORT_ENABLED'
   | 'CONNECT_WHATSAPP_BUSINESS_ENABLED'
   | 'CONNECT_INSTAGRAM_PRO_ENABLED'
-  | 'CONNECT_CHATGPT_TOOLS_ENABLED'>;
+  | 'CONNECT_CHATGPT_TOOLS_ENABLED'>>;
 
 export type AudienceDefinition = {
   sourceId?: string;
