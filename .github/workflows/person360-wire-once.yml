@@ -1,0 +1,73 @@
+name: Person 360 Wire Once
+
+on:
+  push:
+    branches:
+      - feature/personal-sources-v2-relationship-memory
+    paths:
+      - .github/workflows/person360-wire-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: feature/personal-sources-v2-relationship-memory
+      - name: Wire Person 360 panel
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('src/features/sources/PersonalSourcesPage.tsx')
+          text = page.read_text()
+
+          import_anchor = "import { LanguageCode } from '../../types';\n"
+          import_line = "import { Person360Panel } from '../contacts/Person360Panel';\n"
+          if import_line not in text:
+              if import_anchor not in text:
+                  raise SystemExit('LanguageCode import anchor not found')
+              text = text.replace(import_anchor, import_anchor + import_line, 1)
+
+          state_anchor = "  const [copiedId, setCopiedId] = useState('');\n"
+          state_line = "  const [person360Id, setPerson360Id] = useState('');\n"
+          if state_line not in text:
+              if state_anchor not in text:
+                  raise SystemExit('copiedId state anchor not found')
+              text = text.replace(state_anchor, state_anchor + state_line, 1)
+
+          old_open = '<div key={person.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-white/[0.018] px-3 py-2.5">'
+          new_open = '<button type="button" key={person.id} onClick={() => setPerson360Id(person.id)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/6 bg-white/[0.018] px-3 py-2.5 text-left transition hover:border-indigo-400/20 hover:bg-indigo-400/[0.04]">'
+          if old_open not in text:
+              raise SystemExit('Person row open marker not found')
+          text = text.replace(old_open, new_open, 1)
+
+          old_close = '<MessageCircle size={14} className="shrink-0 text-emerald-300/70" />}</div>)}</div></div>'
+          new_close = '<MessageCircle size={14} className="shrink-0 text-emerald-300/70" />}</button>)}</div></div>'
+          if old_close not in text:
+              raise SystemExit('Person row close marker not found')
+          text = text.replace(old_close, new_close, 1)
+
+          panel = "      {person360Id && <Person360Panel client={client} personId={person360Id} currentLang={currentLang} onClose={() => setPerson360Id('')} />}\n\n"
+          if panel not in text:
+              marker = '      <section className="rounded-[22px] border border-white/8 bg-white/[0.018] px-4 py-3 text-[11px] leading-5 text-slate-600">'
+              pos = text.rfind(marker)
+              if pos < 0:
+                  raise SystemExit('footer privacy marker not found')
+              text = text[:pos] + panel + text[pos:]
+
+          page.write_text(text)
+          PY
+      - name: Commit Person 360 wiring
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/sources/PersonalSourcesPage.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: open Person 360 from imported conversation people"
+          git push origin HEAD:feature/personal-sources-v2-relationship-memory
