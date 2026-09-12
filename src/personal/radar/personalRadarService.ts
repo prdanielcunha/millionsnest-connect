@@ -486,6 +486,7 @@ export class PersonalRadarService {
       manualPotential?: PotentialLevel | null;
       notRelevant?: boolean;
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      commercialDraft?: string;
     },
   ) {
     const context = await this.resolvePilotContext(request);
@@ -499,6 +500,8 @@ export class PersonalRadarService {
     if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) {
       throw new Error('COMMERCIAL_ACTION_INVALID');
     }
+    const commercialDraft = input.commercialDraft === undefined ? undefined : String(input.commercialDraft || '').trim();
+    if (input.commercialDraft !== undefined && (!commercialDraft || commercialDraft.length > 4_000)) throw new Error('COMMERCIAL_DRAFT_INVALID');
     const commercialAt = input.commercialAction ? isoNow(this.now) : (person.lastCommercialAt || null);
 
     let snoozedUntil = person.snoozedUntil || null;
@@ -530,6 +533,7 @@ export class PersonalRadarService {
       notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
       lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,
       lastCommercialAt: commercialAt,
+      lastCommercialDraft: commercialDraft === undefined ? person.lastCommercialDraft || null : commercialDraft,
       updatedAt: isoNow(this.now),
     };
     await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);
@@ -677,6 +681,33 @@ export class PersonalRadarService {
     return { success: true, opportunityId: personDocumentId };
   }
 
+  private async loadComposerConversationContext(
+    request: RadarRequestContext,
+    actorUid: string,
+    person: Record<string, unknown>,
+  ): Promise<Array<{ dateKey: string; timestampLocal: string; sender: string; snippet: string }>> {
+    const sourceIds = uniqueStrings(person.sourceIds, person.sourceId).slice(0, 8);
+    const aliases = new Set(uniqueStrings(person.displayName, person.probableName, person.identityAliases).map(normalizeIdentityName).filter(Boolean));
+    const phone = normalizePhone(person.phone);
+    const authored: Array<{ dateKey: string; timestampLocal: string; sender: string; snippet: string }> = [];
+    for (const sourceId of sourceIds) {
+      const chunks = await this.vault.list(request.authToken, actorUid, ['personalConversations', sourceId, 'messageChunks'], 120);
+      for (const chunk of chunks) {
+        const messages = Array.isArray(chunk.messages) ? chunk.messages as Array<Record<string, unknown>> : [];
+        for (const message of messages) {
+          const sender = String(message.sender || '');
+          const senderName = normalizeIdentityName(sender);
+          const senderPhone = normalizePhone(sender);
+          if (!aliases.has(senderName) && !(phone && senderPhone && phone === senderPhone)) continue;
+          const snippet = String(message.text || '').replace(/\s+/g, ' ').trim().slice(0, 320);
+          if (!snippet) continue;
+          authored.push({ dateKey: String(message.dateKey || ''), timestampLocal: String(message.timestampLocal || ''), sender, snippet });
+        }
+      }
+    }
+    return authored.sort((a,b) => String(b.timestampLocal || b.dateKey).localeCompare(String(a.timestampLocal || a.dateKey))).slice(0, 8);
+  }
+
   async compose(
     request: RadarRequestContext,
     personDocumentId: string,
@@ -692,10 +723,18 @@ export class PersonalRadarService {
     if (!signal) throw new Error('SIGNAL_NOT_FOUND');
     if (!['curto', 'conversa', 'audio', 'video'].includes(tone)) throw new Error('COMPOSER_TONE_INVALID');
 
+    const recentConversationMessages = await this.loadComposerConversationContext(request, context.actorUid, person);
+    const recentEvidence = recentConversationMessages.map((message, index) => ({ messageIndex: -(index + 1), dateKey: message.dateKey, sender: message.sender, snippet: message.snippet }));
+    const contextSignal: RadarSignal = {
+      ...signal,
+      evidence: [...recentEvidence, ...(signal.evidence || [])]
+        .filter((item,index,all) => all.findIndex(other => other.dateKey === item.dateKey && other.sender === item.sender && other.snippet === item.snippet) === index)
+        .slice(0, 8),
+    };
     const legacy = legacyComposerPreferences(tone);
     const plan = buildComposerPlan({
-      person: person as any,
-      signal,
+      person: { ...person, recentConversationMessages } as any,
+      signal: contextSignal,
       style: preferences.style || legacy.style,
       channel: preferences.channel || legacy.channel,
       objective: preferences.objective || legacy.objective,
@@ -714,11 +753,12 @@ export class PersonalRadarService {
       nextSmallYes: plan.nextSmallYes,
       estimatedDurationSeconds: plan.estimatedDurationSeconds || null,
       factsUsed: plan.factsUsed,
+      relationship: plan.relationship,
       tone,
       personId: personDocumentId,
       signalId,
       phone: person.phone || null,
-      evidence: signal.evidence || [],
+      evidence: contextSignal.evidence || [],
       automaticSend: false,
     };
   }
