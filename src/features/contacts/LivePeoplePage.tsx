@@ -144,8 +144,11 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
   useEffect(() => {
     if (!selected) return;
     const known = STAGES.some(stage => stage.objective === selected.salesStage) ? selected.salesStage as Objective : 'iniciar_conversa';
-    setObjective(known); setEditPhone(selected.phone || ''); setPlan(null); setDraft('');
-  }, [selectedId, selected?.phone, selected?.salesStage]);
+    setObjective(known);
+    setEditPhone(selected.phone || '');
+    setPlan(null);
+    setDraft('');
+  }, [selectedId]);
 
   const filtered = people.filter(person => `${person.displayName} ${person.phone || ''} ${(person.sourceKinds || []).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()));
   const currentStage = STAGES.find(item => item.objective === objective) || STAGES[0];
@@ -179,8 +182,17 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
         channel: nextTone === 'audio' ? 'audio' : nextTone === 'video' ? 'video' : nextObjective === 'retomar_conversa' ? 'followup' : 'texto',
         style: nextStyle,
       });
-      setPlan(result); setDraft(result.draft || result.options?.[0]?.text || ''); await refresh();
+      setPlan(result);
+      setDraft(result.draft || result.options?.[0]?.text || '');
+      setPeople(current => current.map(person => person.id === selected.id ? { ...person, salesStage: nextObjective } : person));
     } catch (e) { setError(e instanceof Error ? e.message : 'Erro'); } finally { setBusy(false); }
+  };
+
+  const selectStage = (nextObjective: Objective) => {
+    setObjective(nextObjective);
+    setPlan(null);
+    setDraft('');
+    void generate(nextObjective, tone, style);
   };
   const copyDraft = async () => {
     if (!selected || !draft) return;
@@ -226,7 +238,7 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
     setStyle(targetStyle); setTone(targetTone); void generate(objective, targetTone, targetStyle);
   };
 
-  return <main className="mx-auto w-full max-w-7xl space-y-5 pb-24">
+  return <main className="mx-auto w-full min-w-0 max-w-7xl space-y-5 overflow-x-hidden pb-24">
     <section className="rounded-[28px] border border-white/10 bg-white/[0.035] p-5 sm:p-7">
       <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-xs font-semibold tracking-[.16em] text-indigo-300"><Users size={15}/> RELATIONSHIP INTELLIGENCE</div><h1 className="mt-2 text-3xl font-semibold text-white">{text.title}</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{text.subtitle}</p></div><div className="hidden rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-right sm:block"><div className="text-2xl font-semibold text-white">{people.length}</div><div className="text-[11px] text-slate-500">{text.title}</div></div></div>
     </section>
@@ -234,7 +246,7 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
     {(error || notice) && <div className={`rounded-2xl border px-4 py-3 text-sm ${error ? 'border-red-400/20 bg-red-400/[0.06] text-red-200' : 'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-200'}`}>{error || notice}</div>}
 
     <section className="grid gap-4 lg:grid-cols-[.86fr_1.14fr]">
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><input value={name} onChange={e=>setName(e.target.value)} placeholder={text.add} className="min-h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"/><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="WhatsApp/telefone" inputMode="tel" className="min-h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"/><button disabled={!name.trim()||busy} onClick={()=>void createContact()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 disabled:opacity-40"><Plus size={16}/>{text.save}</button></div>
           <input ref={fileRef} type="file" accept=".vcf,text/vcard,text/x-vcard" className="hidden" onChange={e=>void importVcf(e.target.files?.[0]||null)}/>
@@ -246,17 +258,18 @@ export const LivePeoplePage: React.FC<{ session: LiveConnectSession; currentLang
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 sm:p-5">{!selected ? <div className="grid min-h-80 place-items-center text-sm text-slate-500">{text.empty}</div> : <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2"><ContactRound size={18} className="text-indigo-300"/><h2 className="text-xl font-semibold text-white">{selected.displayName}</h2></div><div className="mt-2 flex flex-wrap gap-2">{(selected.sourceKinds||[selected.sourceId?.startsWith('wa_')?'whatsapp_export':'manual']).map(kind=><span key={kind} className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] text-slate-400">{sourceLabel(kind)}</span>)}</div></div><div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-slate-400"><div>{text.timeline}</div><div className="mt-1 font-medium text-white">{selected.lastCommercialAction === 'sent_manual' ? 'Enviado manualmente' : selected.lastCommercialAction === 'whatsapp_opened' ? 'WhatsApp aberto' : selected.lastCommercialAction === 'copied' ? 'Mensagem copiada' : 'Sem ação registrada'}</div>{selected.followUpAt&&<div className="mt-1 text-indigo-200">Follow-up: {new Date(selected.followUpAt).toLocaleDateString()}</div>}</div></div>
+      <div className="min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-4 sm:p-5">{!selected ? <div className="grid min-h-80 place-items-center text-sm text-slate-500">{text.empty}</div> : <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex items-center gap-2"><ContactRound size={18} className="text-indigo-300"/><h2 className="text-xl font-semibold text-white">{selected.displayName}</h2></div><div className="mt-2 flex max-w-full flex-wrap gap-2">{(selected.sourceKinds||[selected.sourceId?.startsWith('wa_')?'whatsapp_export':'manual']).map(kind=><span key={kind} className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[11px] text-slate-400">{sourceLabel(kind)}</span>)}</div></div><div className="rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-xs text-slate-400"><div>{text.timeline}</div><div className="mt-1 font-medium text-white">{selected.lastCommercialAction === 'sent_manual' ? 'Enviado manualmente' : selected.lastCommercialAction === 'whatsapp_opened' ? 'WhatsApp aberto' : selected.lastCommercialAction === 'copied' ? 'Mensagem copiada' : 'Sem ação registrada'}</div>{selected.followUpAt&&<div className="mt-1 text-indigo-200">Follow-up: {new Date(selected.followUpAt).toLocaleDateString()}</div>}</div></div>
 
-        <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><Smartphone size={16}/>{text.phone}</div><div className="flex gap-2"><input value={editPhone} onChange={e=>setEditPhone(e.target.value)} inputMode="tel" placeholder="55 43 99999-9999" className="min-h-11 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"/><button onClick={()=>void savePhone()} disabled={busy} className="rounded-xl border border-white/10 px-3 text-sm font-medium text-white disabled:opacity-40">{text.savePhone}</button></div></div>
+        <div className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><Smartphone size={16}/>{text.phone}</div><div className="flex min-w-0 gap-2"><input value={editPhone} onChange={e=>setEditPhone(e.target.value)} inputMode="tel" placeholder="55 43 99999-9999" className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none"/><button onClick={()=>void savePhone()} disabled={busy} className="shrink-0 rounded-xl border border-white/10 px-3 text-sm font-medium text-white disabled:opacity-40">{text.savePhone}</button></div></div>
 
-        <section><div className="mb-3"><h3 className="text-sm font-semibold text-white">{text.stage}</h3><p className="mt-1 text-xs text-slate-500">{currentStage.hintPt}</p></div><div className="flex gap-2 overflow-x-auto pb-2">{STAGES.map((stage,index)=><button key={stage.objective} onClick={()=>{setObjective(stage.objective); void client.updatePerson(selected.id,{salesStage:stage.objective}); setPlan(null); setDraft('');}} className={`shrink-0 rounded-xl border px-3 py-2 text-left ${objective===stage.objective?'border-indigo-400/40 bg-indigo-400/[0.10] text-indigo-100':'border-white/10 bg-black/10 text-slate-400'}`}><div className="text-[10px] opacity-60">{index+1}</div><div className="text-xs font-medium">{label(stage,currentLang)}</div></button>)}</div></section>
+        <section><div className="mb-3"><h3 className="text-sm font-semibold text-white">{text.stage}</h3><p className="mt-1 text-xs text-slate-500">{currentStage.hintPt}</p></div><div className="flex max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{STAGES.map((stage,index)=><button key={stage.objective} disabled={busy && objective===stage.objective} onClick={()=>selectStage(stage.objective)} className={`min-w-[104px] shrink-0 snap-start rounded-xl border px-3 py-2 text-left transition ${objective===stage.objective?'border-indigo-400/50 bg-indigo-400/[0.12] text-indigo-100 shadow-[0_0_0_1px_rgba(129,140,248,.08)]':'border-white/10 bg-black/10 text-slate-400 hover:bg-white/[0.03]'} disabled:opacity-60`}><div className="text-[10px] opacity-60">{index+1}</div><div className="text-xs font-medium">{label(stage,currentLang)}</div></button>)}</div></section>
 
-        <section className="rounded-2xl border border-white/10 bg-black/15 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-white">{text.messages}</h3><p className="mt-1 text-xs text-slate-500">{currentStage.hintPt}</p></div><button onClick={()=>void generate()} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{busy?<Loader2 size={15} className="animate-spin"/>:<MessageCircle size={15}/>} {text.generate}</button></div>
-          <div className="mt-4 flex flex-wrap gap-2">{(['curto','conversa','audio','video'] as Tone[]).map(value=><button key={value} onClick={()=>{setTone(value); if(plan) void generate(objective,value,style);}} className={`rounded-lg border px-3 py-1.5 text-xs ${tone===value?'border-white/25 bg-white/10 text-white':'border-white/10 text-slate-400'}`}>{value==='curto'?'Curta':value==='conversa'?'Conversa':value==='audio'?'Áudio':'Vídeo'}</button>)}</div>
+        <section className="min-w-0 rounded-2xl border border-white/10 bg-black/15 p-4"><div className="grid min-w-0 gap-3 sm:grid-cols-[1fr_auto] sm:items-center"><div className="min-w-0"><h3 className="text-sm font-semibold text-white">{text.messages}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{busy ? 'Preparando a melhor abordagem para esta etapa…' : currentStage.hintPt}</p></div><button onClick={()=>void generate()} disabled={busy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto">{busy?<Loader2 size={15} className="animate-spin"/>:<MessageCircle size={15}/>} {text.generate}</button></div>
+          <div className="mt-4 flex max-w-full flex-wrap gap-2">{(['curto','conversa','audio','video'] as Tone[]).map(value=><button key={value} onClick={()=>{setTone(value); if(plan) void generate(objective,value,style);}} className={`rounded-lg border px-3 py-1.5 text-xs ${tone===value?'border-white/25 bg-white/10 text-white':'border-white/10 text-slate-400'}`}>{value==='curto'?'Curta':value==='conversa'?'Conversa':value==='audio'?'Áudio':'Vídeo'}</button>)}</div>
           <div className="mt-2 flex flex-wrap gap-2">{STYLES.map(item=><button key={item.value} onClick={()=>{setStyle(item.value); if(plan) void generate(objective,tone,item.value);}} className={`rounded-lg border px-3 py-1.5 text-xs ${style===item.value?'border-indigo-400/35 bg-indigo-400/[0.08] text-indigo-100':'border-white/10 text-slate-500'}`}>{item.label}</button>)}</div>
 
+          {!plan && !busy && <button onClick={()=>void generate()} className="mt-4 w-full rounded-2xl border border-dashed border-indigo-400/25 bg-indigo-400/[0.04] p-4 text-left transition hover:bg-indigo-400/[0.07]"><div className="text-sm font-medium text-indigo-100">Gerar mensagem para {label(currentStage,currentLang)}</div><div className="mt-1 text-xs leading-5 text-slate-500">Toque aqui ou escolha uma etapa acima. O Connect prepara 3 opções editáveis e depois você abre o WhatsApp com o texto pronto.</div></button>}
           {plan && <div className="mt-4 space-y-3"><div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Sugestão para agora</div><div className="mt-1 text-sm text-white">{plan.recommendation||plan.stageLabel||label(currentStage,currentLang)}</div></div><div className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="text-[10px] uppercase tracking-wider text-slate-500">Próximo pequeno sim</div><div className="mt-1 text-sm text-white">{plan.nextSmallYes||'Avance somente um passo.'}</div></div></div>
             {Array.isArray(plan.options)&&plan.options.length>0&&<div className="grid gap-2">{plan.options.slice(0,3).map((option:any,index:number)=><button key={index} onClick={()=>setDraft(option.text||'')} className={`rounded-xl border p-3 text-left text-sm leading-6 ${draft===(option.text||'')?'border-indigo-400/35 bg-indigo-400/[0.08] text-white':'border-white/10 bg-black/10 text-slate-300'}`}><span className="mr-2 text-[10px] text-indigo-300">OPÇÃO {index+1}</span>{option.text}</button>)}</div>}
             <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={7} className="w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white outline-none"/>
