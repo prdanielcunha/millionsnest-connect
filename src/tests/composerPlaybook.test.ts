@@ -21,4 +21,9 @@ const video=buildComposerPlan({person:{displayName:'João'},signal,objective:'pe
 assert(video.stage===4 && video.options.every(o=>/vídeo/i.test(o.text)),'permission stage asks before video');
 const trial=buildComposerPlan({person:{displayName:'João'},signal,objective:'convidar_trial'});
 assert(trial.stage===8 && trial.options.every(o=>/7 dias/i.test(o.text)),'trial stage uses seven-day real-organization test');
+
+const continued=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'whatsapp_opened',lastCommercialAt:'2026-09-12T12:00:00Z'},signal,style:'amigavel'});
+assert(continued.options.every(option=>!/^Oi[,!]|^Olá[,!]|^Ô,/.test(option.text)),'later contacts do not restart with a first-contact greeting');
+assert(continued.options.some(option=>/Voltando|Fiquei pensando|nossa conversa/i.test(option.text)),'later contacts explicitly continue prior context');
+assert(continued.recommendation.includes('Continue do ponto anterior'),'continuation guidance tells Composer not to restart the conversation');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);

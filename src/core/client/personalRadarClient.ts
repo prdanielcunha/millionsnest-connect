@@ -61,6 +61,8 @@ export type RadarClientPerson = {
   identityConfidence?: number;
   identityReview?: RadarIdentityReviewCandidate[];
   identityAliases?: string[];
+  lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
+  lastCommercialAt?: string | null;
   signals: Array<{
     id: string;
     type: string;
@@ -234,6 +236,7 @@ export class PersonalRadarClient {
       manualPriority?: RadarManualPriority;
       manualPotential?: RadarPotentialLevel | null;
       notRelevant?: boolean;
+      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
