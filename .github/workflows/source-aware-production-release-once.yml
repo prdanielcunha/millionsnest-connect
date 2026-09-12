@@ -1,0 +1,26 @@
+name: Source-aware Production Release Once
+
+on:
+  push:
+    branches:
+      - ops/source-aware-production-release-once-01
+    paths:
+      - .github/workflows/source-aware-production-release-once.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch certified Connect production release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run connect-core-production-release.yml \
+            --repo "${{ github.repository }}" \
+            --ref production \
+            -f live_mode=true \
+            -f live_activation_ack=CONNECT_LIVE_READY
