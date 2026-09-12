@@ -24,6 +24,9 @@ function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
 }
 
+function normalizedName(value: unknown): string { return String(value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' '); }
+function normalizedPhone(value: unknown): string { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 10 && digits.length <= 15 ? digits : ''; }
+
 function sourceIdFromText(text: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim();
   return `wa_${crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24)}`;
@@ -214,6 +217,8 @@ export class PersonalRadarService {
           radarState: 'active',
           snoozedUntil: null,
           priority: personPriority(person),
+          radarEligible: true,
+          sourceKinds: ['whatsapp_export'],
         },
       })),
     ];
@@ -241,7 +246,7 @@ export class PersonalRadarService {
     const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_000);
     const nowMs = this.now();
     const active = people
-      .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs))
+      .filter(person => person.radarEligible !== false && person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs))
       .sort((a, b) => {
         const dueRank = Number(!isFollowUpDue(a, nowMs)) - Number(!isFollowUpDue(b, nowMs));
         if (dueRank !== 0) return dueRank;
@@ -252,6 +257,51 @@ export class PersonalRadarService {
         return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
       });
     return { people: active, count: active.length };
+  }
+
+
+  async getPeople(request: RadarRequestContext) {
+    const context = await this.resolvePilotContext(request);
+    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 2_000);
+    const ordered = people.sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''), 'pt-BR'));
+    return { people: ordered, count: ordered.length };
+  }
+
+  async importContacts(request: RadarRequestContext, input: { contacts?: Array<{ name?: unknown; phone?: unknown }> }) {
+    const context = await this.resolvePilotContext(request);
+    const contacts = Array.isArray(input.contacts) ? input.contacts.slice(0, 500) : [];
+    if (!contacts.length) throw new Error('CONTACTS_REQUIRED');
+    const existing = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 2_000);
+    const writes: VaultWrite[] = [];
+    let imported = 0;
+    for (const raw of contacts) {
+      const displayName = String(raw?.name || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+      if (!displayName) continue;
+      const phone = normalizedPhone(raw?.phone);
+      const nameKey = normalizedName(displayName);
+      let person = existing.find(item => phone && normalizedPhone(item.phone) === phone);
+      if (!person) person = existing.find(item => !item.phone && normalizedName(item.displayName) === nameKey);
+      const id = person ? String(person.id) : `ct_${crypto.createHash('sha256').update(`${nameKey}|${phone}`).digest('hex').slice(0, 24)}`;
+      const currentKinds = Array.isArray(person?.sourceKinds) ? person!.sourceKinds as string[] : (String(person?.sourceId || '').startsWith('wa_') ? ['whatsapp_export'] : []);
+      const sourceKinds = Array.from(new Set([...currentKinds, 'contacts_import']));
+      const directSignal = {
+        id: 'direct_contact', type: 'recurring_relevant_topic', reason: 'Contato disponível para abordagem direta.',
+        nextAction: 'Escolha a etapa da conversa e prepare a próxima mensagem.', evidence: [],
+      };
+      writes.push({ path: ['personalPeople', id], data: {
+        ...(person || {}), id, sourceId: String(person?.sourceId || 'contacts_import'), ownerUid: context.actorUid,
+        displayName, phone: phone || person?.phone || null, sourceKinds,
+        signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],
+        radarEligible: person?.radarEligible === undefined ? false : person.radarEligible,
+        radarState: String(person?.radarState || 'active'), priority: Number(person?.priority ?? 99),
+        salesStage: person?.salesStage || 'iniciar_conversa', importedAt: person?.importedAt || isoNow(this.now), updatedAt: isoNow(this.now),
+      }});
+      if (!person) existing.push({ id, displayName, phone, sourceKinds, signals: [directSignal], radarEligible: false });
+      imported += 1;
+    }
+    if (!writes.length) throw new Error('CONTACTS_REQUIRED');
+    await this.vault.writeMany(request.authToken, context.actorUid, writes);
+    return { success: true, imported };
   }
 
   async search(request: RadarRequestContext, rawQuery: string) {

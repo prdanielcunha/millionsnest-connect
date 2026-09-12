@@ -19,12 +19,12 @@ function ok(value: unknown, message: string) {
 console.log('--- Running Live Surface Policy Tests ---');
 
 equal(getLiveNavigationRouteIds(false), ['overview'], 'non-governance live users only see the real Core overview');
-equal(getLiveNavigationRouteIds(true), ['overview', 'radar'], 'governance live users see only real Core and Radar surfaces');
+equal(getLiveNavigationRouteIds(true), ['overview', 'radar', 'contacts'], 'governance live users see real Core, Radar and People surfaces');
 ok(isLiveRouteEnabled('overview', true), 'overview is live');
 ok(isLiveRouteEnabled('radar', true), 'Radar is live for governance users');
 ok(!isLiveRouteEnabled('inbox', true), 'Inbox is not advertised as live before its backend is connected');
 ok(!isLiveRouteEnabled('tools', true), 'Tool Gateway UI is not advertised as live before its backend surface is connected');
-ok(!isLiveRouteEnabled('contacts', true), 'Contacts is not advertised as live before its backend is connected');
+ok(isLiveRouteEnabled('contacts', true), 'People/Contacts is live for governance users');
 
 equal(
   toTrustedMusicScaleUrl('/scales/scale-123'),

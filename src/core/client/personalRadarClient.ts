@@ -14,6 +14,8 @@ export type RadarClientPerson = {
   lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
   lastCommercialAt?: string | null;
   followUpAt?: string | null;
+  sourceKinds?: string[];
+  radarEligible?: boolean;
   signals: Array<{
     id: string;
     type: string;
@@ -83,6 +85,21 @@ export class PersonalRadarClient {
     });
     const body = await parseResponse(response);
     return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0) };
+  }
+
+
+  async getPeople(): Promise<{ people: RadarClientPerson[]; count: number }> {
+    const response = await fetch('/api/personal/people', { method: 'GET', headers: this.headers(), cache: 'no-store' });
+    const body = await parseResponse(response);
+    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0) };
+  }
+
+  async importContacts(contacts: Array<{ name: string; phone?: string }>) {
+    const response = await fetch('/api/personal/imports/contacts', {
+      method: 'POST', headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, contacts }),
+    });
+    return parseResponse(response);
   }
 
   async search(query: string) {
