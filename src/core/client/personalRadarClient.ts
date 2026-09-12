@@ -205,6 +205,14 @@ export class PersonalRadarClient {
     return parseResponse(response);
   }
 
+
+  async getPersonTimeline(personId: string, limit = 240) {
+    const url = new URL(`/api/personal/intelligence/people/${encodeURIComponent(personId)}/timeline`, window.location.origin);
+    url.searchParams.set('limit', String(limit));
+    const response = await fetch(url.toString(), { method: 'GET', headers: this.headers(), cache: 'no-store' });
+    return parseResponse(response);
+  }
+
   async search(query: string) {
     const url = new URL('/api/personal/v2/search', window.location.origin);
     url.searchParams.set('q', query);
