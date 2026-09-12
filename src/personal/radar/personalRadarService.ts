@@ -171,7 +171,7 @@ export class PersonalRadarService {
     const createdAt = isoNow(this.now);
     const chunks = chunkMessages(parsed.messages);
     const existingPeople = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
-    const workingPeople = [...existingPeople];
+    const workingPeople: Array<Record<string, unknown> & { id: string }> = existingPeople.map(person => ({ ...person }));
     const peopleWrites: VaultWrite[] = [];
     let mergedPeopleCount = 0;
     let identityReviewCount = 0;
@@ -198,7 +198,7 @@ export class PersonalRadarService {
 
       if (strong) {
         const existing = strong.existing;
-        const merged = {
+        const merged: Record<string, unknown> & { id: string } = {
           ...existing,
           id: String(existing.id),
           displayName: String(existing.displayName || person.displayName),
@@ -237,7 +237,7 @@ export class PersonalRadarService {
 
       const documentId = newPersonDocumentId(sourceId, person);
       if (ambiguous.length) identityReviewCount += 1;
-      const record = {
+      const record: Record<string, unknown> & { id: string } = {
         ...person,
         id: documentId,
         sourceId,
@@ -347,20 +347,20 @@ export class PersonalRadarService {
     const context = await this.resolvePilotContext(request);
     const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 1_500);
     const nowMs = this.now();
-    const visible = people
+    const visible: Array<Record<string, unknown> & { id: string; effectivePotential: PotentialLevel }> = people
       .filter(person => person.radarState !== 'ignored' && !isActivelySnoozed(person, nowMs) && !person.notRelevant)
-      .map(person => ({ ...person, effectivePotential: safeEffectivePotential(person) }))
-      .sort((a, b) => {
-        const favorite = Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
-        if (favorite !== 0) return favorite;
-        const manual = manualPriorityRank(a.manualPriority) - manualPriorityRank(b.manualPriority);
-        if (manual !== 0) return manual;
-        const potential = potentialRank(a.effectivePotential) - potentialRank(b.effectivePotential);
-        if (potential !== 0) return potential;
-        const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
-        if (rank !== 0) return rank;
-        return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
-      });
+      .map(person => ({ ...(person as Record<string, unknown> & { id: string }), effectivePotential: safeEffectivePotential(person) }));
+    visible.sort((a, b) => {
+      const favorite = Number(Boolean(b.favorite)) - Number(Boolean(a.favorite));
+      if (favorite !== 0) return favorite;
+      const manual = manualPriorityRank(a.manualPriority) - manualPriorityRank(b.manualPriority);
+      if (manual !== 0) return manual;
+      const potential = potentialRank(a.effectivePotential) - potentialRank(b.effectivePotential);
+      if (potential !== 0) return potential;
+      const rank = Number(a.priority ?? 99) - Number(b.priority ?? 99);
+      if (rank !== 0) return rank;
+      return String(b.lastDateKey || '').localeCompare(String(a.lastDateKey || ''));
+    });
     return { people: visible, count: visible.length };
   }
 
@@ -440,7 +440,7 @@ export class PersonalRadarService {
       throw new Error('MANUAL_POTENTIAL_INVALID');
     }
 
-    const updated = {
+    const updated: Record<string, unknown> & { id: string } = {
       ...person,
       id: personDocumentId,
       phone: digits === undefined ? person.phone || null : digits,
@@ -455,6 +455,8 @@ export class PersonalRadarService {
     await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);
     return {
       success: true,
+      radarState,
+      snoozedUntil,
       person: { ...updated, effectivePotential: safeEffectivePotential(updated) },
     };
   }
@@ -662,17 +664,19 @@ export class PersonalRadarService {
       return sourceIds.length > 1 && sourceIds.includes(sourceId);
     });
     if (peopleToUpdate.length) {
-      await this.vault.writeMany(request.authToken, context.actorUid, peopleToUpdate.map(person => ({
-        path: ['personalPeople', person.id],
-        data: {
-          ...person,
-          sourceIds: (person.sourceIds as unknown[]).filter(item => item !== sourceId),
-          sourceId: person.sourceId === sourceId
-            ? String((person.sourceIds as unknown[]).find(item => item !== sourceId) || '')
-            : person.sourceId,
-          updatedAt: isoNow(this.now),
-        },
-      })));
+      await this.vault.writeMany(request.authToken, context.actorUid, peopleToUpdate.map(person => {
+        const sourceIds = Array.isArray(person.sourceIds) ? person.sourceIds : [];
+        const remainingSourceIds = sourceIds.filter(item => item !== sourceId);
+        return {
+          path: ['personalPeople', person.id],
+          data: {
+            ...person,
+            sourceIds: remainingSourceIds,
+            sourceId: person.sourceId === sourceId ? String(remainingSourceIds[0] || '') : person.sourceId,
+            updatedAt: isoNow(this.now),
+          },
+        };
+      }));
     }
     const paths: string[][] = [
       ...chunks.map(chunk => ['personalConversations', sourceId, 'messageChunks', chunk.id]),
