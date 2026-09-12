@@ -1,0 +1,29 @@
+name: Apply Radar Smart Contacts Production Patch
+
+on:
+  push:
+    branches:
+      - release/radar-smart-contacts-production
+    paths:
+      - .github/workflows/apply-radar-smart-contacts-production.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: release/radar-smart-contacts-production
+          fetch-depth: 0
+      - name: Apply certified Radar slice from development
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin feature/radar-smart-contacts-v2
+          git cherry-pick e5d44975b7161ba9416a54125a03b83c46c59343^..5b9cb3596e4dcd43123389ad1935a35c2f8f2a7d
+          git push origin HEAD:release/radar-smart-contacts-production
