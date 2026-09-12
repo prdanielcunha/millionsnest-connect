@@ -16,6 +16,7 @@ import {
 import { isGlobalGovernanceRole } from './core/roles/systemRoles';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
+import { LivePeoplePage } from './features/contacts/LivePeoplePage';
 
 // Demo feature pages remain available while the live rollout flag is off.
 import { OverviewPage } from './features/overview/OverviewPage';
@@ -191,6 +192,9 @@ export default function App() {
     }
     if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'contacts' && showRadar) {
+      return <LivePeoplePage session={liveSession} currentLang={currentLang} />;
     }
     return <LiveStagedSection />;
   };

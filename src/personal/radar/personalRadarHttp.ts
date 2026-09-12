@@ -64,6 +64,7 @@ function humanSummary(error: unknown): string {
   if (code === 'PERSON_NOT_FOUND') return 'Esta pessoa não foi encontrada no seu cofre pessoal.';
   if (code === 'SIGNAL_NOT_FOUND') return 'Este sinal não está mais disponível.';
   if (code === 'SEARCH_QUERY_INVALID') return 'Digite pelo menos dois caracteres para pesquisar.';
+  if (code === 'CONTACTS_REQUIRED') return 'Adicione pelo menos um contato válido.';
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
   if (code === 'FOLLOW_UP_DAYS_INVALID') return 'Escolha um acompanhamento entre 1 e 90 dias.';
   if (code === 'SALES_STAGE_INVALID' || code === 'COMMERCIAL_ACTION_INVALID') return 'O estado comercial informado é inválido.';
@@ -109,6 +110,21 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
       return res.status(result.status === 'deduplicated' ? 200 : 201).json({ success: true, ...result });
     }),
   );
+
+
+  router.post('/imports/contacts', express.json({ limit: '512kb' }), execute(async (req, res) => {
+    const body = req.body as Record<string, unknown>;
+    const result = await service.importContacts(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      { contacts: Array.isArray(body.contacts) ? body.contacts as Array<{ name?: unknown; phone?: unknown }> : [] },
+    );
+    return res.status(201).json(result);
+  }));
+
+  router.get('/people', execute(async (req, res) => {
+    const result = await service.getPeople({ authToken: authToken(req), organizationId: organizationId(req) });
+    return res.status(200).json({ success: true, ...result });
+  }));
 
   router.get('/radar', execute(async (req, res) => {
     const result = await service.getRadar({
