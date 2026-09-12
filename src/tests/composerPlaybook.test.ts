@@ -44,4 +44,11 @@ assert(casualCopy.startsWith('Fala, João!'),'casual style has its own WhatsApp 
 const directCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'objetivo'}).options[0].text;
 assert(directCopy.startsWith('João,'),'objective style starts directly with the person');
 assert(/Paz/.test(pastoralCopy) && !/Paz/.test(friendlyCopy),'pastoral greeting is reserved for pastoral tone');
+
+const continued=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'whatsapp_opened',lastCommercialAt:'2026-09-12T12:00:00Z'},signal,style:'amigavel'});
+assert(continued.options.every(option=>!/^E aí|^Oi[,!]|^Olá[,!]|^Fala[,!]|^Paz[,!]/i.test(option.text)),'later contacts do not restart with a first-contact greeting');
+assert(continued.options.some(option=>/Voltando|Fiquei pensando|nossa conversa/i.test(option.text)),'later contacts explicitly continue prior context');
+assert(continued.recommendation.includes('Continue do ponto anterior'),'continuation guidance tells Composer not to restart the conversation');
+const continuedVideo=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'whatsapp_opened'},signal,objective:'enviar_video',channel:'video',style:'amigavel'});
+assert(continuedVideo.options.every(option=>!/^Oi[,!]/i.test(option.text)),'later video contact does not restart with Oi');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);

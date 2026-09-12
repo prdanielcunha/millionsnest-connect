@@ -40,7 +40,18 @@ export type ComposerPlan = {
 type PersonLike = {
   displayName?: unknown;
   signals?: unknown;
+  lastCommercialAction?: unknown;
+  lastCommercialAt?: unknown;
+  salesStage?: unknown;
 };
+
+function hasConversationContinuity(person: PersonLike, signal: RadarSignal): boolean {
+  const stage = String(person.salesStage || '').trim();
+  return Boolean(person.lastCommercialAction)
+    || Boolean(person.lastCommercialAt)
+    || (stage.length > 0 && stage !== 'iniciar_conversa')
+    || signal.type === 'commercial_followup_due';
+}
 
 function firstName(value: unknown): string {
   const clean = String(value || '').trim();
@@ -118,7 +129,8 @@ function defaultStyle(signal: RadarSignal): ComposerStyle {
   return 'amigavel';
 }
 
-function greeting(name: string, style: ComposerStyle): string {
+function greeting(name: string, style: ComposerStyle, continuation = false): string {
+  if (continuation) return name ? `${name},` : '';
   if (style === 'amigavel') return name ? `E aí, ${name}! Tudo bem?` : 'E aí! Tudo bem?';
   if (style === 'profissional') return name ? `Olá, ${name}. Tudo bem?` : 'Olá. Tudo bem?';
   if (style === 'descontraido') return name ? `Fala, ${name}! Beleza?` : 'Fala! Beleza?';
@@ -239,9 +251,16 @@ function soften(style: ComposerStyle, text: string): string {
   return result;
 }
 
-function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
+  if (continuation) {
+    return [
+      `${g} Voltando naquele ponto sobre ${t}: como isso está por aí agora?`,
+      `${g} Fiquei pensando no que a gente falou sobre ${t}. O que está pesando mais nessa parte hoje?`,
+      `${g} Sobre nossa conversa de ${t}: isso ainda continua sendo uma dificuldade para vocês?`,
+    ].map(text => soften(style, text.trim()));
+  }
   if (hasProductInterest(signal)) {
     return [
       `${g} Vi o que você comentou sobre ${t}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`,
@@ -270,8 +289,8 @@ function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle
   ].map(text => soften(style, text));
 }
 
-function permissionVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function permissionVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Pelo que você comentou sobre ${t}, acho que faz sentido te mostrar uma coisa. Posso te mandar um vídeo de uns 30 segundos do MusicScale?`,
@@ -280,8 +299,8 @@ function permissionVariants(name: string, signal: RadarSignal, style: ComposerSt
   ].map(text => soften(style, text));
 }
 
-function videoSendVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function videoSendVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Como combinamos, vou te mandar um vídeo bem curto mostrando justamente a parte de ${t}. Depois me diz se isso faria diferença aí para vocês.`,
@@ -290,8 +309,8 @@ function videoSendVariants(name: string, signal: RadarSignal, style: ComposerSty
   ].map(text => soften(style, text));
 }
 
-function diagnosticVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function diagnosticVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Do que você viu, qual parte faria mais diferença aí hoje: ${t}, a organização da equipe ou as confirmações?`,
@@ -300,18 +319,19 @@ function diagnosticVariants(name: string, signal: RadarSignal, style: ComposerSt
   ].map(text => soften(style, text));
 }
 
-function videoScriptVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
+function videoScriptVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
   const t = topic(signal);
   const who = name ? `, ${name}` : '';
+  const prefix = continuation ? (name ? `${name}, ` : '') : `Oi${who}! `;
   return [
-    `Oi${who}! Gravei rapidinho porque é mais fácil te mostrar. O MusicScale nasceu da nossa própria rotina de igreja. Aqui a equipe recebe a escala, vê repertório, cifras e tons e confirma presença sem depender de mensagem perdida. Pensando no que você comentou sobre ${t}, olha como essa parte fica organizada.`,
-    `Oi${who}! Em menos de meio minuto eu quero te mostrar só uma coisa. A gente tinha muita informação espalhada no WhatsApp e criou o MusicScale para centralizar a rotina do louvor. Repara especialmente nessa parte de ${t}, porque foi exatamente o ponto que lembrei da nossa conversa.`,
-    `Oi${who}! Vou te mostrar sem apresentação comercial, só na prática. Aqui está uma escala real: equipe, músicas, cifras, tons e confirmação num lugar só. Pelo que você falou sobre ${t}, acho que essa é a parte que mais vale você olhar primeiro.`,
-  ].map(text => soften(style, text));
+    `${prefix}Pegando o gancho do que a gente falou: gravei rapidinho porque é mais fácil te mostrar. O MusicScale nasceu da nossa própria rotina de igreja. Aqui a equipe recebe a escala, vê repertório, cifras e tons e confirma presença sem depender de mensagem perdida. Pensando no que você comentou sobre ${t}, olha como essa parte fica organizada.`,
+    `${prefix}Como a gente já estava falando sobre ${t}, quero te mostrar só essa parte. A gente tinha muita informação espalhada no WhatsApp e criou o MusicScale para centralizar a rotina do louvor.`,
+    `${prefix}Continuando nossa conversa, vou te mostrar sem apresentação comercial, só na prática. Aqui está uma escala real: equipe, músicas, cifras, tons e confirmação num lugar só. Pelo que você falou sobre ${t}, essa é a parte que mais vale olhar primeiro.`,
+  ].map(text => soften(style, text.trim()));
 }
 
-function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Sobre ${t}: no MusicScale essa parte fica centralizada para a equipe, então ninguém precisa procurar informação espalhada. Se você quiser, te mostro só esse fluxo.`,
@@ -320,8 +340,8 @@ function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle
   ].map(text => soften(style, text));
 }
 
-function trialVariants(name: string, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function trialVariants(name: string, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   return [
     `${g} Pelo que você viu até aqui, acho que o melhor é testar na realidade de vocês. Quer criar a organização da igreja e usar os 7 dias para montar uma escala real?`,
     `${g} Se fizer sentido, o próximo passo pode ser bem simples: testar por 7 dias com a própria equipe e ver se facilita de verdade. Quer que eu te mostre como começar?`,
@@ -329,8 +349,8 @@ function trialVariants(name: string, style: ComposerStyle): string[] {
   ].map(text => soften(style, text));
 }
 
-function followupVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function followupVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Passando só para retomar aquele assunto sobre ${t}. Você conseguiu ver com calma?`,
@@ -339,8 +359,8 @@ function followupVariants(name: string, signal: RadarSignal, style: ComposerStyl
   ].map(text => soften(style, text));
 }
 
-function closingVariants(name: string, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function closingVariants(name: string, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   return [
     `${g} Agora que vocês já usaram numa rotina real: facilitou a organização do louvor?`,
     `${g} Depois desse teste, queria saber uma coisa bem simples: ficou mais fácil para a equipe se organizar?`,
@@ -348,8 +368,8 @@ function closingVariants(name: string, style: ComposerStyle): string[] {
   ].map(text => soften(style, text));
 }
 
-function audioVariants(name: string, signal: RadarSignal, style: ComposerStyle): string[] {
-  const g = greeting(name, style);
+function audioVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
   const t = topic(signal);
   return [
     `${g} Olha, aqui a gente também passava por muita coisa espalhada no WhatsApp, principalmente ${t}. Minha esposa lidera e ministra no louvor, e eu fui vendo de perto o trabalho que dava. Como eu trabalho com tecnologia, a gente acabou criando o MusicScale para resolver primeiro a nossa própria rotina: escala, repertório e confirmação da equipe num lugar só. Se você quiser, eu te mando um vídeo bem curto mostrando como funciona.`,
@@ -368,6 +388,7 @@ export function buildComposerPlan(input: {
   const stage = resolveStage(input.signal, input.objective);
   const objective = input.objective || defaultObjective(stage);
   const style = input.style || defaultStyle(input.signal);
+  const continuation = hasConversationContinuity(input.person, input.signal);
   const name = firstName(input.person.displayName);
   const t = topic(input.signal);
   const channel: ComposerChannel = input.channel || (objective === 'retomar_conversa' ? 'followup' : 'texto');
@@ -375,35 +396,37 @@ export function buildComposerPlan(input: {
   let texts: string[];
   let effectiveChannel = channel;
   if (objective === 'contar_historia') {
-    texts = audioVariants(name, input.signal, style);
+    texts = audioVariants(name, input.signal, style, continuation);
     effectiveChannel = 'audio';
   } else if (objective === 'enviar_video' && channel === 'video') {
-    texts = videoScriptVariants(name, input.signal, style);
+    texts = videoScriptVariants(name, input.signal, style, continuation);
     effectiveChannel = 'video';
   } else if (objective === 'enviar_video') {
-    texts = videoSendVariants(name, input.signal, style);
+    texts = videoSendVariants(name, input.signal, style, continuation);
   } else if (objective === 'diagnosticar') {
-    texts = diagnosticVariants(name, input.signal, style);
+    texts = diagnosticVariants(name, input.signal, style, continuation);
   } else if (channel === 'audio') {
-    texts = audioVariants(name, input.signal, style);
+    texts = audioVariants(name, input.signal, style, continuation);
   } else if (objective === 'pedir_video') {
-    texts = permissionVariants(name, input.signal, style);
+    texts = permissionVariants(name, input.signal, style, continuation);
   } else if (objective === 'explicar_dor') {
-    texts = focusedVariants(name, input.signal, style);
+    texts = focusedVariants(name, input.signal, style, continuation);
   } else if (objective === 'convidar_trial' || objective === 'acompanhar_trial') {
-    texts = trialVariants(name, style);
+    texts = trialVariants(name, style, continuation);
   } else if (objective === 'retomar_conversa' || channel === 'followup') {
-    texts = followupVariants(name, input.signal, style);
+    texts = followupVariants(name, input.signal, style, true);
     effectiveChannel = 'followup';
   } else if (objective === 'fechar') {
-    texts = closingVariants(name, style);
+    texts = closingVariants(name, style, true);
   } else {
-    texts = openingVariants(name, input.signal, style);
+    texts = openingVariants(name, input.signal, style, continuation);
   }
 
   const factsUsed = input.signal.evidence.slice(0, 3).map(item => `${item.dateKey}: ${item.snippet}`);
   const recommendation = stage <= 2
-    ? 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
+    ? continuation
+      ? 'Continue do ponto anterior. Não cumprimente como se fosse uma conversa nova e faça só uma pergunta por vez.'
+      : 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
     : stage === 3
       ? 'Conte a história em 35–50 segundos, como conversa. Termine pedindo permissão para mostrar.'
       : stage === 4
@@ -420,7 +443,9 @@ export function buildComposerPlan(input: {
             ? 'Pergunte primeiro se facilitou. Só depois apresente continuidade e plano vigente.'
             : 'Avance uma etapa por vez e adapte a próxima mensagem à resposta real.';
 
-  const why = hasProductInterest(input.signal)
+  const why = continuation
+    ? `Já existe contato anterior registrado. A mensagem deve continuar a conversa sobre ${t}, sem reiniciar com outro cumprimento.`
+    : hasProductInterest(input.signal)
     ? `A própria conversa trouxe uma dor ligada a ${t}, então vale começar por esse contexto real.`
     : hasRelationship(input.signal)
       ? 'Já existe relacionamento comprovado, então uma abordagem natural é melhor que uma apresentação comercial fria.'
