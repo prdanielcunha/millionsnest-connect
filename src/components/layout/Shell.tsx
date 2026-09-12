@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
   LayoutDashboard, MessageSquare, Wrench, Users, BrainCircuit,
-  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar
+  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar, Database
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
@@ -29,6 +29,12 @@ const radarLabels: Record<LanguageCode, string> = {
   'pt-BR': 'Radar',
   'en-US': 'Radar',
   'es-ES': 'Radar',
+};
+
+const sourceLabels: Record<LanguageCode, string> = {
+  'pt-BR': 'Minhas fontes',
+  'en-US': 'My sources',
+  'es-ES': 'Mis fuentes',
 };
 
 const liveSearchLabels: Record<LanguageCode, string> = {
@@ -62,7 +68,10 @@ export const Shell: React.FC<ShellProps> = ({
   const allNavItems = [
     { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },
     { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },
-    ...(showRadar ? [{ id: 'radar', label: radarLabels[currentLang], icon: Radar }] : []),
+    ...(showRadar ? [
+      { id: 'radar', label: radarLabels[currentLang], icon: Radar },
+      { id: 'sources', label: sourceLabels[currentLang], icon: Database },
+    ] : []),
     { id: 'tools', label: t.navigation.tools, icon: Wrench },
     { id: 'contacts', label: t.navigation.contacts, icon: Users },
     { id: 'agents', label: t.navigation.agents, icon: BrainCircuit },

@@ -7,6 +7,8 @@ import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContext
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
+import { PersonalSourcesService } from '../personal/sources/personalSourcesService';
+import { createPersonalSourcesRouter } from '../personal/sources/personalSourcesHttp';
 
 export interface CreateConnectServerOptions {
   core?: ConnectCoreService;
@@ -25,7 +27,7 @@ export interface CreateConnectServerOptions {
  * Hub remains the identity/RBAC authority, MusicScale revalidates its own reads,
  * and Personal Sources use the caller's Firebase bearer against owner-scoped
  * Firestore Rules. The Radar pilot is additionally restricted to canonical
- * global-access identities in PersonalRadarService.
+ * global-access identities in PersonalRadarService/PersonalSourcesService.
  */
 export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
@@ -38,6 +40,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
+  let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
     try {
@@ -62,7 +65,15 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         Date.now,
         logger,
       );
+      const personalSources = new PersonalSourcesService(
+        personalContextProvider,
+        vault,
+        personalRadar,
+        Date.now,
+        logger,
+      );
       personalRadarRouter = createPersonalRadarRouter(personalRadar);
+      personalSourcesRouter = createPersonalSourcesRouter(personalSources);
     } catch (error) {
       logger.error?.('CONNECT_SESSION_CONFIGURATION_ERROR', {
         error: error instanceof Error ? error.message : 'unknown_error',
@@ -73,8 +84,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   app.disable('x-powered-by');
 
   // Personal import can carry an authorized TXT/ZIP export up to 5 MB encoded
-  // as base64. Mount this router before the small default Core JSON parser so
-  // the larger body limit applies only to the private import endpoint.
+  // as base64. Mount these routers before the small default Core JSON parser so
+  // the larger body limit applies only to the private import endpoints.
+  if (personalSourcesRouter) {
+    app.use('/api/personal/v2', personalSourcesRouter);
+  }
   if (personalRadarRouter) {
     app.use('/api/personal', personalRadarRouter);
   }
