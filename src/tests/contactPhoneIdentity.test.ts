@@ -51,7 +51,7 @@ await radar.importWhatsApp(request, {
   fileName: 'Grupo Louvor.txt', contentBase64: Buffer.from(exportText, 'utf8').toString('base64'), selfNames: ['Daniel'],
 });
 equal((await radar.getPeople(request)).count, 1, 'phone-labelled sender creates one person');
-await radar.importContacts(request, [{ name: 'João Exemplo', phone: syntheticPhoneLabel }]);
+await radar.importContacts(request, { contacts: [{ name: 'João Exemplo', phone: syntheticPhoneLabel }] });
 const after = await radar.getPeople(request);
 equal(after.count, 1, 'exact address-book phone enriches instead of duplicating');
 equal(String(after.people[0].displayName), 'João Exemplo', 'contact name becomes canonical display name');
