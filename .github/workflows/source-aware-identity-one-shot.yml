@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: source-aware-identity-one-shot-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   implement-and-verify:
@@ -25,10 +25,22 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
           cache: npm
+      - name: Repair temporary patcher quoting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-source-aware-identity.mjs')
+          text = path.read_text()
+          bad = ".replace(/[“”\"'" + chr(96) + "]/g, '')"
+          good = ".replace(/[“”\"']/g, '')"
+          if bad not in text:
+              raise SystemExit('expected temporary quoting anchor not found')
+          path.write_text(text.replace(bad, good, 1))
+          PY
       - name: Apply implementation
         run: node scripts/apply-source-aware-identity.mjs
       - name: Install dependencies
@@ -38,15 +50,14 @@ jobs:
           npm run lint
           npm run test:radar-pilot
           npm run build
-      - name: Commit verified implementation and remove one-shot helpers
+      - name: Commit verified implementation
         shell: bash
         run: |
           set -euo pipefail
-          rm -f scripts/apply-source-aware-identity.mjs
-          rm -f .github/workflows/source-aware-identity-one-shot.yml
+          git checkout -- scripts/apply-source-aware-identity.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
+          git add src
+          git diff --cached --quiet && { echo "No implementation changes to commit"; exit 1; }
           git commit -m "Connect: source-aware imports and explainable probable identities"
           git push origin HEAD:feat/source-aware-identity-intelligence-01
