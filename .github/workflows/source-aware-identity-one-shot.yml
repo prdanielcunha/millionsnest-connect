@@ -1,17 +1,19 @@
 name: Source-aware identity one-shot
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/source-aware-identity-intelligence-01
+      - main
     paths:
       - .github/workflows/source-aware-identity-one-shot.yml
+      - scripts/apply-source-aware-identity.mjs
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: source-aware-identity-one-shot
+  group: source-aware-identity-one-shot-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +24,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
