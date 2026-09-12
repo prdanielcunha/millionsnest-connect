@@ -34,6 +34,14 @@ const friendlyCopy=buildComposerPlan({person:{displayName:'João'},signal,object
 const professionalCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'profissional'}).options[0].text;
 const consultativeCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'consultivo'}).options[0].text;
 assert(friendlyCopy!==professionalCopy && professionalCopy!==consultativeCopy && friendlyCopy!==consultativeCopy,'friendly, professional and consultative copy are not aliases');
-assert(/Espero que esteja bem|lhe |Nós /.test(professionalCopy),'professional style uses professional wording');
-assert(/entender|gargalo|avaliar/i.test(consultativeCopy),'consultative style uses diagnostic wording');
+assert(professionalCopy.startsWith('Olá, João. Tudo bem?'),'professional style uses a polished neutral greeting');
+assert(/entender|gargalo|avaliar|Como vocês organizam/i.test(consultativeCopy),'consultative style uses diagnostic wording');
+assert(friendlyCopy.startsWith('E aí, João!'),'friendly style opens naturally with E aí');
+const pastoralCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'pastoral'}).options[0].text;
+assert(pastoralCopy.startsWith('Paz, João!'),'pastoral style opens naturally with Paz');
+const casualCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'descontraido'}).options[0].text;
+assert(casualCopy.startsWith('Fala, João!'),'casual style has its own WhatsApp voice');
+const directCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'objetivo'}).options[0].text;
+assert(directCopy.startsWith('João,'),'objective style starts directly with the person');
+assert(/Paz/.test(pastoralCopy) && !/Paz/.test(friendlyCopy),'pastoral greeting is reserved for pastoral tone');
 console.log(`✅ Composer Playbook: ${passed} / ${total}`);
