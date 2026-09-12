@@ -18,6 +18,7 @@ import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './co
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
+import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
 
 // Demo feature pages remain available while the live rollout flag is off.
 import { OverviewPage } from './features/overview/OverviewPage';
@@ -195,6 +196,9 @@ export default function App() {
     if (!liveSession) return renderDemoPage();
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'sources' && showRadar) {
+      return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
