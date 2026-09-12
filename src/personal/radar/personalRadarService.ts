@@ -93,6 +93,7 @@ const SALES_STAGES = new Set<ComposerObjective>([
   'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',
 ]);
 const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
+const MESSAGE_MODEL_TONES = new Set<RadarComposerTone>(['curto', 'conversa', 'audio', 'video']);
 
 function resolveFollowUpDays(value: unknown): number {
   const days = value === undefined ? 2 : Number(value);
@@ -472,6 +473,66 @@ export class PersonalRadarService {
       evidence: signal.evidence || [],
       automaticSend: false,
     };
+  }
+
+
+  async listMessageModels(request: RadarRequestContext) {
+    const context = await this.resolvePilotContext(request);
+    const models = await this.vault.list(request.authToken, context.actorUid, ['messageModels'], 100);
+    const ordered = models
+      .filter(model => typeof model.text === 'string' && typeof model.label === 'string')
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      .slice(0, 30);
+    return { models: ordered, count: ordered.length };
+  }
+
+  async saveMessageModel(
+    request: RadarRequestContext,
+    input: { label?: unknown; text?: unknown; objective?: ComposerObjective; tone?: RadarComposerTone },
+  ) {
+    const context = await this.resolvePilotContext(request);
+    const text = typeof input.text === 'string' ? input.text.trim() : '';
+    if (!text || text.length > 4_000) throw new Error('MESSAGE_MODEL_TEXT_INVALID');
+    if (!input.objective || !SALES_STAGES.has(input.objective)) throw new Error('MESSAGE_MODEL_OBJECTIVE_INVALID');
+    if (!input.tone || !MESSAGE_MODEL_TONES.has(input.tone)) throw new Error('MESSAGE_MODEL_TONE_INVALID');
+    const label = (typeof input.label === 'string' ? input.label.trim() : '').slice(0, 120) || input.objective;
+    const createdAt = isoNow(this.now);
+    const id = `mdl_${crypto.createHash('sha256')
+      .update(`${context.actorUid}|${createdAt}|${text}|${crypto.randomUUID()}`)
+      .digest('hex').slice(0, 24)}`;
+    const model = {
+      id,
+      ownerUid: context.actorUid,
+      label,
+      text,
+      objective: input.objective,
+      tone: input.tone,
+      createdAt,
+      updatedAt: createdAt,
+      privacyScope: 'owner_only',
+    };
+
+    const existing = await this.vault.list(request.authToken, context.actorUid, ['messageModels'], 100);
+    const excess = [...existing]
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+      .slice(0, Math.max(0, existing.length - 29));
+    if (excess.length) {
+      await this.vault.deleteMany(
+        request.authToken,
+        context.actorUid,
+        excess.map(item => ['messageModels', String(item.id)]),
+      );
+    }
+    await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['messageModels', id], data: model }]);
+    return { success: true, model };
+  }
+
+  async deleteMessageModel(request: RadarRequestContext, modelId: string) {
+    const context = await this.resolvePilotContext(request);
+    const model = await this.vault.get(request.authToken, context.actorUid, ['messageModels', modelId]);
+    if (!model) return { success: true, deleted: false };
+    await this.vault.deleteMany(request.authToken, context.actorUid, [['messageModels', modelId]]);
+    return { success: true, deleted: true };
   }
 
   async deleteSource(request: RadarRequestContext, sourceId: string) {

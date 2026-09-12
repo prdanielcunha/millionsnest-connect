@@ -1,5 +1,15 @@
 import { LiveConnectSession } from './liveConnectSession';
 
+export type SavedMessageModel = {
+  id: string;
+  label: string;
+  text: string;
+  objective: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+  tone: 'curto' | 'conversa' | 'audio' | 'video';
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type RadarClientPerson = {
   id: string;
   sourceId: string;
@@ -161,6 +171,30 @@ export class PersonalRadarClient {
         tone,
         ...preferences,
       }),
+    });
+    return parseResponse(response);
+  }
+
+
+  async getMessageModels(): Promise<{ models: SavedMessageModel[]; count: number }> {
+    const response = await fetch('/api/personal/message-models', {
+      method: 'GET', headers: this.headers(), cache: 'no-store',
+    });
+    const body = await parseResponse(response);
+    return { models: Array.isArray(body.models) ? body.models : [], count: Number(body.count || 0) };
+  }
+
+  async saveMessageModel(model: Omit<SavedMessageModel, 'id' | 'createdAt' | 'updatedAt'>) {
+    const response = await fetch('/api/personal/message-models', {
+      method: 'POST', headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...model }),
+    });
+    return parseResponse(response) as Promise<{ success: true; model: SavedMessageModel }>;
+  }
+
+  async deleteMessageModel(modelId: string) {
+    const response = await fetch(`/api/personal/message-models/${encodeURIComponent(modelId)}`, {
+      method: 'DELETE', headers: this.headers(),
     });
     return parseResponse(response);
   }
