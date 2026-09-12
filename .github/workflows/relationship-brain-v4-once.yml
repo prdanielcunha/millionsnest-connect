@@ -18,7 +18,9 @@ jobs:
         with:
           ref: feature/relationship-brain-v4
       - name: Apply Relationship Brain V4
-        run: python .github/scripts/relationship_brain_v4_patch.py
+        run: |
+          python .github/scripts/relationship_brain_v4_patch.py
+          python .github/scripts/relationship_brain_v4_testfix.py
       - name: Validate
         run: |
           npm ci --no-audit --no-fund
