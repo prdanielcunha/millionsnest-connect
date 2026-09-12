@@ -1,4 +1,4 @@
-name: Apply Radar Smart Contacts Production Patch
+name: Validate Radar Smart Contacts Production Patch
 
 on:
   push:
@@ -8,73 +8,28 @@ on:
       - .github/workflows/apply-radar-smart-contacts-production.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: release/radar-smart-contacts-production
-          fetch-depth: 0
-      - name: Restore production-only Radar capabilities after targeted patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          # Client: preserve production message models / sales workflow while adding smart-contact fields.
-          p = Path('src/core/client/personalRadarClient.ts')
-          s = p.read_text()
-          if 'export type SavedMessageModel' not in s:
-              anchor = "import { LiveConnectSession } from './liveConnectSession';\n"
-              block = '''\nexport type SavedMessageModel = {\n  id: string;\n  label: string;\n  text: string;\n  objective: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';\n  tone: 'curto' | 'conversa' | 'audio' | 'video';\n  createdAt: string;\n  updatedAt?: string;\n};\n'''
-              s = s.replace(anchor, anchor + block, 1)
-          if 'salesStage?: string | null;' not in s:
-              anchor = '  identityAliases?: string[];\n'
-              block = "  salesStage?: string | null;\n  lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;\n  lastCommercialAt?: string | null;\n  followUpAt?: string | null;\n  sourceKinds?: string[];\n  radarEligible?: boolean;\n"
-              s = s.replace(anchor, anchor + block, 1)
-          if 'commercialAction?:' not in s:
-              anchor = '      notRelevant?: boolean;\n'
-              block = "      salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';\n      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';\n      followUpDays?: number;\n"
-              s = s.replace(anchor, anchor + block, 1)
-          p.write_text(s)
-
-          # UI: keep the existing guided-sales journey helpers that production already depended on.
-          p = Path('src/features/radar/RadarPage.tsx')
-          s = p.read_text()
-          if 'type ComposerObjective =' not in s:
-              anchor = "type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';\n"
-              block = "type ComposerObjective = 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';\n"
-              s = s.replace(anchor, anchor + block, 1)
-          if 'function normalizePhoneForUse' not in s:
-              anchor = 'export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {'
-              block = '''function normalizePhoneForUse(value?: string | null): string {\n  const digits = String(value || '').replace(/\\D/g, '');\n  if (digits.length < 10 || digits.length > 15) return '';\n  if (/(0{7,}|9{8,}|1{8,})$/.test(digits)) return '';\n  return digits;\n}\n\n'''
-              s = s.replace(anchor, block + anchor, 1)
-          p.write_text(s)
-
-          # Service: merge production commercial/follow-up state with new identity intelligence.
-          p = Path('src/personal/radar/personalRadarService.ts')
-          s = p.read_text()
-          if 'const SALES_STAGES = new Set<ComposerObjective>' not in s:
-              anchor = '''function resolveSnoozeDays(value: unknown): number {\n  const days = value === undefined ? 7 : Number(value);\n  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('SNOOZE_DAYS_INVALID');\n  return days;\n}\n'''
-              block = '''\nconst SALES_STAGES = new Set<ComposerObjective>([\n  'iniciar_conversa', 'descobrir_dor', 'contar_historia', 'pedir_video', 'enviar_video',\n  'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',\n]);\nconst COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);\nconst MESSAGE_MODEL_TONES = new Set<RadarComposerTone>(['curto', 'conversa', 'audio', 'video']);\n\nfunction resolveFollowUpDays(value: unknown): number {\n  const days = value === undefined ? 2 : Number(value);\n  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('FOLLOW_UP_DAYS_INVALID');\n  return days;\n}\n\nfunction isFollowUpDue(person: Record<string, unknown>, nowMs: number): boolean {\n  const at = Date.parse(String(person.followUpAt || ''));\n  return Number.isFinite(at) && at <= nowMs;\n}\n'''
-              s = s.replace(anchor, anchor + block, 1)
-          update_anchor = '      notRelevant?: boolean;\n    },\n  ) {\n'
-          if 'commercialAction?:' not in s and update_anchor in s:
-              replacement = "      notRelevant?: boolean;\n      salesStage?: ComposerObjective;\n      commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';\n      followUpDays?: number;\n    },\n  ) {\n"
-              s = s.replace(update_anchor, replacement, 1)
-          # Ensure production commercial fields are actually persisted by updatePerson.
-          if 'salesStage: input.salesStage' not in s:
-              anchor = '      notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,\n'
-              block = "      salesStage: input.salesStage === undefined ? person.salesStage || null : input.salesStage,\n      lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,\n      lastCommercialAt: commercialAt,\n      followUpAt,\n"
-              s = s.replace(anchor, anchor + block, 1)
-          p.write_text(s)
-          PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/core/client/personalRadarClient.ts src/features/radar/RadarPage.tsx src/personal/radar/personalRadarService.ts
-          git commit -m "Preserve production sales journey with smart contact identity"
-          git push origin HEAD:release/radar-smart-contacts-production
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run test:core-http
+      - run: npm run test:radar-pilot
+      - run: npm run test:zerocost
+      - run: npm run test:gatewaytenant
+      - run: npm run test:authority
+      - run: npm run test:chartdelivery
+      - run: npm run test:firebase-hosting
+      - run: npm run test:release-policy
+      - run: npm run build
+      - run: npm run build:core
