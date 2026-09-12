@@ -25,6 +25,7 @@ import {
   RadarConversationSummary,
 } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
+import { Person360Panel } from '../contacts/Person360Panel';
 
 type Props = {
   session: LiveConnectSession;
@@ -68,6 +69,7 @@ export const PersonalSourcesPage: React.FC<Props> = ({ session, currentLang, onN
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState('');
+  const [person360Id, setPerson360Id] = useState('');
 
   const t = currentLang === 'pt-BR' ? {
     eyebrow: 'COFRE PESSOAL · MEMÓRIA DE RELACIONAMENTO',
@@ -302,7 +304,7 @@ export const PersonalSourcesPage: React.FC<Props> = ({ session, currentLang, onN
             {outreach.length > 0 && <div className="mt-4 grid gap-3 xl:grid-cols-2">{outreach.map(item => <article key={item.personId} className="rounded-2xl border border-white/8 bg-black/15 p-4"><div className="text-sm font-semibold text-white">{item.displayName}</div><div className="mt-2 text-xs leading-5 text-slate-500">{item.reason}</div><div className="mt-3 rounded-xl border border-white/8 bg-black/20 p-3 text-xs leading-5 text-slate-300">{item.draft}</div><div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void copyDraft(item)} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/10 px-2.5 text-[11px] text-slate-300">{copiedId === item.personId ? <Check size={13} /> : <Copy size={13} />}{copiedId === item.personId ? t.copied : t.copy}</button><button onClick={() => void openWhatsApp(item)} className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-emerald-300 px-2.5 text-[11px] font-semibold text-slate-950"><MessageCircle size={13} /> {t.whatsapp}</button></div></article>)}</div>}
 
             {detail && <div className="mt-5 grid gap-4 xl:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-black/10 p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><UsersRound size={14} className="text-indigo-300" /> {t.peopleHere}</div><div className="mt-3 space-y-2">{detail.people.slice(0, 12).map(person => <div key={person.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-white/[0.018] px-3 py-2.5"><div className="min-w-0"><div className="truncate text-xs font-medium text-slate-200">{person.displayName}</div><div className="mt-0.5 text-[10px] text-slate-600">{person.messageCount} {t.messages.toLocaleLowerCase(currentLang)}{person.lastDateKey ? ` · ${shortDate(person.lastDateKey, currentLang)}` : ''}</div></div>{person.phone && <MessageCircle size={14} className="shrink-0 text-emerald-300/70" />}</div>)}</div></div>
+              <div className="rounded-2xl border border-white/8 bg-black/10 p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><UsersRound size={14} className="text-indigo-300" /> {t.peopleHere}</div><div className="mt-3 space-y-2">{detail.people.slice(0, 12).map(person => <button type="button" key={person.id} onClick={() => setPerson360Id(person.id)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/6 bg-white/[0.018] px-3 py-2.5 text-left transition hover:border-indigo-400/20 hover:bg-indigo-400/[0.04]"><div className="min-w-0"><div className="truncate text-xs font-medium text-slate-200">{person.displayName}</div><div className="mt-0.5 text-[10px] text-slate-600">{person.messageCount} {t.messages.toLocaleLowerCase(currentLang)}{person.lastDateKey ? ` · ${shortDate(person.lastDateKey, currentLang)}` : ''}</div></div>{person.phone && <MessageCircle size={14} className="shrink-0 text-emerald-300/70" />}</button>)}</div></div>
 
               <div className="rounded-2xl border border-white/8 bg-black/10 p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><MessageCircle size={14} className="text-indigo-300" /> {t.recent}</div><div className="mt-3 space-y-2">{detail.recentMessages.slice(0, 10).map((message, index) => <div key={`${message.timestampLocal}-${index}`} className="rounded-xl border border-white/6 bg-white/[0.018] p-3"><div className="text-[10px] font-medium text-slate-400">{message.sender} · {shortDate(message.dateKey, currentLang)}</div><div className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{message.text}</div></div>)}</div></div>
 
@@ -313,6 +315,8 @@ export const PersonalSourcesPage: React.FC<Props> = ({ session, currentLang, onN
           </>}
         </section>
       </section>
+
+      {person360Id && <Person360Panel client={client} personId={person360Id} currentLang={currentLang} onClose={() => setPerson360Id('')} />}
 
       <section className="rounded-[22px] border border-white/8 bg-white/[0.018] px-4 py-3 text-[11px] leading-5 text-slate-600"><div className="flex items-start gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0" /><span>Personal Sources V2 mantém o conteúdo no Cofre Pessoal, preserva a origem de cada relacionamento, não promove contatos automaticamente para a organização e prepara abordagens somente para revisão humana.</span></div></section>
     </main>
