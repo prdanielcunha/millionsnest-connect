@@ -1,15 +1,37 @@
 import { LiveConnectSession } from './liveConnectSession';
 
+export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
+export type RadarManualPriority = 'normal' | 'important' | 'priority';
+
+export type RadarIdentityReviewCandidate = {
+  personId: string;
+  displayName: string;
+  confidence: number;
+  reasons: string[];
+};
+
 export type RadarClientPerson = {
   id: string;
   sourceId: string;
+  sourceIds?: string[];
   displayName: string;
+  normalizedName?: string;
   phone?: string | null;
   lastDateKey?: string | null;
   messageCount?: number;
   radarState?: string;
   snoozedUntil?: string | null;
   priority?: number;
+  automaticPotential?: RadarPotentialLevel;
+  manualPotential?: RadarPotentialLevel | null;
+  effectivePotential?: RadarPotentialLevel;
+  manualPriority?: RadarManualPriority;
+  favorite?: boolean;
+  notRelevant?: boolean;
+  identityResolution?: string;
+  identityConfidence?: number;
+  identityReview?: RadarIdentityReviewCandidate[];
+  identityAliases?: string[];
   signals: Array<{
     id: string;
     type: string;
@@ -95,15 +117,41 @@ export class PersonalRadarClient {
   async updatePerson(
     personId: string,
     update: {
-      phone?: string;
+      phone?: string | null;
       radarState?: 'active' | 'ignored' | 'snoozed';
       snoozeDays?: number;
+      favorite?: boolean;
+      manualPriority?: RadarManualPriority;
+      manualPotential?: RadarPotentialLevel | null;
+      notRelevant?: boolean;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
       method: 'PATCH',
       headers: this.headers(true),
       body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...update }),
+    });
+    return parseResponse(response);
+  }
+
+  async resolveIdentity(personId: string, candidatePersonId: string, action: 'merge' | 'keep_separate') {
+    const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}/identity`, {
+      method: 'POST',
+      headers: this.headers(true),
+      body: JSON.stringify({
+        organizationId: this.session.expectedOrganizationId,
+        candidatePersonId,
+        action,
+      }),
+    });
+    return parseResponse(response);
+  }
+
+  async undoIdentityMerge(mergeId: string) {
+    const response = await fetch(`/api/personal/identity-merges/${encodeURIComponent(mergeId)}/undo`, {
+      method: 'POST',
+      headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId }),
     });
     return parseResponse(response);
   }
