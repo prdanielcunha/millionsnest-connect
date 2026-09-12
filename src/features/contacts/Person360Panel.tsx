@@ -35,21 +35,21 @@ export const Person360Panel: React.FC<Props> = ({ client, personId, currentLang,
   const t = currentLang === 'pt-BR' ? {
     eyebrow: 'PESSOA 360°', title: 'Memória de relacionamento', loading: 'Reconstruindo contexto…',
     why: 'Por que olhar agora', next: 'Próxima ação sugerida', sources: 'Onde essa pessoa apareceu',
-    recent: 'Mensagens recentes desta pessoa', evidence: 'Evidências de identidade', signals: 'Sinais explicáveis',
+    recent: 'Timeline unificada', evidence: 'Evidências de identidade', signals: 'Sinais explicáveis',
     messages: 'mensagens', source: 'fonte', sourcesCount: 'fontes', first: 'Primeiro registro', last: 'Último registro',
     privacy: 'Contexto privado · não vira lead automaticamente', noMessages: 'Não há mensagens autorais suficientes para exibir.',
     noEvidence: 'Nenhuma evidência adicional de identidade disponível.', state: 'Estado do relacionamento', close: 'Fechar',
   } : currentLang === 'es-ES' ? {
     eyebrow: 'PERSONA 360°', title: 'Memoria de relación', loading: 'Reconstruyendo contexto…',
     why: 'Por qué mirar ahora', next: 'Próxima acción sugerida', sources: 'Dónde apareció esta persona',
-    recent: 'Mensajes recientes de esta persona', evidence: 'Evidencias de identidad', signals: 'Señales explicables',
+    recent: 'Timeline unificada', evidence: 'Evidencias de identidad', signals: 'Señales explicables',
     messages: 'mensajes', source: 'fuente', sourcesCount: 'fuentes', first: 'Primer registro', last: 'Último registro',
     privacy: 'Contexto privado · no se convierte automáticamente en lead', noMessages: 'No hay suficientes mensajes propios para mostrar.',
     noEvidence: 'No hay evidencia adicional de identidad disponible.', state: 'Estado de la relación', close: 'Cerrar',
   } : {
     eyebrow: 'PERSON 360°', title: 'Relationship memory', loading: 'Reconstructing context…',
     why: 'Why look now', next: 'Suggested next action', sources: 'Where this person appeared',
-    recent: 'Recent messages from this person', evidence: 'Identity evidence', signals: 'Explainable signals',
+    recent: 'Unified timeline', evidence: 'Identity evidence', signals: 'Explainable signals',
     messages: 'messages', source: 'source', sourcesCount: 'sources', first: 'First record', last: 'Last record',
     privacy: 'Private context · never auto-promoted to a lead', noMessages: 'There are not enough authored messages to display.',
     noEvidence: 'No additional identity evidence is available.', state: 'Relationship state', close: 'Close',
@@ -58,8 +58,8 @@ export const Person360Panel: React.FC<Props> = ({ client, personId, currentLang,
   useEffect(() => {
     let active = true;
     setLoading(true); setError(''); setData(null);
-    client.getPersonContext(personId)
-      .then(result => { if (active) setData(result); })
+    Promise.all([client.getPersonContext(personId), client.getPersonTimeline(personId, 240)])
+      .then(([result, timeline]) => { if (active) setData({ ...result, timeline: Array.isArray(timeline.items) ? timeline.items : [] }); })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Error'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -73,7 +73,7 @@ export const Person360Panel: React.FC<Props> = ({ client, personId, currentLang,
 
   const person = data?.person || {};
   const sources = Array.isArray(data?.sources) ? data.sources : [];
-  const messages = Array.isArray(data?.recentMessages) ? data.recentMessages : [];
+  const messages = Array.isArray(data?.timeline) && data.timeline.length ? data.timeline : Array.isArray(data?.recentMessages) ? data.recentMessages : [];
   const evidence = Array.isArray(data?.evidence) ? data.evidence : [];
   const signals = Array.isArray(data?.signals) ? data.signals : [];
 
@@ -106,7 +106,7 @@ export const Person360Panel: React.FC<Props> = ({ client, personId, currentLang,
             <section className="rounded-2xl border border-white/8 bg-white/[0.02] p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><FileArchive size={14} className="text-indigo-300" /> {t.sources}</div><div className="mt-3 flex flex-wrap gap-2">{sources.length ? sources.map((source: any) => <span key={source.sourceId || source.id} className="rounded-xl border border-white/8 bg-black/15 px-3 py-2 text-xs text-slate-400"><span className="font-medium text-slate-200">{source.label}</span><span className="ml-2 text-[10px] text-slate-600">{source.kind === 'group' ? 'WhatsApp · grupo' : 'WhatsApp'}</span></span>) : <span className="text-xs text-slate-600">—</span>}</div></section>
 
             <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><MessageCircle size={14} className="text-indigo-300" /> {t.recent}</div>{messages.length ? <div className="mt-3 space-y-2">{messages.slice(0, 18).map((message: any, index: number) => <div key={`${message.timestampLocal || message.dateKey}-${index}`} className="rounded-xl border border-white/6 bg-black/15 p-3"><div className="text-[10px] font-medium text-slate-500">{shortDate(message.dateKey || message.timestampLocal, currentLang)}</div><p className="mt-1 text-xs leading-5 text-slate-300">{message.text}</p></div>)}</div> : <div className="mt-4 text-xs text-slate-600">{t.noMessages}</div>}</div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><MessageCircle size={14} className="text-indigo-300" /> {t.recent}</div>{messages.length ? <div className="mt-3 space-y-2">{messages.slice(0, 30).map((message: any, index: number) => <div key={`${message.timestampLocal || message.dateKey}-${index}`} className="rounded-xl border border-white/6 bg-black/15 p-3"><div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-medium text-slate-500"><span>{shortDate(message.dateKey || message.timestampLocal, currentLang)}</span><span className="text-slate-600">{message.sourceLabel || (message.type === 'follow_up' ? 'Connect' : '')}</span></div><p className="mt-1 text-xs leading-5 text-slate-300">{message.type === 'follow_up' ? `Follow-up · ${message.text}` : message.text}</p></div>)}</div> : <div className="mt-4 text-xs text-slate-600">{t.noMessages}</div>}</div>
 
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4"><div className="text-xs font-semibold text-slate-300">{t.signals}</div><div className="mt-3 space-y-2">{signals.slice(0, 8).map((signal: any) => <div key={signal.id} className="rounded-xl border border-white/6 bg-black/15 p-3"><div className="text-xs leading-5 text-slate-300">{signal.reason}</div><div className="mt-1 text-[10px] leading-4 text-indigo-200/80">{signal.nextAction}</div></div>)}</div></div>

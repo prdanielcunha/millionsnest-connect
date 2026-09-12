@@ -17,6 +17,7 @@ import { isGlobalGovernanceRole } from './core/roles/systemRoles';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
+import { RelationshipIntelligencePage } from './features/intelligence/RelationshipIntelligencePage';
 
 // Demo feature pages remain available while the live rollout flag is off.
 import { OverviewPage } from './features/overview/OverviewPage';
@@ -123,9 +124,6 @@ export default function App() {
       .then((session) => {
         if (!mounted) return;
         setLiveSession(session);
-        // Current commercial priority: eligible ecosystem-governance users land
-        // directly in Relationship Intelligence instead of a generic overview.
-        // Non-governance users keep the existing Core landing and RBAC boundary.
         if (isGlobalGovernanceRole(session.context.user.systemRole)) {
           setActiveRoute('radar');
         }
@@ -192,6 +190,9 @@ export default function App() {
     }
     if (activeRoute === 'sources' && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'intelligence' && showRadar) {
+      return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} />;
     }
     if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
