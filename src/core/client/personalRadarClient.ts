@@ -74,6 +74,7 @@ export type RadarClientPerson = {
   salesStage?: string | null;
   lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
   lastCommercialAt?: string | null;
+  lastCommercialDraft?: string | null;
   followUpAt?: string | null;
   sourceKinds?: string[];
   radarEligible?: boolean;
@@ -265,6 +266,7 @@ export class PersonalRadarClient {
       notRelevant?: boolean;
       salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
+      commercialDraft?: string;
       followUpDays?: number;
     },
   ) {
