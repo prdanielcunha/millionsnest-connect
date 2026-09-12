@@ -18,7 +18,9 @@ jobs:
         with:
           ref: fix/composer-conversation-continuity
       - name: Apply continuity patch
-        run: python .github/scripts/fix_composer_continuity.py
+        run: |
+          python .github/scripts/fix_composer_continuity.py
+          python .github/scripts/add_main_commercial_tracking.py
       - name: Validate
         run: |
           npm ci --no-audit --no-fund
@@ -29,6 +31,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/personal/radar/composerPlaybook.ts src/features/radar/RadarPage.tsx src/tests/composerPlaybook.test.ts
+          git add src/personal/radar/composerPlaybook.ts src/features/radar/RadarPage.tsx src/tests/composerPlaybook.test.ts src/core/client/personalRadarClient.ts src/personal/radar/personalRadarService.ts
           git commit -m "fix: make composer continue existing conversations"
           git push origin HEAD:fix/composer-conversation-continuity
