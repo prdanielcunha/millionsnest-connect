@@ -29,6 +29,22 @@ Relationship, direct conversation, owner mention, and leadership role are **seco
 
 Automatic potential is recalculated from current evidence instead of trusting legacy persisted scores. Old imports that were incorrectly promoted by ambiguous text must be downgraded by the current classifier. Manual user overrides remain authoritative.
 
+## Cloud-first persistence invariant
+
+Connect is a cloud application. Personal Sources, imported conversations, raw message chunks, derived contacts, Radar signals, automatic potential, priority, metrics, identity resolution, manual overrides, Composer/follow-up state and message models are canonical only after they are persisted in the owner-scoped Firestore vault.
+
+Browser memory, local storage and a specific phone/computer are never the source of truth. A successful write means the cloud write completed. Opening Connect on another authorized device must reconstruct the same current state from Firestore without a device-specific migration.
+
+Automatic reprocessing must preserve user decisions such as manual potential, manual priority, favorite, not-relevant, snooze and commercial/follow-up state.
+
+## Existing imported data and logic upgrades
+
+When Radar classification logic changes, existing imported contacts must be reprocessed from the authorized raw WhatsApp message chunks already stored in Firestore. The upgrade must persist the recalculated signals, automatic potential, priority and source/contact metrics back to the cloud.
+
+The current logic version is tracked in the owner-scoped Radar metadata. On the first Radar read after a new logic version is deployed, stale cloud data is reprocessed and persisted before the Radar response is returned. Subsequent devices/reads use the cloud version marker and do not repeat the migration.
+
+A manual cloud reprocess endpoint may be used for recovery or verification, but normal use must not depend on the original import device.
+
 ## Required regression examples
 
 - `Me permita uma breve reflexão em tom contemplativo` → no MusicScale evidence.
