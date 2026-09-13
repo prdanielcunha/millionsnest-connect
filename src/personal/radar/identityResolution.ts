@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { RadarPerson, RadarSignal } from './radarSignals';
+import { classifyMusicScaleEvidence, RadarPerson, RadarSignal } from './radarSignals';
 
 export type PotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type ManualPriority = 'normal' | 'important' | 'priority';
@@ -136,14 +136,39 @@ export function newPersonDocumentId(sourceId: string, person: RadarPerson): stri
   return `person_${crypto.createHash('sha256').update(seed).digest('hex').slice(0, 24)}`;
 }
 
+function evidencePotential(signalsValue: unknown): PotentialLevel {
+  if (!Array.isArray(signalsValue)) return 'unknown';
+  let hasTopic = false;
+  let hasStrongPersonEvidence = false;
+  let hasCommercialFollowupEvidence = false;
+
+  for (const signal of signalsValue as RadarSignal[]) {
+    if (!signal || !Array.isArray(signal.evidence)) continue;
+    for (const item of signal.evidence) {
+      const tier = classifyMusicScaleEvidence(String(item?.snippet || ''));
+      if (tier === 'explicit' || tier === 'pain') {
+        if (signal.type === 'commercial_followup_due') hasCommercialFollowupEvidence = true;
+        else hasStrongPersonEvidence = true;
+      } else if (tier === 'topic') {
+        hasTopic = true;
+      }
+    }
+  }
+
+  if (hasStrongPersonEvidence) return 'very_high';
+  if (hasCommercialFollowupEvidence) return 'high';
+  if (hasTopic) return 'medium';
+  return 'unknown';
+}
+
 export function safeEffectivePotential(person: Record<string, unknown>): PotentialLevel {
   const manual = person.manualPotential;
   if (manual === 'very_high' || manual === 'high' || manual === 'medium' || manual === 'low' || manual === 'unknown') {
     return manual;
   }
-  const automatic = person.automaticPotential;
-  if (automatic === 'very_high' || automatic === 'high' || automatic === 'medium' || automatic === 'low' || automatic === 'unknown') {
-    return automatic;
-  }
-  return automaticPotentialFromPriority(Number(person.priority ?? 99));
+
+  // Do not trust persisted legacy potential blindly. Re-evaluate the stored
+  // evidence with the current classifier so old false positives (for example
+  // "tom contemplativo") stop being treated as MusicScale opportunities.
+  return evidencePotential(person.signals);
 }
