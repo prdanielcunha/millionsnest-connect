@@ -7,6 +7,8 @@ import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContext
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
+import { RadarCloudSyncService } from '../personal/radar/radarCloudSyncService';
+import { createRadarCloudSyncRouter } from '../personal/radar/radarCloudSyncHttp';
 import { PersonalSourcesService } from '../personal/sources/personalSourcesService';
 import { createPersonalSourcesRouter } from '../personal/sources/personalSourcesHttp';
 import { PersonalIntelligenceService } from '../personal/intelligence/personalIntelligenceService';
@@ -41,6 +43,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     : null;
 
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
+  let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
   let personalIntelligenceRouter: ReturnType<typeof createPersonalIntelligenceRouter> | null = null;
@@ -68,6 +71,12 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         Date.now,
         logger,
       );
+      const radarCloudSync = new RadarCloudSyncService(
+        personalContextProvider,
+        vault,
+        Date.now,
+        logger,
+      );
       const personalSources = new PersonalSourcesService(
         personalContextProvider,
         vault,
@@ -82,6 +91,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         env,
         Date.now,
       );
+      radarCloudSyncRouter = createRadarCloudSyncRouter(radarCloudSync, personalRadar);
       personalRadarRouter = createPersonalRadarRouter(personalRadar);
       personalSourcesRouter = createPersonalSourcesRouter(personalSources);
       personalIntelligenceRouter = createPersonalIntelligenceRouter(personalIntelligence);
@@ -94,14 +104,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
   app.disable('x-powered-by');
 
-  // Personal import can carry an authorized TXT/ZIP export up to 5 MB encoded
-  // as base64. Mount these routers before the small default Core JSON parser so
-  // the larger body limit applies only to private import endpoints.
   if (personalSourcesRouter) {
     app.use('/api/personal/v2', personalSourcesRouter);
   }
   if (personalIntelligenceRouter) {
     app.use('/api/personal/intelligence', personalIntelligenceRouter);
+  }
+  if (radarCloudSyncRouter) {
+    app.use('/api/personal', radarCloudSyncRouter);
   }
   if (personalRadarRouter) {
     app.use('/api/personal', personalRadarRouter);
