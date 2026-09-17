@@ -1,4 +1,8 @@
 import { ConnectCoreService } from './connectCore';
+import {
+  FactRecordingMusicScaleReadTool,
+  StructuredLogCoreFactPort,
+} from './canonicalFacts';
 import { HubSessionContextHttpProvider } from './hubSessionContextHttpProvider';
 import { MusicScaleNextScheduleHttpTool } from './musicScaleNextScheduleHttpTool';
 import {
@@ -24,6 +28,11 @@ export interface ConnectCoreRuntimeFactoryOptions {
  * No Firebase Admin credentials are introduced in Connect: Hub remains the
  * identity/RBAC authority and MusicScale independently revalidates the user's
  * Firebase bearer for its own read boundary.
+ *
+ * The real tool boundary is also decorated with the first canonical Fact
+ * Stream events (TOOL_ACTION_REQUESTED / TOOL_ACTION_COMPLETED). The initial
+ * sink is structured logging only, so no new database/event-bus dependency is
+ * introduced before the shared persistence contract is finalized.
  */
 export function createConnectCoreRuntime(
   options: ConnectCoreRuntimeFactoryOptions = {},
@@ -49,13 +58,20 @@ export function createConnectCoreRuntime(
     timeoutMs: options.timeoutMs,
   });
 
-  const musicScaleReadTool = new MusicScaleNextScheduleHttpTool({
+  const logger = options.logger ?? console;
+  const musicScaleHttpTool = new MusicScaleNextScheduleHttpTool({
     musicScaleOrigin,
     fetchImpl,
     timeoutMs: options.timeoutMs,
   });
+  const facts = new StructuredLogCoreFactPort(logger);
+  const musicScaleReadTool = new FactRecordingMusicScaleReadTool(
+    musicScaleHttpTool,
+    facts,
+    logger,
+  );
 
-  const audit = new StructuredLogCoreAuditPort(options.logger ?? console);
+  const audit = new StructuredLogCoreAuditPort(logger);
 
   return new ConnectCoreService(contextProvider, musicScaleReadTool, audit);
 }
