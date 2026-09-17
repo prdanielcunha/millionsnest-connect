@@ -1,3 +1,4 @@
+import type { MusicScaleReadToolPort } from './connectCore';
 import type { StructuredCoreAuditLogger } from './structuredCoreAudit';
 
 export type CanonicalFactEventType =
@@ -155,5 +156,82 @@ export class StructuredLogCoreFactPort implements CoreFactPort {
           : undefined,
       },
     });
+  }
+}
+
+/**
+ * Decorates the existing real MusicScale tool boundary with canonical facts.
+ *
+ * Fact recording is deliberately fail-open in this first slice: audit remains
+ * fail-closed in Connect Core, while the Fact Stream starts as an additional
+ * observable contract that cannot regress the already-working read flow.
+ */
+export class FactRecordingMusicScaleReadTool implements MusicScaleReadToolPort {
+  constructor(
+    private readonly delegate: MusicScaleReadToolPort,
+    private readonly facts: CoreFactPort,
+    private readonly logger: StructuredCoreAuditLogger = console,
+  ) {}
+
+  async getNextSchedule(
+    input: Parameters<MusicScaleReadToolPort['getNextSchedule']>[0],
+  ): ReturnType<MusicScaleReadToolPort['getNextSchedule']> {
+    await this.tryRecord(createToolActionFact({
+      eventType: 'TOOL_ACTION_REQUESTED',
+      requestId: input.requestId,
+      organizationId: input.organizationId,
+      actorId: input.actorUid,
+      intent: 'get_next_schedule',
+      channel: input.channel.type,
+      result: 'requested',
+      requiredCapability: input.requiredCapability,
+    }));
+
+    try {
+      const result = await this.delegate.getNextSchedule(input);
+
+      await this.tryRecord(createToolActionFact({
+        eventType: 'TOOL_ACTION_COMPLETED',
+        requestId: input.requestId,
+        organizationId: input.organizationId,
+        actorId: input.actorUid,
+        intent: 'get_next_schedule',
+        channel: input.channel.type,
+        result: result.status,
+        requiredCapability: input.requiredCapability,
+        downstreamAuditId: result.auditId,
+      }));
+
+      return result;
+    } catch (error) {
+      await this.tryRecord(createToolActionFact({
+        eventType: 'TOOL_ACTION_COMPLETED',
+        requestId: input.requestId,
+        organizationId: input.organizationId,
+        actorId: input.actorUid,
+        intent: 'get_next_schedule',
+        channel: input.channel.type,
+        result: 'failed',
+        requiredCapability: input.requiredCapability,
+      }));
+      throw error;
+    }
+  }
+
+  private async tryRecord(event: CanonicalFactEvent): Promise<void> {
+    try {
+      await this.facts.record(event);
+    } catch {
+      try {
+        this.logger.error?.('CONNECT_FACT_RECORD_FAILED', {
+          eventId: safeText(event.eventId, 260),
+          eventType: event.eventType,
+          organizationId: safeText(event.organizationId, 180),
+          sourceApp: event.sourceApp,
+        });
+      } catch {
+        // Fact observability must not become a new failure mode in this slice.
+      }
+    }
   }
 }
