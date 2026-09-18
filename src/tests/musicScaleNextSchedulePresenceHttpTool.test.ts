@@ -98,7 +98,7 @@ console.log('--- Running MusicScale Presence HTTP Tool Tests ---');
   });
   const result = await tool.getNextSchedulePresence(input());
   equal(result.status, 'conflict', 'tenant mismatch fails closed');
-  equal(JSON.stringify(result).includes('foreign'), false, 'foreign schedule/presence is not returned');
+  equal('data' in result, false, 'tenant mismatch never exposes foreign schedule/presence data');
 }
 
 {
