@@ -12,7 +12,7 @@ import {
   RadarPotentialLevel,
 } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
-import { normalizeWhatsAppPhone, openWhatsAppDraft } from '../../core/client/whatsappDelivery';
+import { openWhatsAppDraft } from '../../core/client/whatsappDelivery';
 
 interface RadarPageProps {
   session: LiveConnectSession;
@@ -21,6 +21,7 @@ interface RadarPageProps {
 
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
 type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
+type ComposerObjective = 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
 type FilterMode = 'all' | 'favorites' | 'priority' | 'very_high' | 'review';
 
 type SelectedSignal = {
@@ -104,6 +105,13 @@ function potentialClasses(level: RadarPotentialLevel) {
   return 'border-white/10 bg-transparent text-slate-500';
 }
 
+function normalizePhoneForUse(value?: string | null): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return '';
+  if (/(0{7,}|9{8,}|1{8,})$/.test(digits)) return '';
+  return digits;
+}
+
 export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) => {
   const t = copy[currentLang];
   const s = sourceCopy[currentLang];
@@ -125,6 +133,8 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
   const [draft, setDraft] = useState('');
   const [composerPlan, setComposerPlan] = useState<any | null>(null);
   const [composerStyle, setComposerStyle] = useState<ComposerStyle>('consultivo');
+  const [composerObjective, setComposerObjective] = useState<ComposerObjective>('iniciar_conversa');
+  const [composerError, setComposerError] = useState('');
   const [draftBusy, setDraftBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [phones, setPhones] = useState<Record<string, string>>({});
@@ -140,7 +150,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
       const result = await client.getRadar();
       setPeople(result.people);
       setConversations(result.conversations || []);
-      setPhones(Object.fromEntries(result.people.map(person => [person.id, person.phone || ''])));
+      setPhones(Object.fromEntries(result.people.map(person => [person.id, normalizePhoneForUse(person.phone)])));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : t.error);
@@ -185,16 +195,28 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     }
   };
 
-  const compose = async (selection = selected, requestedTone = tone, requestedStyle = composerStyle) => {
+  const compose = async (
+    selection = selected,
+    requestedTone = tone,
+    requestedStyle = composerStyle,
+    requestedObjective = composerObjective,
+  ) => {
     if (!selection) return;
     setDraftBusy(true); setCopied(false);
     try {
-      const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, { style: requestedStyle });
+      const channel = requestedTone === 'audio' ? 'audio' : requestedTone === 'video' ? 'video' : requestedObjective === 'retomar_conversa' ? 'followup' : 'texto';
+      const result = await client.compose(selection.person.id, selection.signal.id, requestedTone, {
+        style: requestedStyle,
+        objective: requestedObjective,
+        channel,
+      });
       setComposerPlan(result);
       setDraft(result.draft || result.options?.[0]?.text || '');
       setError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.error);
+      const message = e instanceof Error ? e.message : t.error;
+      setComposerError(message);
+      setError(message);
     } finally {
       setDraftBusy(false);
     }
@@ -207,8 +229,13 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     setSelected(selection); setDraft(''); setComposerPlan(null); setTone('curto');
     const initialStyle: ComposerStyle = signal.type === 'unanswered_conversation' || signal.type === 'recurring_relevant_topic'
       ? 'pastoral' : signal.type === 'commercial_followup_due' ? 'proximo' : 'consultivo';
+    const hasPriorContact = Boolean(person.lastCommercialAction || person.lastCommercialAt)
+      || (Boolean(person.salesStage) && person.salesStage !== 'iniciar_conversa')
+      || signal.type === 'commercial_followup_due';
+    const initialObjective: ComposerObjective = hasPriorContact ? 'retomar_conversa' : 'iniciar_conversa';
     setComposerStyle(initialStyle);
-    setTimeout(() => void compose(selection, 'curto', initialStyle), 0);
+    setComposerObjective(initialObjective);
+    setTimeout(() => void compose(selection, 'curto', initialStyle, initialObjective), 0);
   };
 
   const resolveIdentity = async (person: RadarClientPerson, candidatePersonId: string, action: 'merge' | 'keep_separate') => {
@@ -328,7 +355,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
         })}
       </section>}
 
-      {selected && <section className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-5xl rounded-[28px] border border-indigo-400/20 bg-[#0b0f18]/95 p-4 shadow-[0_24px_90px_rgba(0,0,0,.6)] backdrop-blur-2xl sm:inset-x-5 sm:p-5 lg:bottom-5"><div className="flex items-start justify-between gap-3"><div><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.probableName || selected.person.displayName}</div></div><button onClick={() => setSelected(null)} className="rounded-xl border border-white/8 p-2 text-slate-500 hover:text-white"><X size={16} /></button></div><div className="mt-4 grid gap-4 lg:grid-cols-[220px_1fr]"><div><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.style}</div><div className="mt-2 flex flex-wrap gap-1.5">{(['amigavel','profissional','objetivo','proximo','pastoral','consultivo'] as ComposerStyle[]).map(style => <button key={style} onClick={() => { setComposerStyle(style); void compose(selected, tone, style); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${composerStyle === style ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{composerStyleLabel(style, currentLang)}</button>)}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto',t.short],['conversa',t.conversation],['audio',t.audio],['video',t.video]] as Array<[Tone,string]>).map(([value,label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value, composerStyle); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${tone === value ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0"><textarea value={draft} onChange={e => setDraft(e.target.value)} className="min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100 outline-none focus:border-indigo-400/30" placeholder={draftBusy ? t.regenerate : ''} />{composerPlan?.why && <div className="mt-2 text-xs leading-5 text-slate-500"><span className="text-slate-400">{t.why}:</span> {composerPlan.why}</div>}<div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); await patchPerson(selected.person, { commercialAction: 'copied', commercialDraft: draft }); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{draftBusy ? <Loader2 size={14} className="animate-spin" /> : t.regenerate}</button><button onClick={() => { openWhatsAppDraft(draft, phones[selected.person.id] || selected.person.phone); void patchPerson(selected.person, { commercialAction: 'whatsapp_opened', commercialDraft: draft }); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-300 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button>{!normalizeWhatsAppPhone(phones[selected.person.id] || selected.person.phone) && <span className="text-xs text-slate-600">{t.noPhone}</span>}<span className="ml-auto hidden text-[10px] text-slate-600 sm:inline">{t.noAuto}</span></div></div></div></section>}
+      {selected && <section className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-5xl rounded-[28px] border border-indigo-400/20 bg-[#0b0f18]/95 p-4 shadow-[0_24px_90px_rgba(0,0,0,.6)] backdrop-blur-2xl sm:inset-x-5 sm:p-5 lg:bottom-5"><div className="flex items-start justify-between gap-3"><div><div className="text-xs font-semibold text-indigo-200">{t.composerTitle}</div><div className="mt-1 text-sm font-medium text-white">{selected.person.probableName || selected.person.displayName}</div></div><button onClick={() => setSelected(null)} className="rounded-xl border border-white/8 p-2 text-slate-500 hover:text-white"><X size={16} /></button></div><div className="mt-4 grid gap-4 lg:grid-cols-[220px_1fr]"><div><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.style}</div><div className="mt-2 flex flex-wrap gap-1.5">{(['amigavel','profissional','objetivo','proximo','pastoral','consultivo'] as ComposerStyle[]).map(style => <button key={style} onClick={() => { setComposerStyle(style); void compose(selected, tone, style); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${composerStyle === style ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>{composerStyleLabel(style, currentLang)}</button>)}</div><div className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-600">{t.tone}</div><div className="mt-2 flex flex-wrap gap-1.5">{([['curto',t.short],['conversa',t.conversation],['audio',t.audio],['video',t.video]] as Array<[Tone,string]>).map(([value,label]) => <button key={value} onClick={() => { setTone(value); void compose(selected, value, composerStyle); }} className={`rounded-lg px-2.5 py-1.5 text-[11px] ${tone === value ? 'bg-white text-slate-950' : 'bg-white/5 text-slate-400'}`}>{label}</button>)}</div></div><div className="min-w-0"><textarea value={draft} onChange={e => setDraft(e.target.value)} className="min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-100 outline-none focus:border-indigo-400/30" placeholder={draftBusy ? t.regenerate : ''} />{composerPlan?.why && <div className="mt-2 text-xs leading-5 text-slate-500"><span className="text-slate-400">{t.why}:</span> {composerPlan.why}</div>}<div className="mt-3 flex flex-wrap items-center gap-2"><button onClick={async () => { await navigator.clipboard.writeText(draft); setCopied(true); await patchPerson(selected.person, { commercialAction: 'copied', commercialDraft: draft }); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-200 disabled:opacity-40">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t.copied : t.copy}</button><button onClick={() => void compose()} className="min-h-10 rounded-xl border border-white/10 px-3 text-xs text-slate-300">{draftBusy ? <Loader2 size={14} className="animate-spin" /> : t.regenerate}</button><button onClick={() => { openWhatsAppDraft(draft, phones[selected.person.id] || selected.person.phone); void patchPerson(selected.person, { commercialAction: 'whatsapp_opened', commercialDraft: draft }); }} disabled={!draft} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-emerald-300 px-3 text-xs font-semibold text-slate-950 disabled:opacity-40"><MessageCircle size={15} /> {t.whatsapp}</button>{!normalizePhoneForUse(phones[selected.person.id] || selected.person.phone) && <span className="text-xs text-slate-600">{t.noPhone}</span>}<span className="ml-auto hidden text-[10px] text-slate-600 sm:inline">{t.noAuto}</span></div></div></div></section>}
     </main>
   );
 };

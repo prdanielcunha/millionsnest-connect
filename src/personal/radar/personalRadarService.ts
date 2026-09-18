@@ -35,11 +35,13 @@ export type RadarRequestContext = {
 };
 
 const DAY_MS = 86_400_000;
-const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
 
 function isoNow(now: () => number): string {
   return new Date(now()).toISOString();
 }
+
+function normalizedName(value: unknown): string { return String(value || '').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g, ' '); }
+function normalizedPhone(value: unknown): string { const digits = String(value || '').replace(/\D/g, ''); return digits.length >= 10 && digits.length <= 15 ? digits : ''; }
 
 function sourceIdFromText(text: string, scope?: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim();
@@ -104,6 +106,24 @@ function resolveSnoozeDays(value: unknown): number {
   return days;
 }
 
+const SALES_STAGES = new Set<ComposerObjective>([
+  'iniciar_conversa', 'descobrir_dor', 'contar_historia', 'pedir_video', 'enviar_video',
+  'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',
+]);
+const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
+const MESSAGE_MODEL_TONES = new Set<RadarComposerTone>(['curto', 'conversa', 'audio', 'video']);
+
+function resolveFollowUpDays(value: unknown): number {
+  const days = value === undefined ? 2 : Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error('FOLLOW_UP_DAYS_INVALID');
+  return days;
+}
+
+function isFollowUpDue(person: Record<string, unknown>, nowMs: number): boolean {
+  const at = Date.parse(String(person.followUpAt || ''));
+  return Number.isFinite(at) && at <= nowMs;
+}
+
 function latestDate(a: unknown, b: unknown): string | null {
   const left = typeof a === 'string' ? a : '';
   const right = typeof b === 'string' ? b : '';
@@ -138,7 +158,8 @@ function mergeIdentityEvidence(existingValue: unknown, incomingValue: unknown): 
       if (!map.has(key)) map.set(key, item);
     }
   };
-  collect(existingValue); collect(incomingValue);
+  collect(existingValue);
+  collect(incomingValue);
   return Array.from(map.values()).sort((a, b) => b.score - a.score || String(b.dateKey).localeCompare(String(a.dateKey))).slice(0, 12);
 }
 
@@ -219,16 +240,16 @@ export class PersonalRadarService {
     for (const person of people) {
       const rankedMatches = workingPeople
         .map(existing => {
-          let match = compareIdentity(person, existing);
-          const existingSources = uniqueStrings(existing.sourceIds, existing.sourceId);
-          const sameConversationSender = relatedSourceIds.size > 0
-            && existingSources.some(source => relatedSourceIds.has(source))
-            && normalizeIdentityName(existing.displayName) === normalizeIdentityName(person.displayName);
-          if (sameConversationSender && match.kind !== 'conflict') {
-            match = { kind: 'strong' as const, confidence: 98, reasons: ['same_conversation_sender'] };
-          }
-          return { existing, match };
-        })
+        let match = compareIdentity(person, existing);
+        const existingSources = uniqueStrings(existing.sourceIds, existing.sourceId);
+        const sameConversationSender = relatedSourceIds.size > 0
+          && existingSources.some(source => relatedSourceIds.has(source))
+          && normalizeIdentityName(existing.displayName) === normalizeIdentityName(person.displayName);
+        if (sameConversationSender && match.kind !== 'conflict') {
+          match = { kind: 'strong' as const, confidence: 98, reasons: ['same_conversation_sender'] };
+        }
+        return { existing, match };
+      })
         .filter(item => item.match.kind !== 'none')
         .sort((a, b) => b.match.confidence - a.match.confidence);
 
@@ -435,6 +456,64 @@ export class PersonalRadarService {
     return { people: visible, count: visible.length, conversations };
   }
 
+
+  async getPeople(request: RadarRequestContext) {
+    const context = await this.resolvePilotContext(request);
+    const people = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 2_000);
+    const ordered = people.sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || ''), 'pt-BR'));
+    return { people: ordered, count: ordered.length };
+  }
+
+  async importContacts(request: RadarRequestContext, input: { contacts?: Array<{ name?: unknown; phone?: unknown }> }) {
+    const context = await this.resolvePilotContext(request);
+    const contacts = Array.isArray(input.contacts) ? input.contacts.slice(0, 500) : [];
+    if (!contacts.length) throw new Error('CONTACTS_REQUIRED');
+    const existing = await this.vault.list(request.authToken, context.actorUid, ['personalPeople'], 2_000);
+    const writes: VaultWrite[] = [];
+    let imported = 0;
+    for (const raw of contacts) {
+      const displayName = String(raw?.name || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+      if (!displayName) continue;
+      const phone = normalizedPhone(raw?.phone);
+      const nameKey = normalizedName(displayName);
+      let person = existing.find(item => phone && normalizedPhone(item.phone) === phone);
+      let matchedByPhoneIdentity = Boolean(person && phone);
+      if (!person && phone) {
+        person = existing.find(item => uniqueStrings(item.displayName, item.probableName, item.identityAliases)
+          .some(alias => normalizedPhone(alias) === phone));
+        matchedByPhoneIdentity = Boolean(person);
+      }
+      if (!person) person = existing.find(item => !item.phone && normalizedName(item.displayName) === nameKey);
+      const id = person ? String(person.id) : `ct_${crypto.createHash('sha256').update(`${nameKey}|${phone}`).digest('hex').slice(0, 24)}`;
+      const currentKinds = Array.isArray(person?.sourceKinds) ? person!.sourceKinds as string[] : (String(person?.sourceId || '').startsWith('wa_') ? ['whatsapp_export'] : []);
+      const sourceKinds = Array.from(new Set([...currentKinds, 'contacts_import']));
+      const directSignal = {
+        id: 'direct_contact', type: 'recurring_relevant_topic', reason: 'Contato disponível para abordagem direta.',
+        nextAction: 'Escolha a etapa da conversa e prepare a próxima mensagem.', evidence: [],
+      };
+      writes.push({ path: ['personalPeople', id], data: {
+        ...(person || {}), id, sourceId: String(person?.sourceId || 'contacts_import'), ownerUid: context.actorUid,
+        displayName, phone: phone || person?.phone || null, sourceKinds,
+      identityAliases: uniqueStrings(person?.identityAliases, person?.displayName, person?.probableName, displayName),
+      identityConfirmedAliases: matchedByPhoneIdentity
+        ? uniqueStrings(person?.identityConfirmedAliases, normalizeIdentityName(displayName), normalizeIdentityName(person?.displayName))
+        : person?.identityConfirmedAliases,
+      identityResolution: matchedByPhoneIdentity ? 'contact_phone_confirmed' : person?.identityResolution,
+      identityConfidence: matchedByPhoneIdentity ? 100 : person?.identityConfidence,
+      probableName: matchedByPhoneIdentity ? null : person?.probableName,
+      signals: Array.isArray(person?.signals) && person!.signals.length ? person!.signals : [directSignal],
+        radarEligible: person?.radarEligible === undefined ? false : person.radarEligible,
+        radarState: String(person?.radarState || 'active'), priority: Number(person?.priority ?? 99),
+        salesStage: person?.salesStage || 'iniciar_conversa', importedAt: person?.importedAt || isoNow(this.now), updatedAt: isoNow(this.now),
+      }});
+      if (!person) existing.push({ id, displayName, phone, sourceKinds, signals: [directSignal], radarEligible: false });
+      imported += 1;
+    }
+    if (!writes.length) throw new Error('CONTACTS_REQUIRED');
+    await this.vault.writeMany(request.authToken, context.actorUid, writes);
+    return { success: true, imported };
+  }
+
   async search(request: RadarRequestContext, rawQuery: string) {
     const context = await this.resolvePilotContext(request);
     const query = rawQuery.trim().toLocaleLowerCase('pt-BR');
@@ -485,8 +564,10 @@ export class PersonalRadarService {
       manualPriority?: ManualPriority;
       manualPotential?: PotentialLevel | null;
       notRelevant?: boolean;
+      salesStage?: ComposerObjective;
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
       commercialDraft?: string;
+      followUpDays?: number;
     },
   ) {
     const context = await this.resolvePilotContext(request);
@@ -497,12 +578,18 @@ export class PersonalRadarService {
     const radarState = input.radarState && ['active', 'ignored', 'snoozed'].includes(input.radarState)
       ? input.radarState
       : String(person.radarState || 'active');
-    if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) {
-      throw new Error('COMMERCIAL_ACTION_INVALID');
-    }
+
+    if (input.salesStage !== undefined && !SALES_STAGES.has(input.salesStage)) throw new Error('SALES_STAGE_INVALID');
+    if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) throw new Error('COMMERCIAL_ACTION_INVALID');
     const commercialDraft = input.commercialDraft === undefined ? undefined : String(input.commercialDraft || '').trim();
     if (input.commercialDraft !== undefined && (!commercialDraft || commercialDraft.length > 4_000)) throw new Error('COMMERCIAL_DRAFT_INVALID');
+
     const commercialAt = input.commercialAction ? isoNow(this.now) : (person.lastCommercialAt || null);
+    let followUpAt = person.followUpAt || null;
+    if (input.commercialAction === 'sent_manual') {
+      const days = resolveFollowUpDays(input.followUpDays);
+      followUpAt = new Date(this.now() + days * DAY_MS).toISOString();
+    }
 
     let snoozedUntil = person.snoozedUntil || null;
     if (input.radarState === 'snoozed') {
@@ -531,9 +618,11 @@ export class PersonalRadarService {
       manualPriority,
       manualPotential: input.manualPotential === undefined ? person.manualPotential || null : requestedPotential,
       notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
+      salesStage: input.salesStage === undefined ? person.salesStage || null : input.salesStage,
       lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,
       lastCommercialAt: commercialAt,
       lastCommercialDraft: commercialDraft === undefined ? person.lastCommercialDraft || null : commercialDraft,
+      followUpAt,
       updatedAt: isoNow(this.now),
     };
     await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['personalPeople', personDocumentId], data: updated }]);
@@ -671,6 +760,10 @@ export class PersonalRadarService {
         displayName: person.displayName || null,
         phone: person.phone || null,
         organizationId: request.organizationId,
+        salesStage: person.salesStage || null,
+        lastCommercialAction: person.lastCommercialAction || null,
+        lastCommercialAt: person.lastCommercialAt || null,
+        followUpAt: person.followUpAt || null,
         status: 'open',
         promotedManually: true,
         createdAt,
@@ -687,9 +780,11 @@ export class PersonalRadarService {
     person: Record<string, unknown>,
   ): Promise<Array<{ dateKey: string; timestampLocal: string; sender: string; snippet: string }>> {
     const sourceIds = uniqueStrings(person.sourceIds, person.sourceId).slice(0, 8);
-    const aliases = new Set(uniqueStrings(person.displayName, person.probableName, person.identityAliases).map(normalizeIdentityName).filter(Boolean));
+    const aliases = new Set(uniqueStrings(person.displayName, person.probableName, person.identityAliases)
+      .map(normalizeIdentityName).filter(Boolean));
     const phone = normalizePhone(person.phone);
     const authored: Array<{ dateKey: string; timestampLocal: string; sender: string; snippet: string }> = [];
+
     for (const sourceId of sourceIds) {
       const chunks = await this.vault.list(request.authToken, actorUid, ['personalConversations', sourceId, 'messageChunks'], 120);
       for (const chunk of chunks) {
@@ -701,11 +796,19 @@ export class PersonalRadarService {
           if (!aliases.has(senderName) && !(phone && senderPhone && phone === senderPhone)) continue;
           const snippet = String(message.text || '').replace(/\s+/g, ' ').trim().slice(0, 320);
           if (!snippet) continue;
-          authored.push({ dateKey: String(message.dateKey || ''), timestampLocal: String(message.timestampLocal || ''), sender, snippet });
+          authored.push({
+            dateKey: String(message.dateKey || ''),
+            timestampLocal: String(message.timestampLocal || ''),
+            sender,
+            snippet,
+          });
         }
       }
     }
-    return authored.sort((a,b) => String(b.timestampLocal || b.dateKey).localeCompare(String(a.timestampLocal || a.dateKey))).slice(0, 8);
+
+    return authored
+      .sort((a, b) => String(b.timestampLocal || b.dateKey).localeCompare(String(a.timestampLocal || a.dateKey)))
+      .slice(0, 8);
   }
 
   async compose(
@@ -724,13 +827,19 @@ export class PersonalRadarService {
     if (!['curto', 'conversa', 'audio', 'video'].includes(tone)) throw new Error('COMPOSER_TONE_INVALID');
 
     const recentConversationMessages = await this.loadComposerConversationContext(request, context.actorUid, person);
-    const recentEvidence = recentConversationMessages.map((message, index) => ({ messageIndex: -(index + 1), dateKey: message.dateKey, sender: message.sender, snippet: message.snippet }));
+    const recentEvidence = recentConversationMessages.map((message, index) => ({
+      messageIndex: -(index + 1),
+      dateKey: message.dateKey,
+      sender: message.sender,
+      snippet: message.snippet,
+    }));
     const contextSignal: RadarSignal = {
       ...signal,
       evidence: [...recentEvidence, ...(signal.evidence || [])]
-        .filter((item,index,all) => all.findIndex(other => other.dateKey === item.dateKey && other.sender === item.sender && other.snippet === item.snippet) === index)
+        .filter((item, index, all) => all.findIndex(other => other.dateKey === item.dateKey && other.sender === item.sender && other.snippet === item.snippet) === index)
         .slice(0, 8),
     };
+
     const legacy = legacyComposerPreferences(tone);
     const plan = buildComposerPlan({
       person: { ...person, recentConversationMessages } as any,
@@ -761,6 +870,66 @@ export class PersonalRadarService {
       evidence: contextSignal.evidence || [],
       automaticSend: false,
     };
+  }
+
+
+  async listMessageModels(request: RadarRequestContext) {
+    const context = await this.resolvePilotContext(request);
+    const models = await this.vault.list(request.authToken, context.actorUid, ['messageModels'], 100);
+    const ordered = models
+      .filter(model => typeof model.text === 'string' && typeof model.label === 'string')
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      .slice(0, 30);
+    return { models: ordered, count: ordered.length };
+  }
+
+  async saveMessageModel(
+    request: RadarRequestContext,
+    input: { label?: unknown; text?: unknown; objective?: ComposerObjective; tone?: RadarComposerTone },
+  ) {
+    const context = await this.resolvePilotContext(request);
+    const text = typeof input.text === 'string' ? input.text.trim() : '';
+    if (!text || text.length > 4_000) throw new Error('MESSAGE_MODEL_TEXT_INVALID');
+    if (!input.objective || !SALES_STAGES.has(input.objective)) throw new Error('MESSAGE_MODEL_OBJECTIVE_INVALID');
+    if (!input.tone || !MESSAGE_MODEL_TONES.has(input.tone)) throw new Error('MESSAGE_MODEL_TONE_INVALID');
+    const label = (typeof input.label === 'string' ? input.label.trim() : '').slice(0, 120) || input.objective;
+    const createdAt = isoNow(this.now);
+    const id = `mdl_${crypto.createHash('sha256')
+      .update(`${context.actorUid}|${createdAt}|${text}|${crypto.randomUUID()}`)
+      .digest('hex').slice(0, 24)}`;
+    const model = {
+      id,
+      ownerUid: context.actorUid,
+      label,
+      text,
+      objective: input.objective,
+      tone: input.tone,
+      createdAt,
+      updatedAt: createdAt,
+      privacyScope: 'owner_only',
+    };
+
+    const existing = await this.vault.list(request.authToken, context.actorUid, ['messageModels'], 100);
+    const excess = [...existing]
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+      .slice(0, Math.max(0, existing.length - 29));
+    if (excess.length) {
+      await this.vault.deleteMany(
+        request.authToken,
+        context.actorUid,
+        excess.map(item => ['messageModels', String(item.id)]),
+      );
+    }
+    await this.vault.writeMany(request.authToken, context.actorUid, [{ path: ['messageModels', id], data: model }]);
+    return { success: true, model };
+  }
+
+  async deleteMessageModel(request: RadarRequestContext, modelId: string) {
+    const context = await this.resolvePilotContext(request);
+    const model = await this.vault.get(request.authToken, context.actorUid, ['messageModels', modelId]);
+    if (!model) return { success: true, deleted: false };
+    await this.vault.deleteMany(request.authToken, context.actorUid, [['messageModels', modelId]]);
+    return { success: true, deleted: true };
   }
 
   async deleteSource(request: RadarRequestContext, sourceId: string) {

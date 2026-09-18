@@ -14,8 +14,10 @@ import {
   LiveConnectSession,
 } from './core/client/liveConnectSession';
 import { isGlobalGovernanceRole } from './core/roles/systemRoles';
+import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
+import { LivePeoplePage } from './features/contacts/LivePeoplePage';
 import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
 import { RelationshipIntelligencePage } from './features/intelligence/RelationshipIntelligencePage';
 
@@ -124,6 +126,9 @@ export default function App() {
       .then((session) => {
         if (!mounted) return;
         setLiveSession(session);
+        // Current commercial priority: eligible ecosystem-governance users land
+        // directly in Relationship Intelligence instead of a generic overview.
+        // Non-governance users keep the existing Core landing and RBAC boundary.
         if (isGlobalGovernanceRole(session.context.user.systemRole)) {
           setActiveRoute('radar');
         }
@@ -132,8 +137,13 @@ export default function App() {
       })
       .catch((error) => {
         if (!mounted) return;
+        const errorCode = safeBootstrapErrorCode(error);
+        if (shouldRedirectToHubConnectLaunch(errorCode)) {
+          window.location.replace(buildHubConnectLaunchUrl());
+          return;
+        }
         setLiveSession(null);
-        setLiveBootErrorCode(safeBootstrapErrorCode(error));
+        setLiveBootErrorCode(errorCode);
         setLiveBootState('failed');
       });
     return () => { mounted = false; };
@@ -196,6 +206,9 @@ export default function App() {
     }
     if (activeRoute === 'overview') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'contacts' && showRadar) {
+      return <LivePeoplePage session={liveSession} currentLang={currentLang} />;
     }
     return <LiveStagedSection />;
   };
