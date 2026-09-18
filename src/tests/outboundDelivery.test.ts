@@ -33,7 +33,7 @@ function validRequest(): OutboundDeliveryRequest {
     sourceApp: 'nestlocal',
     channel: 'whatsapp',
     category: 'service_update',
-    recipient: { kind: 'phone', value: '5543999999999' },
+    recipient: { kind: 'phone', value: '5543987654321' },
     templateName: 'nestlocal_service_update',
     language: 'pt_BR',
     consentEvidenceRef: 'nestlocal-consent:req_12345678',
@@ -124,9 +124,9 @@ console.log('--- Running Outbound Delivery Contract Tests ---');
   checkEqual(decision.providerPolicy?.financialCostBrl, 0, 'no cost incurred when blocked');
 
   const audit = buildOutboundDeliveryAuditRecord(authority, request, decision);
-  checkEqual(audit.recipientMasked, '***9999', 'audit masks recipient');
+  checkEqual(audit.recipientMasked, '***4321', 'audit masks recipient');
   checkEqual('variables' in (audit as unknown as Record<string, unknown>), false, 'audit excludes template variables');
-  checkEqual(JSON.stringify(audit).includes('5543999999999'), false, 'audit excludes full phone');
+  checkEqual(JSON.stringify(audit).includes('5543987654321'), false, 'audit excludes full phone');
 }
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
