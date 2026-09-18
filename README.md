@@ -92,6 +92,7 @@ Variáveis existentes da aplicação:
 Variáveis server-side da primeira runtime real do Connect Core:
 * `MILLIONSNEST_HUB_ORIGIN`: origem canônica do MillionsNest Hub usada para `GET /api/ecosystem/connect/session-context`.
 * `MUSICSCALE_ORIGIN`: origem canônica do MusicScale usada para a ferramenta read-only de próxima escala.
+* `CONNECT_RELEASE_SHA`: SHA imutável da revisão publicada; é exposto no `/api/health` para provar qual build está realmente servindo.
 
 Essas duas variáveis contêm **somente origins** (scheme + host), nunca credenciais. O Firebase Bearer do usuário é recebido transitoriamente por requisição e não deve ser persistido nem registrado em auditoria.
 

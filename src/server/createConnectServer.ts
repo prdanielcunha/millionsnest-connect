@@ -37,6 +37,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
   const logger = options.logger ?? console;
   const env = options.env ?? process.env;
+  const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -124,6 +125,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       success: true,
       service: 'millionsnest-connect-core',
       protocolVersion: '1.0.0',
+      releaseSha: releaseSha || undefined,
     });
   });
 

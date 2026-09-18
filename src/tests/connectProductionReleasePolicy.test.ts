@@ -69,6 +69,17 @@ assert.match(release, /--min-instances 0/, 'Core must preserve scale-to-zero pol
 assert.match(release, /--allow-unauthenticated/, 'Firebase Hosting must be able to invoke the HTTP service');
 assert.match(release, /MILLIONSNEST_HUB_ORIGIN=https:\/\/www\.millionsnest\.com/);
 assert.match(release, /MUSICSCALE_ORIGIN=https:\/\/musicscale\.millionsnest\.com/);
+assert.match(
+  release,
+  /CONNECT_RELEASE_SHA=\$\{\{ github\.sha \}\}/,
+  'Production release must stamp the deployed revision into runtime environment',
+);
+assert.match(
+  release,
+  /x\.releaseSha!==process\.env\.GITHUB_SHA/,
+  'Local and production health smokes must verify the serving revision',
+);
+
 assert.match(release, /CONNECT_PRODUCTION_RELEASE_OK/, 'Release must end with a production smoke gate');
 assert.match(
   release,
