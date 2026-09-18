@@ -1,4 +1,4 @@
-export type ConnectCoreIntent = 'get_next_schedule' | 'get_next_schedule_repertoire' | 'unknown';
+export type ConnectCoreIntent = 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence' | 'unknown';
 
 export type ConnectChannelType = 'inapp' | 'whatsapp' | 'instagram' | 'telegram' | string;
 
@@ -95,6 +95,22 @@ export interface MusicScaleReadToolPort {
     channel: ConnectCoreMessageRequest['channel'];
     locale: string;
   }): Promise<MusicScaleNextScheduleResult>;
+
+  getNextSchedulePresence?(input: {
+    authToken: string;
+    actorUid: string;
+    systemRole: string | null;
+    globalAccess: boolean;
+    organizationId: string;
+    organizationRole: string | null;
+    permissions: string[];
+    capabilities: string[];
+    requiredCapability: 'scales.read';
+    requestId: string;
+    correlationId: string;
+    channel: ConnectCoreMessageRequest['channel'];
+    locale: string;
+  }): Promise<MusicScaleNextScheduleResult>;
 }
 
 export interface CoreAuditEvent {
@@ -121,7 +137,7 @@ export interface CoreAuditPort {
 export type ConnectCoreResponse =
   | {
       status: 'success';
-      intent: 'get_next_schedule' | 'get_next_schedule_repertoire';
+      intent: 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence';
       humanSummary: string;
       data: unknown;
       auditId: string;
@@ -148,6 +164,7 @@ export type ConnectCoreResponse =
 
 const NEXT_SCHEDULE_CAPABILITY = 'scales.read' as const;
 const NEXT_REPERTOIRE_CAPABILITY = 'songs.read' as const;
+const NEXT_PRESENCE_CAPABILITY = 'scales.read' as const;
 
 function normalizeForIntent(value: string): string {
   return value
@@ -160,6 +177,30 @@ function normalizeForIntent(value: string): string {
 
 export function resolveConnectCoreIntent(text: string): ConnectCoreIntent {
   const normalized = normalizeForIntent(text);
+
+  const presencePhrases = [
+    'eu confirmei presenca',
+    'confirmei minha presenca',
+    'qual e minha confirmacao',
+    'qual minha confirmacao',
+    'estou confirmado na proxima escala',
+    'estou confirmada na proxima escala',
+    'minha presenca na proxima escala',
+    'minha resposta da proxima escala',
+    'did i confirm my next schedule',
+    'am i confirmed for my next schedule',
+    'my attendance for my next schedule',
+    'my response for my next schedule',
+    'confirme mi asistencia',
+    'estoy confirmado para mi proxima escala',
+    'estoy confirmada para mi proxima escala',
+    'mi asistencia en la proxima escala',
+    'mi respuesta para la proxima escala',
+  ];
+
+  if (presencePhrases.some((phrase) => normalized.includes(phrase))) {
+    return 'get_next_schedule_presence';
+  }
 
   const repertoirePhrases = [
     'qual o repertorio da minha proxima escala',
@@ -322,7 +363,7 @@ export class ConnectCoreService {
       };
     }
 
-    if (intent !== 'get_next_schedule' && intent !== 'get_next_schedule_repertoire') {
+    if (intent !== 'get_next_schedule' && intent !== 'get_next_schedule_repertoire' && intent !== 'get_next_schedule_presence') {
       await this.tryAudit({
         eventType: 'core_request_denied',
         requestId: request.requestId,
@@ -390,6 +431,14 @@ export class ConnectCoreService {
         toolResult = await this.musicScaleReadTool.getNextScheduleRepertoire({
           ...baseToolInput,
           requiredCapability: NEXT_REPERTOIRE_CAPABILITY,
+        });
+      } else if (intent === 'get_next_schedule_presence') {
+        if (!this.musicScaleReadTool.getNextSchedulePresence) {
+          throw new Error('MUSICSCALE_PRESENCE_TOOL_UNAVAILABLE');
+        }
+        toolResult = await this.musicScaleReadTool.getNextSchedulePresence({
+          ...baseToolInput,
+          requiredCapability: NEXT_PRESENCE_CAPABILITY,
         });
       } else {
         toolResult = await this.musicScaleReadTool.getNextSchedule({

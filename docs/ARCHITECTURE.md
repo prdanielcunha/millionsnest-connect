@@ -101,3 +101,14 @@ O Core agora reconhece pedidos de repertório em PT/EN/ES e usa uma segunda boun
 
 Esta fatia não retorna cifra/letra crua. O deep link abre a escala canônica no MusicScale, evitando que o Connect represente cifra em tonalidade incorreta antes da vertical específica de charts/transposição.
 
+## Terceira vertical real: presença da próxima escala
+
+O Core também reconhece perguntas de presença/confirmação em PT/EN/ES e chama `GET /api/v1/connect/next-schedule/presence`.
+
+- O MusicScale revalida bearer e tenant independentemente.
+- A consulta só é executada para uma escala futura atribuída ao próprio usuário.
+- O MusicScale exige leitura de escalas e a capability de resposta própria, e consulta somente respostas cujo `userId` é o usuário autenticado.
+- O estado retornado é explícito: `pending`, `accepted`, `maybe`, `declined` ou `mixed`; ausência de resposta nunca é inferida como aceitação.
+- O Connect valida novamente o tenant, preserva `auditId`/deep link e produz fatos com `toolId=musicscale.get_next_schedule_presence`.
+- Nenhuma resposta de presença de terceiros faz parte do payload.
+
