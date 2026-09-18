@@ -111,7 +111,75 @@ console.log('--- Running Hub Connect Session Context Adapter Tests ---');
     checkEqual(result.context.organizationId, 'org_01', 'organization id comes from Hub active organization');
     checkEqual(result.context.globalAccess, true, 'global access remains explicit evidence');
     checkEqual(result.context.appAccess.musicscale, true, 'MusicScale access is mapped only from granted Hub appAccess');
+    checkEqual(result.context.appAccess.nestlocal, false, 'missing NestLocal access fails closed');
     checkEqual(result.context.capabilities.length, 2, 'capabilities are deduplicated across canonical Hub scopes');
+  }
+}
+
+
+{
+  const result = mapHubConnectSessionContext({
+    success: true,
+    protocolVersion: '1.0.0',
+    user: { uid: 'user_01', systemRole: 'user', capabilities: [] },
+    globalAccess: false,
+    activeOrganizationId: 'org_01',
+    activeOrganization: {
+      id: 'org_01',
+      organizationRole: 'owner',
+      permissions: [],
+      capabilities: [],
+    },
+    appAccess: {
+      musicscale: {
+        appId: 'musicscale',
+        organizationId: 'org_01',
+        accessible: false,
+        decisionState: 'denied',
+      },
+      nestlocal: {
+        appId: 'nestlocal',
+        organizationId: 'org_02',
+        accessible: true,
+        decisionState: 'granted',
+      },
+    },
+  });
+  checkEqual(result.status, 'denied', 'NestLocal access from another tenant fails closed');
+}
+
+{
+  const result = mapHubConnectSessionContext({
+    success: true,
+    protocolVersion: '1.0.0',
+    user: { uid: 'user_01', systemRole: 'user', capabilities: [] },
+    globalAccess: false,
+    activeOrganizationId: 'org_01',
+    activeOrganization: {
+      id: 'org_01',
+      organizationRole: 'owner',
+      permissions: ['nestlocal.manage'],
+      capabilities: [],
+    },
+    appAccess: {
+      musicscale: {
+        appId: 'musicscale',
+        organizationId: 'org_01',
+        accessible: false,
+        decisionState: 'denied',
+      },
+      nestlocal: {
+        appId: 'nestlocal',
+        organizationId: 'org_01',
+        accessible: true,
+        decisionState: 'granted',
+      },
+    },
+  });
+  checkEqual(result.status, 'resolved', 'valid NestLocal app access resolves');
+  if (result.status === 'resolved') {
+    checkEqual(result.context.appAccess.nestlocal, true, 'NestLocal access comes only from granted Hub appAccess');
+    checkEqual(result.context.appAccess.musicscale, false, 'MusicScale decision remains independent');
   }
 }
 
