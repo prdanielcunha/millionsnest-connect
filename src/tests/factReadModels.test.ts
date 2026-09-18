@@ -63,6 +63,40 @@ const completed = createToolActionFact({
 
 {
   const projection = new InMemoryToolActivityReadModel();
+  const sameTimeRequested = createToolActionFact({
+    eventType: 'TOOL_ACTION_REQUESTED',
+    requestId: 'req-same-ms',
+    organizationId: 'org-1',
+    actorId: 'user-1',
+    intent: 'get_next_schedule_repertoire',
+    channel: 'inapp',
+    result: 'requested',
+    requiredCapability: 'songs.read',
+    toolId: 'musicscale.get_next_schedule_repertoire',
+    occurredAt: new Date('2026-09-18T00:05:00.000Z'),
+  });
+  const sameTimeCompleted = createToolActionFact({
+    eventType: 'TOOL_ACTION_COMPLETED',
+    requestId: 'req-same-ms',
+    organizationId: 'org-1',
+    actorId: 'user-1',
+    intent: 'get_next_schedule_repertoire',
+    channel: 'inapp',
+    result: 'success',
+    requiredCapability: 'songs.read',
+    downstreamAuditId: 'audit-same-ms',
+    toolId: 'musicscale.get_next_schedule_repertoire',
+    occurredAt: new Date('2026-09-18T00:05:00.000Z'),
+  });
+
+  projection.rebuild([sameTimeCompleted, sameTimeRequested]);
+  const snapshot = projection.get('org-1');
+  equal(snapshot.lastEventId, sameTimeCompleted.eventId, 'completion wins same-millisecond request/completion tie');
+  equal(snapshot.lastEvidenceRef, 'musicscale-audit:audit-same-ms', 'same-millisecond projection keeps completed evidence');
+}
+
+{
+  const projection = new InMemoryToolActivityReadModel();
   const otherOrg = createToolActionFact({
     eventType: 'TOOL_ACTION_COMPLETED',
     requestId: 'req-read-model-other',
