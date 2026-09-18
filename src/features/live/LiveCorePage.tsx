@@ -104,7 +104,7 @@ const copy = {
     chartReview: 'Esta cifra necesita revisión en MusicScale antes de aparecer aquí.',
     schedule: 'Próxima escala',
   },
-} satisfies Record<LanguageCode, Record<string, string>>;
+} satisfies Record<LanguageCode, Record<string, string | string[]>>;
 
 function LiveStructuredResult({
   result,
