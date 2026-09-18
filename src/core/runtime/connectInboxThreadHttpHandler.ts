@@ -151,7 +151,7 @@ async function resolveAuthorizedContext(
   }
 
   const decision = evaluateConnectInboxAuthority(resolution.context, action);
-  if (!decision.allowed) {
+  if ('reason' in decision) {
     res.status(403).json({
       success: false,
       code: decision.reason,
