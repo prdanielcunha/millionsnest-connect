@@ -80,16 +80,16 @@ console.log('--- Running Outbound Delivery Contract Tests ---');
 
 
 {
-  const request = validRequest() as OutboundDeliveryRequest & { category: string };
+  const request = validRequest() as unknown as Record<string, unknown>;
   request.category = 'marketing';
-  const decision = evaluateOutboundDelivery(validAuthority(), request as OutboundDeliveryRequest);
+  const decision = evaluateOutboundDelivery(validAuthority(), request as unknown as OutboundDeliveryRequest);
   checkEqual(decision.reason, 'INVALID_CATEGORY', 'invalid category blocks');
 }
 
 {
-  const request = validRequest() as OutboundDeliveryRequest & { language: string };
+  const request = validRequest() as unknown as Record<string, unknown>;
   request.language = 'fr_FR';
-  const decision = evaluateOutboundDelivery(validAuthority(), request as OutboundDeliveryRequest);
+  const decision = evaluateOutboundDelivery(validAuthority(), request as unknown as OutboundDeliveryRequest);
   checkEqual(decision.reason, 'UNSUPPORTED_LANGUAGE', 'unsupported language blocks');
 }
 
