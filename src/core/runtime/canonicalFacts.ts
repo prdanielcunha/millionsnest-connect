@@ -249,6 +249,26 @@ export class FactRecordingMusicScaleReadTool implements MusicScaleReadToolPort {
     );
   }
 
+  async getNextScheduleChart(
+    input: Parameters<NonNullable<MusicScaleReadToolPort['getNextScheduleChart']>>[0],
+  ): Promise<import('./connectCore').MusicScaleNextScheduleResult> {
+    const delegate = this.delegate.getNextScheduleChart;
+    if (!delegate) {
+      return {
+        status: 'failed',
+        humanSummary: 'A consulta de cifra ainda não está disponível.',
+        retryable: false,
+      };
+    }
+
+    return this.executeWithFacts(
+      'musicscale.get_next_schedule_chart',
+      'get_next_schedule_chart',
+      input,
+      () => delegate.call(this.delegate, input),
+    );
+  }
+
   private async executeWithFacts(
     toolId: string,
     intent: string,
