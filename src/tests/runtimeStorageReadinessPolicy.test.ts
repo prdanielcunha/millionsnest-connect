@@ -33,6 +33,46 @@ assert.match(
   /CONNECT_RUNTIME_STORAGE_READINESS_READ_ONLY_OK/,
   'readiness discovery must end with an explicit read-only marker',
 );
+assert.match(
+  workflow,
+  /--impersonate-service-account="\$RUNTIME_SA"/,
+  'readiness check may impersonate only the dedicated runtime identity',
+);
+assert.match(
+  workflow,
+  /:testIamPermissions/,
+  'effective Firestore permissions must be probed without mutating data',
+);
+assert.match(
+  workflow,
+  /datastore\.entities\.get/,
+  'read permission must be checked explicitly',
+);
+assert.match(
+  workflow,
+  /datastore\.entities\.create/,
+  'create permission must be checked explicitly',
+);
+assert.match(
+  workflow,
+  /datastore\.entities\.update/,
+  'update permission must be checked explicitly',
+);
+assert.match(
+  workflow,
+  /unset RUNTIME_TOKEN/,
+  'runtime impersonation token must be discarded immediately after the probe',
+);
+assert.match(
+  workflow,
+  /CONNECT_RUNTIME_FIRESTORE_EFFECTIVE_STATE=/,
+  'workflow must emit effective Firestore permission state',
+);
+assert.doesNotMatch(
+  workflow,
+  /echo\s+"?\$RUNTIME_TOKEN/,
+  'runtime token must never be printed',
+);
 
 for (const forbidden of [
   'add-iam-policy-binding',
