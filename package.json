@@ -27,7 +27,7 @@
     "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
     "test:menu-mobile": "tsx src/tests/menuMobile.test.ts",
     "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts",
-    "test:release-policy": "tsx src/tests/connectProductionReleasePolicy.test.ts",
+    "test:release-policy": "tsx src/tests/runtimeStorageReadinessPolicy.test.ts && tsx src/tests/connectProductionReleasePolicy.test.ts",
     "test:outbound": "tsx src/tests/outboundDelivery.test.ts && tsx src/tests/outboundDeliveryHttpHandler.test.ts"
   },
   "dependencies": {
