@@ -33,6 +33,8 @@ export type OutboundDeliveryBlockReason =
   | 'SOURCE_APP_MISMATCH'
   | 'CAPABILITY_REQUIRED'
   | 'INVALID_DESTINATION'
+  | 'INVALID_CATEGORY'
+  | 'UNSUPPORTED_LANGUAGE'
   | 'APPROVED_TEMPLATE_REQUIRED'
   | 'CONSENT_EVIDENCE_REQUIRED'
   | 'IDEMPOTENCY_KEY_REQUIRED'
@@ -80,6 +82,8 @@ const SAFE_REF = /^[a-zA-Z0-9._:/-]{3,260}$/;
 const SAFE_IDEMPOTENCY = /^[a-zA-Z0-9._:/-]{8,220}$/;
 const SAFE_SOURCE_APP = /^[a-z0-9_-]{2,80}$/;
 const REQUIRED_CAPABILITY = 'channels.whatsapp.send';
+const CATEGORIES = new Set<OutboundDeliveryCategory>(['service_update', 'maintenance_reminder']);
+const LANGUAGES = new Set<OutboundDeliveryRequest['language']>(['pt_BR', 'en_US', 'es']);
 
 function clean(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -138,6 +142,14 @@ export function evaluateOutboundDelivery(
     return { status: 'blocked', reason: 'INVALID_DESTINATION' };
   }
 
+  if (!CATEGORIES.has(request.category)) {
+    return { status: 'blocked', reason: 'INVALID_CATEGORY' };
+  }
+
+  if (!LANGUAGES.has(request.language)) {
+    return { status: 'blocked', reason: 'UNSUPPORTED_LANGUAGE' };
+  }
+
   const templateName = clean(request.templateName).toLowerCase();
   if (!TEMPLATE_NAME.test(templateName)) {
     return { status: 'blocked', reason: 'APPROVED_TEMPLATE_REQUIRED' };
@@ -155,7 +167,7 @@ export function evaluateOutboundDelivery(
 
   const providerPolicy = evaluateZeroCostPolicy('meta.whatsapp');
   const providerDecision = {
-    resourceId: providerPolicy.resource,
+    resourceId: providerPolicy.resource || 'meta.whatsapp',
     status: providerPolicy.status,
     reason: providerPolicy.reason,
     financialCostBrl: providerPolicy.financialCostBrl,
