@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "millionsnest"
+  },
+  "targets": {
+    "millionsnest": {
+      "hosting": {
+        "connect": [
+          "mn-connect-555464791734"
+        ]
+      }
+    }
+  }
+}

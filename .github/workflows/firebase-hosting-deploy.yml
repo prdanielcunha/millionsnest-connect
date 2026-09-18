@@ -1,0 +1,55 @@
+name: Firebase Hosting Manual Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-firebase-hosting-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Authenticate with MillionsNest production WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate
+        run: |
+          npm run lint
+          npm run test:firebase-hosting
+          npm run build
+      - name: Require Connect Core service before API rewrite deploy
+        run: |
+          gcloud run services describe connect-api \
+            --project millionsnest \
+            --region us-central1 \
+            --format='value(status.url)' >/tmp/connect-api-url.txt
+          test -s /tmp/connect-api-url.txt
+      - name: Deploy Hosting
+        run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project millionsnest --non-interactive
+      - name: Smoke test Firebase Hosting and Core rewrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://mn-connect-555464791734.web.app"
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$BASE/" -o /tmp/firebase-index.html
+          grep -Eiq '<!doctype html|<html' /tmp/firebase-index.html
+          test -s /tmp/firebase-index.html
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$BASE/api/health" -o /tmp/connect-health.json
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
+          echo "FIREBASE_HOSTING_SMOKE_OK=Connect+Core"
