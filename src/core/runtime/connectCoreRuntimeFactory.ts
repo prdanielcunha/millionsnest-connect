@@ -8,6 +8,7 @@ import { InMemoryToolActivityReadModel } from './factReadModels';
 import { HubSessionContextHttpProvider } from './hubSessionContextHttpProvider';
 import { MusicScaleNextScheduleHttpTool } from './musicScaleNextScheduleHttpTool';
 import { MusicScaleNextScheduleRepertoireHttpTool } from './musicScaleNextScheduleRepertoireHttpTool';
+import { MusicScaleNextSchedulePresenceHttpTool } from './musicScaleNextSchedulePresenceHttpTool';
 import {
   StructuredCoreAuditLogger,
   StructuredLogCoreAuditPort,
@@ -79,10 +80,17 @@ export function createConnectCoreRuntimeBundle(
     fetchImpl,
     timeoutMs: options.timeoutMs,
   });
+  const nextPresenceTool = new MusicScaleNextSchedulePresenceHttpTool({
+    musicScaleOrigin,
+    fetchImpl,
+    timeoutMs: options.timeoutMs,
+  });
   const musicScaleHttpTool = {
     getNextSchedule: nextScheduleTool.getNextSchedule.bind(nextScheduleTool),
     getNextScheduleRepertoire:
       nextRepertoireTool.getNextScheduleRepertoire.bind(nextRepertoireTool),
+    getNextSchedulePresence:
+      nextPresenceTool.getNextSchedulePresence.bind(nextPresenceTool),
   };
 
   const toolActivity = new InMemoryToolActivityReadModel();
