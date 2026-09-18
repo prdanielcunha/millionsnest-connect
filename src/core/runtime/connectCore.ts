@@ -216,7 +216,15 @@ export function resolveConnectChartTitleQuery(text: string): string {
 export function resolveConnectCoreIntent(text: string): ConnectCoreIntent {
   const normalized = normalizeForIntent(text);
 
-  if (resolveConnectChartTitleQuery(text)) {
+  const chartTitleQuery = resolveConnectChartTitleQuery(text);
+  const chartRequested =
+    Boolean(chartTitleQuery) ||
+    normalized.includes('cifra') ||
+    normalized.includes('acordes') ||
+    normalized.includes('chords') ||
+    normalized.includes('song chart');
+
+  if (chartRequested) {
     return 'get_next_schedule_chart';
   }
 
