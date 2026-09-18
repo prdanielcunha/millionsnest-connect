@@ -78,6 +78,21 @@ console.log('--- Running Outbound Delivery Contract Tests ---');
   checkEqual(decision.reason, 'INVALID_DESTINATION', 'invalid phone blocks');
 }
 
+
+{
+  const request = validRequest() as OutboundDeliveryRequest & { category: string };
+  request.category = 'marketing';
+  const decision = evaluateOutboundDelivery(validAuthority(), request as OutboundDeliveryRequest);
+  checkEqual(decision.reason, 'INVALID_CATEGORY', 'invalid category blocks');
+}
+
+{
+  const request = validRequest() as OutboundDeliveryRequest & { language: string };
+  request.language = 'fr_FR';
+  const decision = evaluateOutboundDelivery(validAuthority(), request as OutboundDeliveryRequest);
+  checkEqual(decision.reason, 'UNSUPPORTED_LANGUAGE', 'unsupported language blocks');
+}
+
 {
   const request = validRequest();
   request.templateName = 'Template With Spaces';
