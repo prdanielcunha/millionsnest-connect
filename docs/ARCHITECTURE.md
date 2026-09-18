@@ -125,3 +125,21 @@ O Core reconhece pedidos determinísticos como `cifra de <música>`, `chords for
 - Letras não fazem parte desta fatia.
 - O Fact Stream registra apenas tool/intent/evidence; o título da música e o conteúdo da cifra não são persistidos no fato canônico.
 
+## Inbox real — fundação canônica de threads e handoff
+
+A UI histórica de Inbox ainda opera em `DEMO_MODE`, mas o Core passa a ter uma state machine canônica e independente da UI para a futura Inbox real.
+
+Estados canônicos: `new`, `in_progress`, `waiting_person`, `waiting_team`, `resolved` e `archived`.
+
+Eventos iniciais: `CONVERSATION_OPENED`, `MESSAGE_REPLIED`, `THREAD_ASSIGNED`, `HANDOFF_CREATED`, `THREAD_WAITING_PERSON`, `THREAD_RESOLVED`, `THREAD_REOPENED` e `THREAD_ARCHIVED`.
+
+A projeção em `src/core/inbox/threadDomain.ts` é:
+- tenant/thread pinned;
+- idempotente por `eventId`;
+- rebuildable e determinística;
+- PII-minimal (sem corpo de mensagem, telefone, nome de contato ou nota pastoral livre);
+- fail-closed para mistura de tenant/thread e transições inválidas;
+- human-first: reply de pessoa pausa automação; handoff/assignment entra em modo humano; arquivamento exige resolução anterior.
+
+Esta fatia **não declara persistência durável nem Inbox live**. Ela congela o contrato de estado/evento antes de ligar provider, armazenamento Connect-owned e a UI real.
+
