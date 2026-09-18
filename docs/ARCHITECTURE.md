@@ -88,3 +88,16 @@ The canonical Fact Stream now also feeds a deterministic, tenant-scoped tool-act
 - The current read-model storage is explicitly **process-memory only**. This slice does not claim durable Fact Stream/read-model persistence and does not introduce a new database, queue, event bus or runtime credential.
 - A durable sink may replace/augment this projection later while preserving the fact schema and domain ownership boundaries.
 
+## Segunda vertical real: repertório da próxima escala
+
+O Core agora reconhece pedidos de repertório em PT/EN/ES e usa uma segunda boundary read-only:
+
+1. Connect resolve o mesmo contexto canônico do Hub.
+2. `get_next_schedule_repertoire` chama `GET /api/v1/connect/next-schedule/repertoire`.
+3. O MusicScale revalida Firebase bearer + tenant e exige `scales.read` e `songs.read`.
+4. Apenas a próxima escala atribuída ao próprio usuário é elegível.
+5. O retorno é uma projeção mínima do repertório em ordem: título, artista, tonalidade de origem/programada, BPM efetivo e flags de disponibilidade de cifra/letra.
+6. Connect valida novamente o tenant, preserva o `auditId` do MusicScale e produz fatos `TOOL_ACTION_REQUESTED/COMPLETED` com `toolId=musicscale.get_next_schedule_repertoire`.
+
+Esta fatia não retorna cifra/letra crua. O deep link abre a escala canônica no MusicScale, evitando que o Connect represente cifra em tonalidade incorreta antes da vertical específica de charts/transposição.
+
