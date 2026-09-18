@@ -170,10 +170,16 @@ function assertTransition(
   if (event.eventType === 'CONVERSATION_OPENED') {
     throw new Error('CONVERSATION_ALREADY_OPEN');
   }
-  if (event.eventType === 'THREAD_ARCHIVED' && previous.status !== 'resolved') {
+  if (previous.status === 'resolved') {
+    if (event.eventType === 'THREAD_REOPENED' || event.eventType === 'THREAD_ARCHIVED') {
+      return;
+    }
+    throw new Error('THREAD_MUST_REOPEN');
+  }
+  if (event.eventType === 'THREAD_ARCHIVED') {
     throw new Error('THREAD_MUST_BE_RESOLVED_BEFORE_ARCHIVE');
   }
-  if (event.eventType === 'THREAD_REOPENED' && previous.status !== 'resolved') {
+  if (event.eventType === 'THREAD_REOPENED') {
     throw new Error('ONLY_RESOLVED_THREAD_CAN_REOPEN');
   }
 }

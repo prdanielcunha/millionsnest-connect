@@ -44,3 +44,44 @@ jobs:
           echo "SECRET_NAMES_ONLY:"
           gcloud secrets list --project millionsnest --format='value(name)' || true
           echo "READ_ONLY_DISCOVERY_OK"
+
+      - name: Inspect Connect runtime storage readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_ID="millionsnest"
+          RUNTIME_SA="mn-connect-runtime@millionsnest.iam.gserviceaccount.com"
+
+          echo "CONNECT_RUNTIME_STORAGE_READINESS:"
+          gcloud firestore databases describe             --database="(default)"             --project "$PROJECT_ID"             --format='value(name,locationId,type)' || true
+
+          set +e
+          RUNTIME_ROLES="$(gcloud projects get-iam-policy "$PROJECT_ID"             --flatten='bindings[].members'             --filter="bindings.members:serviceAccount:$RUNTIME_SA"             --format='value(bindings.role)' 2>/dev/null)"
+          POLICY_STATUS=$?
+          set -e
+
+          if [ "$POLICY_STATUS" -ne 0 ]; then
+            echo "CONNECT_RUNTIME_IAM_DISCOVERY=unavailable"
+            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=unknown"
+            exit 0
+          fi
+
+          echo "CONNECT_RUNTIME_IAM_DISCOVERY=available"
+          if [ -n "$RUNTIME_ROLES" ]; then
+            printf '%s\n' "$RUNTIME_ROLES" | sort -u | sed 's/^/CONNECT_RUNTIME_ROLE=/'
+          else
+            echo "CONNECT_RUNTIME_ROLE=none"
+          fi
+
+          if printf '%s\n' "$RUNTIME_ROLES" | grep -qx 'roles/datastore.user'; then
+            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=least_privilege_candidate"
+          elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eqx 'roles/(owner|editor|datastore.owner)'; then
+            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=overprivileged_candidate"
+          elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eq 'datastore|firebase|firestore'; then
+            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=review_required"
+          else
+            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=not_observed"
+          fi
+
+          echo "CONNECT_RUNTIME_STORAGE_READINESS_READ_ONLY_OK"
