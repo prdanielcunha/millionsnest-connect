@@ -124,6 +124,22 @@ await withServer(async (origin) => {
     const payload = await response.json() as any;
     checkEqual(response.status, 503, 'missing server origins fail closed');
     checkEqual(payload.code, 'CORE_CONFIGURATION_MISSING', 'configuration failure is explicit and safe');
+
+    const outbound = await fetch(`http://127.0.0.1:${address.port}/api/core/outbound/validate`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer user-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requestId: 'req-1',
+        organizationId: 'org-1',
+        sourceApp: 'nestlocal',
+      }),
+    });
+    const outboundPayload = await outbound.json() as any;
+    checkEqual(outbound.status, 503, 'outbound validation boundary fails closed without Hub configuration');
+    checkEqual(outboundPayload.code, 'CORE_CONFIGURATION_MISSING', 'outbound configuration failure is explicit');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

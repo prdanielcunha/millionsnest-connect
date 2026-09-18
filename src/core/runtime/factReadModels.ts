@@ -80,7 +80,24 @@ function isLaterEvent(
   if (!currentOccurredAt) return true;
   if (candidate.occurredAt > currentOccurredAt) return true;
   if (candidate.occurredAt < currentOccurredAt) return false;
-  return candidate.eventId > (currentEventId ?? '');
+
+  const currentId = currentEventId ?? '';
+  const currentBase = currentId.replace(/:(?:requested|completed)$/, '');
+  const candidateBase = candidate.eventId.replace(/:(?:requested|completed)$/, '');
+
+  // Requested/completed facts can legitimately share the same millisecond.
+  // For the same request+tool, completion is semantically later than request
+  // regardless of lexical event-id ordering.
+  if (currentBase && currentBase === candidateBase) {
+    if (candidate.eventType === 'TOOL_ACTION_COMPLETED' && currentId.endsWith(':requested')) {
+      return true;
+    }
+    if (candidate.eventType === 'TOOL_ACTION_REQUESTED' && currentId.endsWith(':completed')) {
+      return false;
+    }
+  }
+
+  return candidate.eventId > currentId;
 }
 
 function cloneCounters(value: ToolActivityCounters): ToolActivityCounters {

@@ -4,6 +4,7 @@ import { createConnectCoreHttpHandler } from '../core/runtime/connectCoreHttpHan
 import { createConnectCoreRuntime } from '../core/runtime/connectCoreRuntimeFactory';
 import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionHttpHandler';
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
+import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -44,6 +45,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     : null;
 
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
+  let outboundValidationHandler: ReturnType<typeof createOutboundDeliveryHttpHandler> | null = null;
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
@@ -61,6 +63,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         fetchImpl: options.fetchImpl
           ? ((input: string, init: any) => options.fetchImpl!(input, init) as any)
           : undefined,
+      });
+      outboundValidationHandler = createOutboundDeliveryHttpHandler({
+        contextProvider: personalContextProvider,
+        env,
+        logger,
       });
       const vault = new FirestorePersonalVault({
         projectId: env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest',
@@ -139,6 +146,18 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return sessionHandler(req, res);
+  });
+
+  app.post('/api/core/outbound/validate', async (req, res) => {
+    if (!outboundValidationHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        status: 'blocked',
+        code: 'CORE_CONFIGURATION_MISSING',
+        dispatch: 'not_implemented',
+      });
+    }
+    return outboundValidationHandler(req, res);
   });
 
   app.post('/api/core/message', async (req, res) => {

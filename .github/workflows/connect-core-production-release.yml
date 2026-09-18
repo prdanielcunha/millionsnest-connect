@@ -69,11 +69,21 @@ jobs:
             'https://www.millionsnest.com/api/ecosystem/connect/session-context')"
           test "$HUB_STATUS" = "401"
 
-          MUSIC_STATUS="$(curl --silent --show-error --location \
-            --retry 6 --retry-delay 2 --retry-all-errors \
-            -o /tmp/musicscale-connect-next.json -w '%{http_code}' \
-            'https://musicscale.millionsnest.com/api/v1/connect/next-schedule')"
-          test "$MUSIC_STATUS" = "401"
+          probe_unauthenticated_route() {
+            local name="$1"
+            local url="$2"
+            local status
+            status="$(curl --silent --show-error --location \
+              --retry 6 --retry-delay 2 --retry-all-errors \
+              -o "/tmp/${name}.json" -w '%{http_code}' \
+              "$url")"
+            test "$status" = "401"
+          }
+
+          probe_unauthenticated_route             "musicscale-connect-next"             "https://musicscale.millionsnest.com/api/v1/connect/next-schedule"
+          probe_unauthenticated_route             "musicscale-connect-repertoire"             "https://musicscale.millionsnest.com/api/v1/connect/next-schedule/repertoire"
+          probe_unauthenticated_route             "musicscale-connect-presence"             "https://musicscale.millionsnest.com/api/v1/connect/next-schedule/presence"
+          probe_unauthenticated_route             "musicscale-connect-chart"             "https://musicscale.millionsnest.com/api/v1/connect/next-schedule/chart?title=release-smoke"
 
           echo "CONNECT_LIVE_UPSTREAM_ROUTE_PROOFS_OK"
 
@@ -88,6 +98,7 @@ jobs:
           npm run test:core-http
           npm run test:radar-pilot
           npm run test:zerocost
+          npm run test:outbound
           npm run test:gatewaytenant
           npm run test:authority
           npm run test:chartdelivery
@@ -209,6 +220,14 @@ jobs:
             -o /tmp/connect-session-unauth.json -w '%{http_code}' \
             "$BASE/api/core/session?organizationId=release-smoke")"
           test "$SESSION_STATUS" = "401"
+
+          OUTBOUND_STATUS="$(curl --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            -o /tmp/connect-outbound-unauth.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"organizationId":"release-smoke","sourceApp":"nestlocal"}' \
+            "$BASE/api/core/outbound/validate")"
+          test "$OUTBOUND_STATUS" = "401"
 
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ inputs.live_mode }}"

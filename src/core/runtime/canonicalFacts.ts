@@ -48,6 +48,7 @@ export interface ToolActionFactInput {
   channel: string;
   result: CanonicalFactEvent['payload']['result'];
   requiredCapability?: string;
+  toolId?: string;
   downstreamAuditId?: string;
   occurredAt?: Date;
 }
@@ -77,25 +78,26 @@ export function createToolActionFact(input: ToolActionFactInput): CanonicalFactE
   const phase = input.eventType === 'TOOL_ACTION_REQUESTED' ? 'requested' : 'completed';
   const requestId = safeIdPart(input.requestId, 'unknown-request');
   const organizationId = safeIdPart(input.organizationId, 'unknown-organization');
+  const toolId = safeIdPart(input.toolId || TOOL_ID, TOOL_ID);
   const evidenceRef = input.downstreamAuditId?.trim()
     ? `musicscale-audit:${safeIdPart(input.downstreamAuditId, 'unknown-audit')}`
     : `connect-request:${requestId}`;
 
   return {
-    eventId: `connect:${requestId}:${TOOL_ID}:${phase}`,
+    eventId: `connect:${requestId}:${toolId}:${phase}`,
     eventType: input.eventType,
     occurredAt: timestamp,
     recordedAt: timestamp,
     organizationId,
     actorId: input.actorId?.trim() || undefined,
-    subjectRef: `tool:${TOOL_ID}`,
+    subjectRef: `tool:${toolId}`,
     sourceApp: 'connect',
     scope: `organization:${organizationId}`,
     evidenceRef,
     sensitivity: 'internal',
     version: 1,
     payload: {
-      toolId: TOOL_ID,
+      toolId,
       targetApp: 'musicscale',
       intent: input.intent,
       result: input.result,
@@ -199,30 +201,112 @@ export class FactRecordingMusicScaleReadTool implements MusicScaleReadToolPort {
   async getNextSchedule(
     input: Parameters<MusicScaleReadToolPort['getNextSchedule']>[0],
   ): ReturnType<MusicScaleReadToolPort['getNextSchedule']> {
+    return this.executeWithFacts(
+      'musicscale.get_next_schedule',
+      'get_next_schedule',
+      input,
+      () => this.delegate.getNextSchedule(input),
+    );
+  }
+
+  async getNextScheduleRepertoire(
+    input: Parameters<NonNullable<MusicScaleReadToolPort['getNextScheduleRepertoire']>>[0],
+  ): Promise<import('./connectCore').MusicScaleNextScheduleResult> {
+    const delegate = this.delegate.getNextScheduleRepertoire;
+    if (!delegate) {
+      return {
+        status: 'failed',
+        humanSummary: 'A consulta de repertório ainda não está disponível.',
+        retryable: false,
+      };
+    }
+
+    return this.executeWithFacts(
+      'musicscale.get_next_schedule_repertoire',
+      'get_next_schedule_repertoire',
+      input,
+      () => delegate.call(this.delegate, input),
+    );
+  }
+
+  async getNextSchedulePresence(
+    input: Parameters<NonNullable<MusicScaleReadToolPort['getNextSchedulePresence']>>[0],
+  ): Promise<import('./connectCore').MusicScaleNextScheduleResult> {
+    const delegate = this.delegate.getNextSchedulePresence;
+    if (!delegate) {
+      return {
+        status: 'failed',
+        humanSummary: 'A consulta de presença ainda não está disponível.',
+        retryable: false,
+      };
+    }
+
+    return this.executeWithFacts(
+      'musicscale.get_next_schedule_presence',
+      'get_next_schedule_presence',
+      input,
+      () => delegate.call(this.delegate, input),
+    );
+  }
+
+  async getNextScheduleChart(
+    input: Parameters<NonNullable<MusicScaleReadToolPort['getNextScheduleChart']>>[0],
+  ): Promise<import('./connectCore').MusicScaleNextScheduleResult> {
+    const delegate = this.delegate.getNextScheduleChart;
+    if (!delegate) {
+      return {
+        status: 'failed',
+        humanSummary: 'A consulta de cifra ainda não está disponível.',
+        retryable: false,
+      };
+    }
+
+    return this.executeWithFacts(
+      'musicscale.get_next_schedule_chart',
+      'get_next_schedule_chart',
+      input,
+      () => delegate.call(this.delegate, input),
+    );
+  }
+
+  private async executeWithFacts(
+    toolId: string,
+    intent: string,
+    input: {
+      requestId: string;
+      organizationId: string;
+      actorUid: string;
+      channel: { type: string };
+      requiredCapability: string;
+    },
+    run: () => Promise<import('./connectCore').MusicScaleNextScheduleResult>,
+  ): Promise<import('./connectCore').MusicScaleNextScheduleResult> {
     await this.tryRecord(createToolActionFact({
       eventType: 'TOOL_ACTION_REQUESTED',
       requestId: input.requestId,
       organizationId: input.organizationId,
       actorId: input.actorUid,
-      intent: 'get_next_schedule',
+      intent,
       channel: input.channel.type,
       result: 'requested',
       requiredCapability: input.requiredCapability,
+      toolId,
     }));
 
     try {
-      const result = await this.delegate.getNextSchedule(input);
+      const result = await run();
 
       await this.tryRecord(createToolActionFact({
         eventType: 'TOOL_ACTION_COMPLETED',
         requestId: input.requestId,
         organizationId: input.organizationId,
         actorId: input.actorUid,
-        intent: 'get_next_schedule',
+        intent,
         channel: input.channel.type,
         result: result.status,
         requiredCapability: input.requiredCapability,
         downstreamAuditId: result.auditId,
+        toolId,
       }));
 
       return result;
@@ -232,10 +316,11 @@ export class FactRecordingMusicScaleReadTool implements MusicScaleReadToolPort {
         requestId: input.requestId,
         organizationId: input.organizationId,
         actorId: input.actorUid,
-        intent: 'get_next_schedule',
+        intent,
         channel: input.channel.type,
         result: 'failed',
         requiredCapability: input.requiredCapability,
+        toolId,
       }));
       throw error;
     }
