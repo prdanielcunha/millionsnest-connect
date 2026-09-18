@@ -105,11 +105,12 @@ jobs:
             -e PORT=8080 \
             -e MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com \
             -e MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com \
+            -e CONNECT_RELEASE_SHA=${{ github.sha }} \
             -p 18083:8080 connect-api:release
           trap 'docker stop connect-core-release-smoke >/dev/null 2>&1 || true' EXIT
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:18083/api/health >/tmp/connect-health.json; then
-              node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
+              node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core'||x.releaseSha!==process.env.GITHUB_SHA)process.exit(1)"
               echo "CONNECT_CORE_LOCAL_RELEASE_SMOKE_OK"
               exit 0
             fi
@@ -166,7 +167,7 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com" \
+            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }}" \
             --quiet
 
       - name: Verify Cloud Run readiness
@@ -193,7 +194,7 @@ jobs:
           curl --fail --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             "$BASE/api/health" -o /tmp/connect-health.json
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core'||x.releaseSha!==process.env.GITHUB_SHA)process.exit(1)"
 
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \

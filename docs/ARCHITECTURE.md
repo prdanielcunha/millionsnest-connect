@@ -24,6 +24,20 @@ Fluxo preparado:
 
 Nenhum `uid`, `systemRole`, `organizationRole`, permission ou capability informado pelo Connect é aceito pelo MusicScale como prova de autoridade. O Bearer é transitório e não entra na auditoria.
 
+## P1 — Unified Fact Stream / Fact Foundation
+A primeira vertical real também produz fatos canônicos no boundary da ferramenta, sem mudar a autoridade do Hub ou do MusicScale:
+
+- `TOOL_ACTION_REQUESTED` antes da chamada real ao MusicScale;
+- `TOOL_ACTION_COMPLETED` depois do resultado, inclusive em falha do upstream;
+- `eventId` determinístico por `requestId + tool + fase`, permitindo deduplicação por um sink durável futuro;
+- `organizationId`, `actorId`, `occurredAt`, `recordedAt`, `sourceApp`, `subjectRef`, `scope`, `evidenceRef`, `sensitivity`, `version` e payload mínimo;
+- `evidenceRef` aponta inicialmente para a request do Connect e, quando disponível, para o `auditId` devolvido pelo MusicScale;
+- Bearer, texto integral da mensagem, e-mail e telefone não fazem parte do contrato de fato.
+
+O adapter inicial é `StructuredLogCoreFactPort`, que emite `MILLIONSNEST_CANONICAL_FACT` com ator mascarado. Isso cria o contrato da Fact Foundation sem introduzir Firestore paralelo, event bus, fila ou custo operacional novo antes da decisão compartilhada de persistência.
+
+Nesta primeira fatia, falha no sink de fatos é **fail-open e observável** (`CONNECT_FACT_RECORD_FAILED`) para não regredir a consulta read-only já existente. A auditoria de segurança do Connect continua **fail-closed** e permanece obrigatória antes da execução da ferramenta.
+
 ## Composição Server-Side
 Arquivos principais da primeira runtime real:
 - `server.ts`: entrypoint Node/Express.
@@ -31,6 +45,7 @@ Arquivos principais da primeira runtime real:
 - `src/core/runtime/connectCore.ts`: orquestração do Core e política fail-closed.
 - `src/core/runtime/hubSessionContextHttpProvider.ts`: adapter para contexto canônico do Hub.
 - `src/core/runtime/musicScaleNextScheduleHttpTool.ts`: adapter para a ferramenta read-only do MusicScale.
+- `src/core/runtime/canonicalFacts.ts`: contrato canônico inicial, adapter estruturado e decorator da ferramenta real.
 - `src/core/runtime/connectCoreRuntimeFactory.ts`: composition root server-side.
 - `src/core/runtime/structuredCoreAudit.ts`: auditoria estruturada inicial sem PII sensível.
 
@@ -61,3 +76,15 @@ A configuração atual do Firebase Hosting do Connect continua publicando o fron
 - `MUSICSCALE_ORIGIN`: origem canônica do MusicScale.
 
 São apenas origins e não secrets. Credenciais/tokens continuam transitórios e nunca devem ser versionados.
+
+## P1 Fact Foundation — minimal read models
+
+The canonical Fact Stream now also feeds a deterministic, tenant-scoped tool-activity projection.
+
+- `InMemoryToolActivityReadModel` consumes the same canonical facts emitted by the real MusicScale boundary.
+- Projection is idempotent by `eventId`, keeps only compact counters/references, and preserves `evidenceRef` for traceability.
+- Rebuild from canonical facts is deterministic and AI-free; tests cover duplicate events, tenant isolation and out-of-order rebuild.
+- `createConnectCoreRuntimeBundle` exposes the Core plus its internal read models without changing the existing `createConnectCoreRuntime` API.
+- The current read-model storage is explicitly **process-memory only**. This slice does not claim durable Fact Stream/read-model persistence and does not introduce a new database, queue, event bus or runtime credential.
+- A durable sink may replace/augment this projection later while preserving the fact schema and domain ownership boundaries.
+
