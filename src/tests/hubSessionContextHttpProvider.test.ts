@@ -66,7 +66,7 @@ console.log('--- Running Hub Session Context HTTP Provider Tests ---');
 
   checkEqual(
     seenUrl,
-    `https://millionsnest.example${HUB_SESSION_CONTEXT_PATH}`,
+    `${`https://millionsnest.example${HUB_SESSION_CONTEXT_PATH}`}?organizationId=org_01`,
     'provider targets only the verified canonical Hub endpoint',
   );
   checkEqual(seenAuthorization, 'Bearer firebase-token', 'provider forwards bearer auth server-side');
