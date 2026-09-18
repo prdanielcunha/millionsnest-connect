@@ -143,3 +143,17 @@ A projeção em `src/core/inbox/threadDomain.ts` é:
 
 Esta fatia **não declara persistência durável nem Inbox live**. Ela congela o contrato de estado/evento antes de ligar provider, armazenamento Connect-owned e a UI real.
 
+### Inbox store contract and command semantics
+
+The Inbox foundation now has a storage port in `src/core/inbox/threadStore.ts` and an application service in `src/core/inbox/threadService.ts`.
+
+The reference in-memory store freezes the semantics required from the future durable adapter:
+- optimistic concurrency by expected stream version;
+- idempotency by deterministic `eventId`;
+- hard failure on event-id collision with different bytes;
+- exact organization + conversation stream isolation;
+- deterministic rebuild from canonical events;
+- explicit reopen required before any new work on a resolved thread.
+
+The in-memory adapter is **not** wired into the production HTTP runtime and is not presented as durable storage. It is a conformance reference for the Connect-owned persistence adapter tracked by issue #125.
+
