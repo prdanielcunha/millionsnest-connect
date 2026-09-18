@@ -26,9 +26,9 @@ const copy = {
     subtitle: 'Seu contexto vem do MillionsNest e cada leitura é validada novamente no aplicativo de origem.',
     verified: 'Sessão verificada',
     tenant: 'Organização ativa',
-    greeting: 'Estou conectado ao seu contexto do MillionsNest. Nesta primeira integração real, já consigo consultar sua próxima escala pessoal no MusicScale.',
-    suggestion: 'Qual é minha próxima escala?',
-    placeholder: 'Pergunte sobre sua próxima escala…',
+    greeting: 'Estou conectado ao seu contexto do MillionsNest. Já consigo consultar sua próxima escala, repertório, presença e abrir cifras validadas pelo MusicScale.',
+    suggestions: ['Qual é minha próxima escala?', 'Quais músicas vou tocar?', 'Eu confirmei presença?'],
+    placeholder: 'Pergunte sobre sua escala, repertório, presença ou cifra…',
     sending: 'Consultando com segurança…',
     audit: 'Auditoria',
     openInMusicScale: 'Abrir no MusicScale',
@@ -54,9 +54,9 @@ const copy = {
     subtitle: 'Your context comes from MillionsNest and each read is revalidated by the source app.',
     verified: 'Verified session',
     tenant: 'Active organization',
-    greeting: 'I am connected to your MillionsNest context. In this first real integration, I can already check your next personal MusicScale schedule.',
-    suggestion: 'What is my next schedule?',
-    placeholder: 'Ask about your next schedule…',
+    greeting: 'I am connected to your MillionsNest context. I can already check your next schedule, repertoire, attendance and open charts validated by MusicScale.',
+    suggestions: ['What is my next schedule?', 'What songs am I playing?', 'Am I confirmed for my next schedule?'],
+    placeholder: 'Ask about your schedule, repertoire, attendance or chart…',
     sending: 'Checking securely…',
     audit: 'Audit',
     openInMusicScale: 'Open in MusicScale',
@@ -82,9 +82,9 @@ const copy = {
     subtitle: 'Tu contexto viene del MillionsNest y cada lectura se vuelve a validar en la aplicación de origen.',
     verified: 'Sesión verificada',
     tenant: 'Organización activa',
-    greeting: 'Estoy conectado a tu contexto de MillionsNest. En esta primera integración real, ya puedo consultar tu próxima escala personal en MusicScale.',
-    suggestion: '¿Cuál es mi próxima escala?',
-    placeholder: 'Pregunta sobre tu próxima escala…',
+    greeting: 'Estoy conectado a tu contexto de MillionsNest. Ya puedo consultar tu próxima escala, repertorio, asistencia y abrir cifras validadas por MusicScale.',
+    suggestions: ['¿Cuál es mi próxima escala?', '¿Qué canciones voy a tocar?', '¿Confirmé mi asistencia?'],
+    placeholder: 'Pregunta sobre tu escala, repertorio, asistencia o cifra…',
     sending: 'Consultando de forma segura…',
     audit: 'Auditoría',
     openInMusicScale: 'Abrir en MusicScale',
@@ -359,14 +359,19 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
 
         <div className="border-t border-white/10 bg-black/15 p-4 sm:p-5">
           {messages.length === 1 && (
-            <button
-              type="button"
-              onClick={() => submit(t.suggestion)}
-              disabled={busy}
-              className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.07] px-3.5 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-400/10 disabled:opacity-50"
-            >
-              <MessageSquareText size={14} /> {t.suggestion}
-            </button>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {t.suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => submit(suggestion)}
+                  disabled={busy}
+                  className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.07] px-3.5 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-400/10 disabled:opacity-50"
+                >
+                  <MessageSquareText size={14} /> {suggestion}
+                </button>
+              ))}
+            </div>
           )}
           <form
             onSubmit={(event) => {
