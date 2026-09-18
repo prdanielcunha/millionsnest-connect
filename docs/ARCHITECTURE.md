@@ -88,3 +88,40 @@ The canonical Fact Stream now also feeds a deterministic, tenant-scoped tool-act
 - The current read-model storage is explicitly **process-memory only**. This slice does not claim durable Fact Stream/read-model persistence and does not introduce a new database, queue, event bus or runtime credential.
 - A durable sink may replace/augment this projection later while preserving the fact schema and domain ownership boundaries.
 
+## Segunda vertical real: repertório da próxima escala
+
+O Core agora reconhece pedidos de repertório em PT/EN/ES e usa uma segunda boundary read-only:
+
+1. Connect resolve o mesmo contexto canônico do Hub.
+2. `get_next_schedule_repertoire` chama `GET /api/v1/connect/next-schedule/repertoire`.
+3. O MusicScale revalida Firebase bearer + tenant e exige `scales.read` e `songs.read`.
+4. Apenas a próxima escala atribuída ao próprio usuário é elegível.
+5. O retorno é uma projeção mínima do repertório em ordem: título, artista, tonalidade de origem/programada, BPM efetivo e flags de disponibilidade de cifra/letra.
+6. Connect valida novamente o tenant, preserva o `auditId` do MusicScale e produz fatos `TOOL_ACTION_REQUESTED/COMPLETED` com `toolId=musicscale.get_next_schedule_repertoire`.
+
+Esta fatia não retorna cifra/letra crua. O deep link abre a escala canônica no MusicScale, evitando que o Connect represente cifra em tonalidade incorreta antes da vertical específica de charts/transposição.
+
+## Terceira vertical real: presença da próxima escala
+
+O Core também reconhece perguntas de presença/confirmação em PT/EN/ES e chama `GET /api/v1/connect/next-schedule/presence`.
+
+- O MusicScale revalida bearer e tenant independentemente.
+- A consulta só é executada para uma escala futura atribuída ao próprio usuário.
+- O MusicScale exige leitura de escalas e a capability de resposta própria, e consulta somente respostas cujo `userId` é o usuário autenticado.
+- O estado retornado é explícito: `pending`, `accepted`, `maybe`, `declined` ou `mixed`; ausência de resposta nunca é inferida como aceitação.
+- O Connect valida novamente o tenant, preserva `auditId`/deep link e produz fatos com `toolId=musicscale.get_next_schedule_presence`.
+- Nenhuma resposta de presença de terceiros faz parte do payload.
+
+## Quarta vertical real: cifra no tom programado da próxima escala
+
+O Core reconhece pedidos determinísticos como `cifra de <música>`, `chords for <song>` e equivalentes em espanhol.
+
+- O título é extraído no Connect sem IA e enviado apenas para a boundary autenticada do MusicScale.
+- O MusicScale resolve a música exclusivamente dentro do repertório da próxima escala atribuída ao usuário.
+- Esta primeira fatia de conteúdo integral é limitada ao canal autenticado `inapp`; canais externos continuam bloqueados até existir política específica de entrega/rights.
+- A transposição **não ocorre no Connect**. O MusicScale usa seu motor canônico e só transpõe quando `metadata.chordContentKey` confirma o tom real do conteúdo.
+- Sem fonte de tom verificada, a resposta é `requires_source_key_confirmation` e não contém cifra.
+- Falha na validação da transposição também remove a cifra do payload.
+- Letras não fazem parte desta fatia.
+- O Fact Stream registra apenas tool/intent/evidence; o título da música e o conteúdo da cifra não são persistidos no fato canônico.
+

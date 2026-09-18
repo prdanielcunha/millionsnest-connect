@@ -40,6 +40,21 @@ assert.match(
 );
 assert.match(
   release,
+  /api\/v1\/connect\/next-schedule\/repertoire/,
+  'Live activation must prove the MusicScale repertoire route exists in production',
+);
+assert.match(
+  release,
+  /api\/v1\/connect\/next-schedule\/presence/,
+  'Live activation must prove the MusicScale presence route exists in production',
+);
+assert.match(
+  release,
+  /api\/v1\/connect\/next-schedule\/chart\?title=release-smoke/,
+  'Live activation must prove the MusicScale chart route exists in production',
+);
+assert.match(
+  release,
   /VITE_CONNECT_LIVE_ENABLED: \$\{\{ inputs\.live_mode \}\}/,
   'The live UI flag must come only from the manual release input',
 );
@@ -49,6 +64,11 @@ assert.match(
   release,
   /npm run test:radar-pilot/,
   'Production release must re-run the private Radar pilot contract suite',
+);
+assert.match(
+  release,
+  /npm run test:outbound/,
+  'Production release must re-run outbound delivery guardrail tests',
 );
 assert.match(
   release,
@@ -90,6 +110,11 @@ assert.match(
   release,
   /test "\$SESSION_STATUS" = "401"/,
   'Release smoke must prove unauthenticated Core session access is denied',
+);
+assert.match(
+  release,
+  /test "\$OUTBOUND_STATUS" = "401"/,
+  'Release smoke must prove unauthenticated outbound validation access is denied',
 );
 
 assert.match(hosting, /on:\s*\n\s*workflow_dispatch:/, 'Hosting deploy must be manual-only');

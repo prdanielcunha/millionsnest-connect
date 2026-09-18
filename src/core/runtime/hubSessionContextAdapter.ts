@@ -17,7 +17,7 @@ export interface HubConnectSessionOrganization {
 }
 
 export interface HubConnectSessionAppAccess {
-  appId: 'musicscale';
+  appId: 'musicscale' | 'nestlocal';
   organizationId: string;
   accessible: boolean;
   decisionState: 'granted' | 'denied';
@@ -32,6 +32,7 @@ export interface HubConnectSessionContextResponse {
   activeOrganization?: HubConnectSessionOrganization | null;
   appAccess?: {
     musicscale: HubConnectSessionAppAccess;
+    nestlocal?: HubConnectSessionAppAccess;
   } | null;
 }
 
@@ -80,6 +81,7 @@ export function mapHubConnectSessionContext(
   }
 
   const musicScaleAccess = payload.appAccess?.musicscale;
+  const nestLocalAccess = payload.appAccess?.nestlocal;
   if (
     musicScaleAccess &&
     musicScaleAccess.organizationId !== activeOrganizationId
@@ -87,6 +89,15 @@ export function mapHubConnectSessionContext(
     return {
       status: 'denied',
       reason: 'O acesso do MusicScale não corresponde à organização ativa.',
+    };
+  }
+  if (
+    nestLocalAccess &&
+    nestLocalAccess.organizationId !== activeOrganizationId
+  ) {
+    return {
+      status: 'denied',
+      reason: 'O acesso do NestLocal não corresponde à organização ativa.',
     };
   }
 
@@ -105,6 +116,9 @@ export function mapHubConnectSessionContext(
       musicscale:
         musicScaleAccess?.accessible === true &&
         musicScaleAccess.decisionState === 'granted',
+      nestlocal:
+        nestLocalAccess?.accessible === true &&
+        nestLocalAccess.decisionState === 'granted',
     },
   };
 
