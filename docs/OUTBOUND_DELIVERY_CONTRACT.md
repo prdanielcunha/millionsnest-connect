@@ -138,3 +138,99 @@ A ativação real deve ser uma fatia separada:
 8. reconciliar sent/delivered/read/failed;
 9. oferecer escalonamento humano;
 10. manter opt-out e política do canal como gates obrigatórios.
+
+
+## Boundary HTTP de validação
+
+O Connect agora pode expor, quando o Hub está configurado:
+
+`POST /api/core/outbound/validate`
+
+Esta rota é **validation-only**.
+
+Ela nunca chama Meta, WhatsApp Cloud API ou qualquer outro provider e sempre devolve:
+
+`dispatch = not_implemented`
+
+### Autoridade
+
+A requisição precisa trazer um Firebase Bearer válido.
+
+O Connect:
+
+1. envia o `organizationId` solicitado ao endpoint canônico do Hub;
+2. exige que o Hub resolva exatamente o mesmo tenant;
+3. exige `appAccess.nestlocal = granted`;
+4. constrói `OutboundDeliveryAuthority` server-side;
+5. não aceita roles, capabilities ou acesso ao app declarados no body.
+
+O protocolo do Hub trata ausência de `appAccess.nestlocal` como falta de acesso. A migração portanto é fail-closed.
+
+### Tenant pinning
+
+`HubSessionContextHttpProvider` passa o `requestedOrganizationId` como query para o próprio Hub.
+
+O Hub revalida membership/global role e app access para esse tenant antes de o Connect aceitar o contexto.
+
+Uma divergência entre tenant solicitado e tenant canônico é bloqueada.
+
+### Flag de validação
+
+A variável server-side:
+
+`CONNECT_WHATSAPP_OUTBOUND_VALIDATION_ENABLED=true`
+
+permite que a boundary construa a capability interna `channels.whatsapp.send` **somente para atravessar o gate de validação**.
+
+Ela não:
+
+- habilita dispatch;
+- configura provider;
+- cria secret;
+- muda `billingAllowed`;
+- altera a Zero Cost Policy.
+
+Com a política atual, mesmo com essa flag ligada, `meta.whatsapp` termina em:
+
+`PROVIDER_POLICY_BLOCKED`
+
+e `financialCostBrl = 0`.
+
+### Resposta
+
+A resposta não ecoa:
+
+- telefone completo;
+- variáveis do template;
+- Bearer;
+- secrets.
+
+Ela retorna somente a decisão, provider policy e uma projeção segura do envelope.
+
+### Auditoria
+
+O log `CONNECT_OUTBOUND_VALIDATION` usa `buildOutboundDeliveryAuditRecord`:
+
+- telefone mascarado;
+- ator mascarado;
+- sem conteúdo/variáveis;
+- tenant, source app, categoria, template, evidence ref e idempotency key preservados.
+
+## O que ainda falta para dispatch real
+
+Uma fase futura e separada deverá introduzir autoridade de serviço para execução assíncrona, porque um outbox não pode depender de manter o Firebase Bearer de um operador.
+
+Antes de qualquer envio real ainda são necessários:
+
+1. identidade server-to-server do aplicativo/worker;
+2. revalidação do tenant e da evidência de consentimento no momento do dispatch;
+3. persistência durável da idempotency key;
+4. provider configurado somente server-side;
+5. decisão deliberada sobre billing/custo;
+6. provider message ID;
+7. assinatura e reconciliação de webhooks;
+8. retry policy;
+9. opt-out;
+10. escalonamento humano.
+
+A boundary atual existe para provar segurança e contrato sem antecipar esses passos.
