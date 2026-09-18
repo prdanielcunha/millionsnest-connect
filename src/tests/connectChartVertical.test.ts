@@ -21,6 +21,7 @@ equal(resolveConnectCoreIntent('Me mostra a cifra de Promessas'), 'get_next_sche
 equal(resolveConnectChartTitleQuery('Me mostra a cifra de Promessas'), 'Promessas', 'PT title is extracted');
 equal(resolveConnectChartTitleQuery('Show me the chords for Promises'), 'Promises', 'EN title is extracted');
 equal(resolveConnectChartTitleQuery('Muéstrame la cifra de Promesas'), 'Promesas', 'ES title is extracted');
+equal(resolveConnectCoreIntent('Me mostra uma cifra'), 'get_next_schedule_chart', 'chart request without title still resolves to chart intent');
 
 const context: CanonicalContextProvider = {
   async resolve({ requestedOrganizationId }) {
@@ -80,5 +81,18 @@ equal(calls.title, 'Promessas', 'only extracted song title reaches tool boundary
 equal(calls.capability, 'songs.read', 'Connect carries primary chart capability evidence');
 equal(result.status === 'success' ? result.auditId : '', 'audit-chart', 'downstream audit reaches caller');
 equal(audits.length >= 2, true, 'chart flow is audited');
+
+const missingTitle = await service.handleMessage({
+  requestId: 'req-chart-missing-title',
+  correlationId: 'cor-chart-missing-title',
+  authToken: 'Bearer token',
+  requestedOrganizationId: 'org-1',
+  channel: { type: 'inapp', conversationId: 'conv-chart' },
+  locale: 'pt-BR',
+  text: 'Me mostra uma cifra',
+});
+equal(missingTitle.status, 'needs_context', 'chart request without title asks for song context');
+equal(missingTitle.status === 'needs_context' ? missingTitle.code : '', 'SONG_REQUIRED', 'missing chart title uses SONG_REQUIRED');
+equal(calls.chart, 1, 'missing-title request does not call MusicScale chart tool');
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
