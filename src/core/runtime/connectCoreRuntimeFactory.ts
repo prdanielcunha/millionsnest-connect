@@ -9,6 +9,7 @@ import { HubSessionContextHttpProvider } from './hubSessionContextHttpProvider';
 import { MusicScaleNextScheduleHttpTool } from './musicScaleNextScheduleHttpTool';
 import { MusicScaleNextScheduleRepertoireHttpTool } from './musicScaleNextScheduleRepertoireHttpTool';
 import { MusicScaleNextSchedulePresenceHttpTool } from './musicScaleNextSchedulePresenceHttpTool';
+import { MusicScaleNextScheduleChartHttpTool } from './musicScaleNextScheduleChartHttpTool';
 import {
   StructuredCoreAuditLogger,
   StructuredLogCoreAuditPort,
@@ -85,12 +86,19 @@ export function createConnectCoreRuntimeBundle(
     fetchImpl,
     timeoutMs: options.timeoutMs,
   });
+  const nextChartTool = new MusicScaleNextScheduleChartHttpTool({
+    musicScaleOrigin,
+    fetchImpl,
+    timeoutMs: options.timeoutMs,
+  });
   const musicScaleHttpTool = {
     getNextSchedule: nextScheduleTool.getNextSchedule.bind(nextScheduleTool),
     getNextScheduleRepertoire:
       nextRepertoireTool.getNextScheduleRepertoire.bind(nextRepertoireTool),
     getNextSchedulePresence:
       nextPresenceTool.getNextSchedulePresence.bind(nextPresenceTool),
+    getNextScheduleChart:
+      nextChartTool.getNextScheduleChart.bind(nextChartTool),
   };
 
   const toolActivity = new InMemoryToolActivityReadModel();

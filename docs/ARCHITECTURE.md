@@ -112,3 +112,16 @@ O Core também reconhece perguntas de presença/confirmação em PT/EN/ES e ch
 - O Connect valida novamente o tenant, preserva `auditId`/deep link e produz fatos com `toolId=musicscale.get_next_schedule_presence`.
 - Nenhuma resposta de presença de terceiros faz parte do payload.
 
+## Quarta vertical real: cifra no tom programado da próxima escala
+
+O Core reconhece pedidos determinísticos como `cifra de <música>`, `chords for <song>` e equivalentes em espanhol.
+
+- O título é extraído no Connect sem IA e enviado apenas para a boundary autenticada do MusicScale.
+- O MusicScale resolve a música exclusivamente dentro do repertório da próxima escala atribuída ao usuário.
+- Esta primeira fatia de conteúdo integral é limitada ao canal autenticado `inapp`; canais externos continuam bloqueados até existir política específica de entrega/rights.
+- A transposição **não ocorre no Connect**. O MusicScale usa seu motor canônico e só transpõe quando `metadata.chordContentKey` confirma o tom real do conteúdo.
+- Sem fonte de tom verificada, a resposta é `requires_source_key_confirmation` e não contém cifra.
+- Falha na validação da transposição também remove a cifra do payload.
+- Letras não fazem parte desta fatia.
+- O Fact Stream registra apenas tool/intent/evidence; o título da música e o conteúdo da cifra não são persistidos no fato canônico.
+
