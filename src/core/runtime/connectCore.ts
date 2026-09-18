@@ -25,6 +25,7 @@ export interface CanonicalCoreContext {
   capabilities: string[];
   appAccess: {
     musicscale: boolean;
+    nestlocal?: boolean;
   };
 }
 
