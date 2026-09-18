@@ -1,4 +1,4 @@
-export type ConnectCoreIntent = 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence' | 'unknown';
+export type ConnectCoreIntent = 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence' | 'get_next_schedule_chart' | 'unknown';
 
 export type ConnectChannelType = 'inapp' | 'whatsapp' | 'instagram' | 'telegram' | string;
 
@@ -111,6 +111,23 @@ export interface MusicScaleReadToolPort {
     channel: ConnectCoreMessageRequest['channel'];
     locale: string;
   }): Promise<MusicScaleNextScheduleResult>;
+
+  getNextScheduleChart?(input: {
+    authToken: string;
+    actorUid: string;
+    systemRole: string | null;
+    globalAccess: boolean;
+    organizationId: string;
+    organizationRole: string | null;
+    permissions: string[];
+    capabilities: string[];
+    requiredCapability: 'songs.read';
+    requestId: string;
+    correlationId: string;
+    channel: ConnectCoreMessageRequest['channel'];
+    locale: string;
+    songTitleQuery: string;
+  }): Promise<MusicScaleNextScheduleResult>;
 }
 
 export interface CoreAuditEvent {
@@ -137,7 +154,7 @@ export interface CoreAuditPort {
 export type ConnectCoreResponse =
   | {
       status: 'success';
-      intent: 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence';
+      intent: 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence' | 'get_next_schedule_chart';
       humanSummary: string;
       data: unknown;
       auditId: string;
@@ -150,6 +167,7 @@ export type ConnectCoreResponse =
         | 'AUTH_REQUIRED'
         | 'IDENTITY_REQUIRED'
         | 'ORGANIZATION_REQUIRED'
+        | 'SONG_REQUIRED'
         | 'CONTEXT_MISMATCH'
         | 'APP_ACCESS_DENIED'
         | 'UNSUPPORTED_INTENT'
@@ -165,6 +183,7 @@ export type ConnectCoreResponse =
 const NEXT_SCHEDULE_CAPABILITY = 'scales.read' as const;
 const NEXT_REPERTOIRE_CAPABILITY = 'songs.read' as const;
 const NEXT_PRESENCE_CAPABILITY = 'scales.read' as const;
+const NEXT_CHART_CAPABILITY = 'songs.read' as const;
 
 function normalizeForIntent(value: string): string {
   return value
@@ -175,8 +194,31 @@ function normalizeForIntent(value: string): string {
     .replace(/\s+/g, ' ');
 }
 
+export function resolveConnectChartTitleQuery(text: string): string {
+  const compact = text.replace(/[\r\n\t]+/g, ' ').trim().replace(/\s+/g, ' ');
+  const patterns = [
+    /(?:cifra|acordes)\s+(?:de|da\s+m[uú]sica|do\s+louvor)\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+    /(?:me\s+(?:mostra|mostre|mande)|mostrar|ver)\s+(?:a\s+)?cifra\s+(?:de|da\s+m[uú]sica)\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+    /(?:chords|chart)\s+(?:for|of)\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+    /(?:show|send)\s+(?:me\s+)?(?:the\s+)?(?:chords|chart)\s+(?:for|of)\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+    /(?:cifra|acordes)\s+de\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+    /(?:mu[eé]strame|mostrar)\s+(?:la\s+)?cifra\s+de\s+["“”']?(.+?)["“”']?\s*[?.!]*$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = compact.match(pattern);
+    const title = match?.[1]?.trim().replace(/^["“”']+|["“”']+$/g, '').trim();
+    if (title) return title.slice(0, 180);
+  }
+  return '';
+}
+
 export function resolveConnectCoreIntent(text: string): ConnectCoreIntent {
   const normalized = normalizeForIntent(text);
+
+  if (resolveConnectChartTitleQuery(text)) {
+    return 'get_next_schedule_chart';
+  }
 
   const presencePhrases = [
     'eu confirmei presenca',
@@ -363,7 +405,7 @@ export class ConnectCoreService {
       };
     }
 
-    if (intent !== 'get_next_schedule' && intent !== 'get_next_schedule_repertoire' && intent !== 'get_next_schedule_presence') {
+    if (intent !== 'get_next_schedule' && intent !== 'get_next_schedule_repertoire' && intent !== 'get_next_schedule_presence' && intent !== 'get_next_schedule_chart') {
       await this.tryAudit({
         eventType: 'core_request_denied',
         requestId: request.requestId,
@@ -381,6 +423,33 @@ export class ConnectCoreService {
         intent,
         code: 'UNSUPPORTED_INTENT',
         humanSummary: 'Ainda não consigo resolver esse pedido por aqui.',
+      };
+    }
+
+    const chartTitleQuery =
+      intent === 'get_next_schedule_chart'
+        ? resolveConnectChartTitleQuery(request.text)
+        : '';
+
+    if (intent === 'get_next_schedule_chart' && !chartTitleQuery) {
+      await this.tryAudit({
+        eventType: 'core_request_denied',
+        requestId: request.requestId,
+        correlationId: request.correlationId,
+        actorUid: context.actorUid,
+        organizationId: context.organizationId,
+        appId: 'musicscale',
+        intent,
+        channel: request.channel.type,
+        result: 'needs_context',
+        details: 'Chart intent requires a song title.',
+      });
+
+      return {
+        status: 'needs_context',
+        intent,
+        code: 'SONG_REQUIRED',
+        humanSummary: 'Qual música da sua próxima escala você quer abrir?',
       };
     }
 
@@ -439,6 +508,15 @@ export class ConnectCoreService {
         toolResult = await this.musicScaleReadTool.getNextSchedulePresence({
           ...baseToolInput,
           requiredCapability: NEXT_PRESENCE_CAPABILITY,
+        });
+      } else if (intent === 'get_next_schedule_chart') {
+        if (!this.musicScaleReadTool.getNextScheduleChart) {
+          throw new Error('MUSICSCALE_CHART_TOOL_UNAVAILABLE');
+        }
+        toolResult = await this.musicScaleReadTool.getNextScheduleChart({
+          ...baseToolInput,
+          requiredCapability: NEXT_CHART_CAPABILITY,
+          songTitleQuery: chartTitleQuery,
         });
       } else {
         toolResult = await this.musicScaleReadTool.getNextSchedule({
