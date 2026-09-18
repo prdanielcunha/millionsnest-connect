@@ -48,7 +48,10 @@ function createCore(): ConnectCoreService {
 }
 
 async function withServer(run: (origin: string) => Promise<void>) {
-  const app = createConnectServer({ core: createCore() });
+  const app = createConnectServer({
+    core: createCore(),
+    env: { CONNECT_RELEASE_SHA: 'test-release-sha' },
+  });
   const server = app.listen(0, '127.0.0.1');
   try {
     await new Promise<void>((resolve, reject) => {
@@ -69,6 +72,7 @@ await withServer(async (origin) => {
   const healthPayload = await health.json() as any;
   checkEqual(health.status, 200, 'health endpoint is reachable');
   checkEqual(healthPayload.service, 'millionsnest-connect-core', 'health identifies Core service');
+  checkEqual(healthPayload.releaseSha, 'test-release-sha', 'health exposes immutable release sha when configured');
   checkEqual(health.headers.get('cache-control'), 'no-store', 'health is not cacheable');
 
   const unauthorized = await fetch(`${origin}/api/core/message`, {
