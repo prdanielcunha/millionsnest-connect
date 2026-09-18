@@ -76,3 +76,15 @@ A configuração atual do Firebase Hosting do Connect continua publicando o fron
 - `MUSICSCALE_ORIGIN`: origem canônica do MusicScale.
 
 São apenas origins e não secrets. Credenciais/tokens continuam transitórios e nunca devem ser versionados.
+
+## P1 Fact Foundation — minimal read models
+
+The canonical Fact Stream now also feeds a deterministic, tenant-scoped tool-activity projection.
+
+- `InMemoryToolActivityReadModel` consumes the same canonical facts emitted by the real MusicScale boundary.
+- Projection is idempotent by `eventId`, keeps only compact counters/references, and preserves `evidenceRef` for traceability.
+- Rebuild from canonical facts is deterministic and AI-free; tests cover duplicate events, tenant isolation and out-of-order rebuild.
+- `createConnectCoreRuntimeBundle` exposes the Core plus its internal read models without changing the existing `createConnectCoreRuntime` API.
+- The current read-model storage is explicitly **process-memory only**. This slice does not claim durable Fact Stream/read-model persistence and does not introduce a new database, queue, event bus or runtime credential.
+- A durable sink may replace/augment this projection later while preserving the fact schema and domain ownership boundaries.
+

@@ -1,8 +1,10 @@
 import { ConnectCoreService } from './connectCore';
 import {
+  CoreFactFanoutPort,
   FactRecordingMusicScaleReadTool,
   StructuredLogCoreFactPort,
 } from './canonicalFacts';
+import { InMemoryToolActivityReadModel } from './factReadModels';
 import { HubSessionContextHttpProvider } from './hubSessionContextHttpProvider';
 import { MusicScaleNextScheduleHttpTool } from './musicScaleNextScheduleHttpTool';
 import {
@@ -22,6 +24,13 @@ export interface ConnectCoreRuntimeFactoryOptions {
   timeoutMs?: number;
 }
 
+export interface ConnectCoreRuntimeBundle {
+  core: ConnectCoreService;
+  readModels: {
+    toolActivity: InMemoryToolActivityReadModel;
+  };
+}
+
 /**
  * Server-only composition root for the first real Connect Core vertical.
  *
@@ -29,14 +38,14 @@ export interface ConnectCoreRuntimeFactoryOptions {
  * identity/RBAC authority and MusicScale independently revalidates the user's
  * Firebase bearer for its own read boundary.
  *
- * The real tool boundary is also decorated with the first canonical Fact
- * Stream events (TOOL_ACTION_REQUESTED / TOOL_ACTION_COMPLETED). The initial
- * sink is structured logging only, so no new database/event-bus dependency is
- * introduced before the shared persistence contract is finalized.
+ * Canonical facts fan out to PII-safe structured logs and to the first minimal
+ * deterministic read model. The projection is intentionally process-memory
+ * only in this slice; no durable store is claimed until the shared persistence
+ * contract is selected.
  */
-export function createConnectCoreRuntime(
+export function createConnectCoreRuntimeBundle(
   options: ConnectCoreRuntimeFactoryOptions = {},
-): ConnectCoreService {
+): ConnectCoreRuntimeBundle {
   const env = options.env ?? process.env;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   const musicScaleOrigin = env.MUSICSCALE_ORIGIN?.trim();
@@ -64,7 +73,12 @@ export function createConnectCoreRuntime(
     fetchImpl,
     timeoutMs: options.timeoutMs,
   });
-  const facts = new StructuredLogCoreFactPort(logger);
+
+  const toolActivity = new InMemoryToolActivityReadModel();
+  const facts = new CoreFactFanoutPort([
+    new StructuredLogCoreFactPort(logger),
+    toolActivity,
+  ]);
   const musicScaleReadTool = new FactRecordingMusicScaleReadTool(
     musicScaleHttpTool,
     facts,
@@ -72,6 +86,18 @@ export function createConnectCoreRuntime(
   );
 
   const audit = new StructuredLogCoreAuditPort(logger);
+  const core = new ConnectCoreService(contextProvider, musicScaleReadTool, audit);
 
-  return new ConnectCoreService(contextProvider, musicScaleReadTool, audit);
+  return {
+    core,
+    readModels: {
+      toolActivity,
+    },
+  };
+}
+
+export function createConnectCoreRuntime(
+  options: ConnectCoreRuntimeFactoryOptions = {},
+): ConnectCoreService {
+  return createConnectCoreRuntimeBundle(options).core;
 }
