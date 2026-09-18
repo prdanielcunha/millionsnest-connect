@@ -146,9 +146,37 @@ console.log('--- Running Personal Radar Service Tests ---');
   const reactivated = await service.updatePerson(request, person.id, { radarState: 'active' });
   equal(reactivated.snoozedUntil, null, 'reactivating clears stale snooze metadata');
 
+  await service.updatePerson(request, person.id, { salesStage: 'pedir_video' });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).salesStage, 'pedir_video', 'commercial stage persists across sessions');
+  await service.updatePerson(request, person.id, { commercialAction: 'whatsapp_opened' });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).lastCommercialAction, 'whatsapp_opened', 'WhatsApp open is tracked distinctly from sent');
+  await service.updatePerson(request, person.id, { commercialAction: 'sent_manual', followUpDays: 2 });
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).lastCommercialAction, 'sent_manual', 'manual send is explicit');
+  assert(typeof (vault.records.get(`personalPeople/${person.id}`) as any).followUpAt === 'string', 'manual send schedules follow-up');
+  const savedModel = await service.saveMessageModel(request, {
+    label: 'Descoberta · curto',
+    text: 'Oi! Como vocês organizam hoje as escalas do louvor?',
+    objective: 'descobrir_dor',
+    tone: 'curto',
+  });
+  equal(savedModel.success, true, 'message model is persisted in the owner-scoped cloud vault');
+  assert(vault.records.has(`messageModels/${savedModel.model.id}`), 'message model is stored under the personal Firestore vault');
+  const cloudModels = await service.listMessageModels(request);
+  equal(cloudModels.count, 1, 'saved message models are loaded from the cloud vault');
+  equal((cloudModels.models[0] as any).text, 'Oi! Como vocês organizam hoje as escalas do louvor?', 'cloud model preserves message text');
+  const removedModel = await service.deleteMessageModel(request, savedModel.model.id);
+  equal(removedModel.deleted, true, 'cloud message model can be deleted');
+  equal((await service.listMessageModels(request)).count, 0, 'deleted cloud model no longer appears');
+
+  let invalidStageRejected = false;
+  try { await service.updatePerson(request, person.id, { salesStage: 'invalid' as any }); } catch (error) { invalidStageRejected = error instanceof Error && error.message === 'SALES_STAGE_INVALID'; }
+  assert(invalidStageRejected, 'invalid commercial stage fails closed');
+
   const promotion = await service.promoteOpportunity(request, person.id);
   equal(promotion.success, true, 'opportunity promotion is an explicit manual action');
   assert(vault.records.has(`relationshipOpportunities/${person.id}`), 'manual promotion creates an owner-scoped opportunity record');
+  equal((vault.records.get(`relationshipOpportunities/${person.id}`) as any).salesStage, 'pedir_video', 'opportunity receives minimal commercial stage metadata');
+  assert(typeof (vault.records.get(`relationshipOpportunities/${person.id}`) as any).followUpAt === 'string', 'opportunity receives follow-up metadata without raw history');
 
   const deletion = await service.deleteSource(request, first.sourceId);
   equal(deletion.deleted, true, 'source deletion succeeds');
@@ -215,4 +243,5 @@ console.log('--- Running Personal Radar Service Tests ---');
   const search = await service.search(request, 'conhecer');
   equal((search.matches[0] as any).sourceLabel, 'Grupo Lideres de Louvor', 'history search returns the conversation source label');
 }
+
 console.log(`✅ Passed ${passed} / ${total} tests.`);

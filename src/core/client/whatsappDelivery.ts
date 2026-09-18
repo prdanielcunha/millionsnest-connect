@@ -18,6 +18,7 @@ export function buildWhatsAppDraftUrl(text: string, phone?: string | null): stri
 export function openWhatsAppDraft(text: string, phone?: string | null): string {
   const url = buildWhatsAppDraftUrl(text, phone);
   if (!url || typeof window === 'undefined') return url;
+
   const mobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
   if (mobile) window.location.assign(url);
   else window.open(url, '_blank', 'noopener,noreferrer');

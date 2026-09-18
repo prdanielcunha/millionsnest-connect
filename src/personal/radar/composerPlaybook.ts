@@ -5,7 +5,10 @@ export type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'obje
 export type ComposerObjective =
   | 'iniciar_conversa'
   | 'descobrir_dor'
+  | 'contar_historia'
   | 'pedir_video'
+  | 'enviar_video'
+  | 'diagnosticar'
   | 'explicar_dor'
   | 'convidar_trial'
   | 'acompanhar_trial'
@@ -44,6 +47,7 @@ type PersonLike = {
   salesStage?: unknown;
   followUpAt?: unknown;
   lastDateKey?: unknown;
+  messageCount?: unknown;
   recentConversationMessages?: unknown;
 };
 
@@ -61,7 +65,7 @@ export type RelationshipComposerContext = {
   suggestedObjective: ComposerObjective;
 };
 
-function recentMessages(value: unknown): Array<{ dateKey: string; snippet: string }> {
+function cleanRecentMessages(value: unknown): Array<{ dateKey: string; snippet: string }> {
   if (!Array.isArray(value)) return [];
   return value.map(item => ({
     dateKey: String((item as any)?.dateKey || ''),
@@ -69,26 +73,25 @@ function recentMessages(value: unknown): Array<{ dateKey: string; snippet: strin
   })).filter(item => item.dateKey || item.snippet).slice(0, 8);
 }
 
-function isKnownObjective(value: string): value is ComposerObjective {
-  return ['iniciar_conversa','descobrir_dor','pedir_video','explicar_dor','convidar_trial','acompanhar_trial','retomar_conversa','fechar'].includes(value);
-}
-
 function buildRelationshipContext(person: PersonLike, signal: RadarSignal): RelationshipComposerContext {
   const now = Date.now();
   const previousAction = String(person.lastCommercialAction || '').trim() || null;
-  const rawStage = String(person.salesStage || '').trim();
-  const previousStage = rawStage || null;
+  const previousStage = String(person.salesStage || '').trim() || null;
   const lastCommercialAt = String(person.lastCommercialAt || '').trim();
   const contactMs = Date.parse(lastCommercialAt);
-  const daysSinceLastContact = Number.isFinite(contactMs) ? Math.max(0, Math.floor((now - contactMs) / 86_400_000)) : null;
+  const daysSinceLastContact = Number.isFinite(contactMs)
+    ? Math.max(0, Math.floor((now - contactMs) / 86_400_000))
+    : null;
   const followMs = Date.parse(String(person.followUpAt || ''));
   const followUpDue = Number.isFinite(followMs) && followMs <= now;
-  const latest = recentMessages(person.recentConversationMessages)[0] || null;
+  const recent = cleanRecentMessages(person.recentConversationMessages);
+  const latest = recent[0] || null;
   const latestInboundDateKey = latest?.dateKey || (String(person.lastDateKey || '').trim() || null);
   const latestInboundSnippet = latest?.snippet || null;
   const commercialDay = lastCommercialAt ? lastCommercialAt.slice(0, 10) : '';
   const respondedAfterLastContact = Boolean(commercialDay && latestInboundDateKey && latestInboundDateKey > commercialDay);
-  const continuation = Boolean(previousAction) || Boolean(lastCommercialAt)
+  const continuation = Boolean(previousAction)
+    || Boolean(lastCommercialAt)
     || Boolean(previousStage && previousStage !== 'iniciar_conversa')
     || signal.type === 'commercial_followup_due';
 
@@ -106,15 +109,27 @@ function buildRelationshipContext(person: PersonLike, signal: RadarSignal): Rela
   else if (respondedAfterLastContact) suggestedObjective = 'descobrir_dor';
   else if (previousStage === 'convidar_trial' || previousStage === 'acompanhar_trial') suggestedObjective = 'acompanhar_trial';
   else if (followUpDue || state === 'waiting_reply' || state === 'dormant') suggestedObjective = 'retomar_conversa';
-  else suggestedObjective = previousStage && isKnownObjective(previousStage) && previousStage !== 'iniciar_conversa'
-    ? previousStage
+  else suggestedObjective = previousStage && previousStage !== 'iniciar_conversa'
+    ? previousStage as ComposerObjective
     : 'retomar_conversa';
 
   return {
-    state, continuation, respondedAfterLastContact, followUpDue, daysSinceLastContact,
-    previousAction, previousStage, latestInboundDateKey, latestInboundSnippet,
-    hasPreviousDraft: Boolean(String(person.lastCommercialDraft || '').trim()), suggestedObjective,
+    state,
+    continuation,
+    respondedAfterLastContact,
+    followUpDue,
+    daysSinceLastContact,
+    previousAction,
+    previousStage,
+    latestInboundDateKey,
+    latestInboundSnippet,
+    hasPreviousDraft: Boolean(String(person.lastCommercialDraft || '').trim()),
+    suggestedObjective,
   };
+}
+
+function hasConversationContinuity(person: PersonLike, signal: RadarSignal): boolean {
+  return buildRelationshipContext(person, signal).continuation;
 }
 
 function normalizedTokens(value: string): Set<string> {
@@ -122,26 +137,30 @@ function normalizedTokens(value: string): Set<string> {
     .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(token => token.length > 2));
 }
 
-function similarity(left: string, right: string): number {
+function textSimilarity(left: string, right: string): number {
   if (!left || !right) return 0;
-  const a = normalizedTokens(left); const b = normalizedTokens(right);
+  const a = normalizedTokens(left);
+  const b = normalizedTokens(right);
   if (!a.size || !b.size) return 0;
-  let hit = 0; for (const token of a) if (b.has(token)) hit += 1;
-  return hit / new Set([...a, ...b]).size;
+  let intersection = 0;
+  for (const token of a) if (b.has(token)) intersection += 1;
+  return intersection / new Set([...a, ...b]).size;
 }
 
-function rankNovel(texts: string[], previousDraft: unknown): string[] {
+function rankNovelOptions(texts: string[], previousDraft: unknown): string[] {
   const previous = String(previousDraft || '').trim();
-  return previous ? [...texts].sort((a,b) => similarity(a, previous) - similarity(b, previous)) : texts;
+  if (!previous) return texts;
+  return [...texts].sort((a, b) => textSimilarity(a, previous) - textSimilarity(b, previous));
 }
 
-function adaptTiming(text: string, relationship: RelationshipComposerContext): string {
+function adaptContinuationTiming(text: string, relationship: RelationshipComposerContext): string {
   if (!relationship.continuation) return text;
-  if (relationship.daysSinceLastContact !== null && relationship.daysSinceLastContact >= 21) {
+  const days = relationship.daysSinceLastContact;
+  if (days !== null && days >= 21) {
     return text.replace(/Voltando naquele ponto/gi, 'Faz um tempinho desde nossa conversa; voltando naquele ponto')
       .replace(/Passando só para retomar/gi, 'Faz um tempinho desde nossa conversa; retomando');
   }
-  if (relationship.daysSinceLastContact !== null && relationship.daysSinceLastContact <= 1) {
+  if (days !== null && days <= 1) {
     return text.replace(/Voltando naquele ponto/gi, 'Pegando o gancho daquele ponto')
       .replace(/Passando só para retomar/gi, 'Pegando o gancho do que a gente estava falando');
   }
@@ -182,7 +201,10 @@ function hasRelationship(signal: RadarSignal): boolean {
 }
 
 function resolveStage(signal: RadarSignal, objective?: ComposerObjective): number {
+  if (objective === 'contar_historia') return 3;
   if (objective === 'pedir_video') return 4;
+  if (objective === 'enviar_video') return 5;
+  if (objective === 'diagnosticar') return 6;
   if (objective === 'explicar_dor') return 7;
   if (objective === 'convidar_trial') return 8;
   if (objective === 'acompanhar_trial') return 9;
@@ -203,7 +225,10 @@ function stageLabel(stage: number): string {
 function defaultObjective(stage: number): ComposerObjective {
   if (stage === 1) return 'iniciar_conversa';
   if (stage === 2) return 'descobrir_dor';
+  if (stage === 3) return 'contar_historia';
   if (stage === 4) return 'pedir_video';
+  if (stage === 5) return 'enviar_video';
+  if (stage === 6) return 'diagnosticar';
   if (stage === 7) return 'explicar_dor';
   if (stage === 8) return 'convidar_trial';
   if (stage === 9) return 'acompanhar_trial';
@@ -220,16 +245,124 @@ function defaultStyle(signal: RadarSignal): ComposerStyle {
 
 function greeting(name: string, style: ComposerStyle, continuation = false): string {
   if (continuation) return name ? `${name},` : '';
-  if (style === 'pastoral') return name ? `Olá, ${name}! Tudo bem?` : 'Olá! Tudo bem?';
-  if (style === 'descontraido') return name ? `Ô, ${name}!` : 'Oi!';
+  if (style === 'amigavel') return name ? `E aí, ${name}! Tudo bem?` : 'E aí! Tudo bem?';
+  if (style === 'profissional') return name ? `Olá, ${name}. Tudo bem?` : 'Olá. Tudo bem?';
+  if (style === 'descontraido') return name ? `Fala, ${name}! Beleza?` : 'Fala! Beleza?';
+  if (style === 'objetivo') return name ? `${name},` : 'Direto ao ponto:';
+  if (style === 'proximo') return name ? `Oi, ${name}! Tudo bem por aí?` : 'Oi! Tudo bem por aí?';
+  if (style === 'pastoral') return name ? `Paz, ${name}! Tudo bem?` : 'Paz! Tudo bem?';
+  if (style === 'consultivo') return name ? `${name}, tudo bem?` : 'Tudo bem?';
   return name ? `Oi, ${name}! Tudo bem?` : 'Oi! Tudo bem?';
 }
 
+function styleGuidance(style: ComposerStyle): string {
+  if (style === 'amigavel') return 'Soa leve, acolhedor e natural, como uma conversa de WhatsApp sem pressão.';
+  if (style === 'profissional') return 'Mantém clareza e cuidado, sem ficar frio, burocrático ou formal demais.';
+  if (style === 'descontraido') return 'Usa linguagem casual e espontânea, sem exagerar em gírias.';
+  if (style === 'objetivo') return 'Vai direto ao ponto, corta introduções e mantém uma única ação clara.';
+  if (style === 'proximo') return 'Parte do relacionamento existente e soa pessoal, sem parecer mensagem pronta.';
+  if (style === 'pastoral') return 'Fala como pastor com respeito e proximidade, usando “Paz” sem espiritualizar a venda.';
+  return 'Faz diagnóstico antes de apresentar solução: pergunta, escuta e só então conecta o MusicScale à dor real.';
+}
+
 function soften(style: ComposerStyle, text: string): string {
-  if (style === 'objetivo') return text.replace(/Tudo bem\?\s*/g, '').replace(/Queria te fazer uma pergunta rapidinha:/g, 'Uma pergunta rápida:');
-  if (style === 'profissional') return text.replace('Ô, ', 'Olá, ').replace('rapidinho', 'brevemente').replace('uma coisa', 'um ponto');
-  if (style === 'pastoral') return text.replace('vocês', 'vocês aí na igreja');
-  return text;
+  let result = text;
+
+  if (style === 'amigavel') {
+    return result
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Me conta uma coisa?')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Me conta uma coisa?')
+      .replace(/acho que faz sentido/g, 'acho que pode ajudar vocês')
+      .replace(/O que mais dá trabalho/g, 'O que mais pesa na rotina')
+      .replace(/Depois me diz/g, 'Depois me conta')
+      .replace(/Quero entender antes de te mostrar qualquer outra coisa\./g, 'Quero te ouvir primeiro antes de mostrar qualquer outra coisa.');
+  }
+
+  if (style === 'profissional') {
+    return result
+      .replace(/\bA gente\b/g, 'Nós')
+      .replace(/\ba gente\b/g, 'nós')
+      .replace(/acho que faz sentido/g, 'acredito que vale a pena')
+      .replace(/Posso te mandar/g, 'Posso enviar para você')
+      .replace(/posso te mandar/g, 'posso enviar para você')
+      .replace(/te mostrar/g, 'mostrar para você')
+      .replace(/te explico/g, 'explico para você')
+      .replace(/rapidinho/g, 'brevemente')
+      .replace(/curtinho/g, 'breve')
+      .replace(/vídeo bem rápido/g, 'vídeo breve')
+      .replace(/equipe daí/g, 'equipe da sua igreja')
+      .replace(/Depois me diz/g, 'Depois me diga');
+  }
+
+  if (style === 'descontraido') {
+    return result
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Me diz uma coisa:')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Me diz uma coisa:')
+      .replace(/Em vez de te explicar tudo por texto/g, 'Pra não virar textão')
+      .replace(/Se você quiser/g, 'Se quiser')
+      .replace(/Você conseguiu ver com calma\?/g, 'Deu pra dar uma olhada?')
+      .replace(/vou te mandar/g, 'te mando')
+      .replace(/Depois me diz/g, 'Depois me fala');
+  }
+
+  if (style === 'objetivo') {
+    return result
+      .replace(/Espero que esteja bem\.\s*/g, '')
+      .replace(/Tudo bem\?\s*/g, '')
+      .replace(/Tudo certo\?\s*/g, '')
+      .replace(/Tudo certo por aí\?\s*/g, '')
+      .replace(/Queria te fazer uma pergunta rapidinha:/g, 'Pergunta direta:')
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Pergunta direta:')
+      .replace(/Pelo que você comentou sobre/g, 'Sobre')
+      .replace(/Pensando no que você falou sobre/g, 'Sobre')
+      .replace(/acho que faz sentido te mostrar uma coisa\./g, 'vale te mostrar isso.')
+      .replace(/Em vez de te explicar tudo por texto,/g, '')
+      .replace(/Como combinamos, vou te mandar um vídeo bem curto mostrando justamente a parte de/g, 'Segue um vídeo curto sobre')
+      .replace(/Separei um vídeo rápido do MusicScale focado em/g, 'Vídeo rápido do MusicScale sobre')
+      .replace(/Passando só para retomar/g, 'Retomando')
+      .replace(/Depois me diz/g, 'Me diga')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  if (style === 'proximo') {
+    return result
+      .replace(/Pelo que você comentou sobre/g, 'Lembrei do que você comentou sobre')
+      .replace(/Pensando no que você falou sobre/g, 'Lembrei do que você falou sobre')
+      .replace(/Passando só para retomar/g, 'Lembrei de você e quis retomar')
+      .replace(/Se fizer sentido/g, 'Se isso fizer sentido pra você')
+      .replace(/Quer que eu te mostre/g, 'Quer que eu te mostre do jeito mais simples')
+      .replace(/Depois me diz/g, 'Depois me conta')
+      .replace(/quero saber/g, 'quero te ouvir sobre');
+  }
+
+  if (style === 'pastoral') {
+    return result
+      .replace(/A gente viveu algo bem parecido por aqui/g, 'Nós também vivemos algo parecido no ministério por aqui')
+      .replace(/acho que faz sentido/g, 'pode fazer sentido por aí')
+      .replace(/Pensando na rotina de vocês/g, 'Pensando com cuidado na rotina da igreja de vocês')
+      .replace(/Se você pudesse resolver só uma parte/g, 'Pensando na realidade da igreja, se vocês pudessem resolver uma parte')
+      .replace(/Quer que eu te mostre/g, 'Se fizer sentido por aí, posso te mostrar')
+      .replace(/O teste ajudou de verdade/g, 'O teste ajudou a rotina da equipe de vocês')
+      .replace(/Depois me diz/g, 'Depois me conta como isso conversa com a realidade de vocês');
+  }
+
+  if (style === 'consultivo') {
+    return result
+      .replace(/Vi o que você comentou sobre ([^.]+)\. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta\?/g, 'Você comentou sobre $1. Como vocês organizam isso hoje?')
+      .replace(/Lembrei do que você falou sobre/g, 'Sobre o que você comentou de')
+      .replace(/Posso te fazer uma pergunta rápida\?/g, 'Para eu entender melhor:')
+      .replace(/Posso te fazer uma pergunta rapidinha\?/g, 'Para eu entender melhor:')
+      .replace(/O que mais dá trabalho/g, 'Qual é hoje o principal gargalo')
+      .replace(/Se você pudesse resolver só uma parte/g, 'Se tivesse que priorizar um único ponto')
+      .replace(/acho que faz sentido te mostrar uma coisa\./g, 'pelo cenário que você trouxe, vale avaliar uma alternativa.')
+      .replace(/Quer que eu te mostre especificamente essa parte\?/g, 'Faz sentido eu te mostrar somente essa parte para avaliarmos se resolve o problema?')
+      .replace(/Ficou alguma dúvida ou alguma parte que você queria ver melhor\?/g, 'Qual ponto ainda precisa ficar mais claro para você avaliar se isso resolve a necessidade?')
+      .replace(/Depois me diz se isso faria diferença aí para vocês\./g, 'Depois me diga se isso ataca o problema que você comentou.')
+      .replace(/o que mais te chamou atenção no vídeo\?/g, 'qual ponto do vídeo teria maior impacto na rotina de vocês?');
+  }
+
+  return result;
 }
 
 function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
@@ -278,6 +411,37 @@ function permissionVariants(name: string, signal: RadarSignal, style: ComposerSt
     `${g} A gente viveu algo bem parecido por aqui e acabou criando o MusicScale. Posso te mandar um vídeo curtinho para você ver como funciona?`,
     `${g} Em vez de te explicar tudo por texto, posso te mandar um vídeo bem rápido mostrando como a gente resolveu essa parte no MusicScale?`,
   ].map(text => soften(style, text));
+}
+
+function videoSendVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
+  const t = topic(signal);
+  return [
+    `${g} Como combinamos, vou te mandar um vídeo bem curto mostrando justamente a parte de ${t}. Depois me diz se isso faria diferença aí para vocês.`,
+    `${g} Separei um vídeo rápido do MusicScale focado em ${t}. Assiste quando puder e depois quero saber qual parte mais conversa com a realidade de vocês.`,
+    `${g} Te mando agora uma demonstração curtinha. Repara principalmente na parte de ${t}; depois me fala se hoje isso ajudaria a equipe daí.`,
+  ].map(text => soften(style, text));
+}
+
+function diagnosticVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const g = greeting(name, style, continuation);
+  const t = topic(signal);
+  return [
+    `${g} Do que você viu, qual parte faria mais diferença aí hoje: ${t}, a organização da equipe ou as confirmações?`,
+    `${g} Pensando na rotina de vocês, o que mais te chamou atenção no vídeo? Quero entender antes de te mostrar qualquer outra coisa.`,
+    `${g} Se você pudesse resolver só uma parte da organização do louvor agora, qual seria?`,
+  ].map(text => soften(style, text));
+}
+
+function videoScriptVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+  const t = topic(signal);
+  const who = name ? `, ${name}` : '';
+  const prefix = continuation ? (name ? `${name}, ` : '') : `Oi${who}! `;
+  return [
+    `${prefix}Pegando o gancho do que a gente falou: gravei rapidinho porque é mais fácil te mostrar. O MusicScale nasceu da nossa própria rotina de igreja. Aqui a equipe recebe a escala, vê repertório, cifras e tons e confirma presença sem depender de mensagem perdida. Pensando no que você comentou sobre ${t}, olha como essa parte fica organizada.`,
+    `${prefix}Como a gente já estava falando sobre ${t}, quero te mostrar só essa parte. A gente tinha muita informação espalhada no WhatsApp e criou o MusicScale para centralizar a rotina do louvor.`,
+    `${prefix}Continuando nossa conversa, vou te mostrar sem apresentação comercial, só na prática. Aqui está uma escala real: equipe, músicas, cifras, tons e confirmação num lugar só. Pelo que você falou sobre ${t}, essa é a parte que mais vale olhar primeiro.`,
+  ].map(text => soften(style, text.trim()));
 }
 
 function focusedVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
@@ -349,7 +513,17 @@ export function buildComposerPlan(input: {
 
   let texts: string[];
   let effectiveChannel = channel;
-  if (channel === 'audio') {
+  if (objective === 'contar_historia') {
+    texts = audioVariants(name, input.signal, style, continuation);
+    effectiveChannel = 'audio';
+  } else if (objective === 'enviar_video' && channel === 'video') {
+    texts = videoScriptVariants(name, input.signal, style, continuation);
+    effectiveChannel = 'video';
+  } else if (objective === 'enviar_video') {
+    texts = videoSendVariants(name, input.signal, style, continuation);
+  } else if (objective === 'diagnosticar') {
+    texts = diagnosticVariants(name, input.signal, style, continuation);
+  } else if (channel === 'audio') {
     texts = audioVariants(name, input.signal, style, continuation);
   } else if (objective === 'pedir_video') {
     texts = permissionVariants(name, input.signal, style, continuation);
@@ -366,9 +540,15 @@ export function buildComposerPlan(input: {
     texts = openingVariants(name, input.signal, style, continuation);
   }
 
-  texts = rankNovel(texts.map(text => adaptTiming(text.trim(), relationship)), input.person.lastCommercialDraft);
+  texts = rankNovelOptions(
+    texts.map(text => adaptContinuationTiming(text.trim(), relationship)),
+    input.person.lastCommercialDraft,
+  );
+
   const factsUsed = input.signal.evidence.slice(0, 4).map(item => `${item.dateKey}: ${item.snippet}`);
-  if (relationship.previousAction && input.person.lastCommercialAt) factsUsed.unshift(`Última ação registrada: ${relationship.previousAction} · ${String(input.person.lastCommercialAt).slice(0, 10)}`);
+  if (relationship.previousAction && input.person.lastCommercialAt) {
+    factsUsed.unshift(`Última ação registrada: ${relationship.previousAction} · ${String(input.person.lastCommercialAt).slice(0, 10)}`);
+  }
   if (relationship.hasPreviousDraft) factsUsed.unshift('A mensagem anterior está registrada para evitar repetição de abordagem.');
   const continuityRecommendation = relationship.state === 'active_reply'
     ? 'A pessoa falou novamente depois do último contato registrado. Continue a partir do que ela trouxe; não volte para uma abertura fria.'
@@ -383,8 +563,14 @@ export function buildComposerPlan(input: {
     ? continuation
       ? continuityRecommendation
       : 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
-    : stage === 4
+    : stage === 3
+      ? 'Conte a história em 35–50 segundos, como conversa. Termine pedindo permissão para mostrar.'
+      : stage === 4
       ? 'Peça permissão antes de mandar o vídeo. O próximo passo é um pequeno “sim”.'
+      : stage === 5
+        ? 'Mostre só o necessário em cerca de 30 segundos e conecte a demonstração à dor real da conversa.'
+        : stage === 6
+          ? 'Depois do vídeo, faça uma pergunta diagnóstica. Não continue apresentando recursos sem ouvir a resposta.'
       : stage === 7
         ? `Fale somente da parte ligada a ${t}; não despeje todos os recursos.`
         : stage === 8
@@ -407,9 +593,10 @@ export function buildComposerPlan(input: {
         ? 'É um contato pastoral/de liderança; use respeito, calor humano e descoberta antes de apresentar produto.'
         : 'Há contexto suficiente para uma abertura curta e consultiva.';
 
-  const tip = effectiveChannel === 'audio'
+  const channelTip = effectiveChannel === 'audio'
     ? 'Fale como conversa, com frases curtas e pausas naturais. Não leia como anúncio.'
     : 'Envie uma pergunta por vez. Espere a resposta antes de avançar para a próxima etapa.';
+  const tip = `${styleGuidance(style)} ${channelTip}`;
 
   const nextSmallYes = stage <= 2
     ? 'Conseguir uma resposta sobre como eles organizam o louvor hoje.'

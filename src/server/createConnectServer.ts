@@ -104,17 +104,12 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
   app.disable('x-powered-by');
 
-  // Personal import can carry an authorized TXT/ZIP export up to 5 MB encoded
-  // as base64. Mount these routers before the small default Core JSON parser so
-  // the larger body limit applies only to private import endpoints.
   if (personalSourcesRouter) {
     app.use('/api/personal/v2', personalSourcesRouter);
   }
   if (personalIntelligenceRouter) {
     app.use('/api/personal/intelligence', personalIntelligenceRouter);
   }
-  // Cloud sync comes before the legacy Radar router so opening Radar from any
-  // device upgrades stale derived contacts/metrics in Firestore before reading.
   if (radarCloudSyncRouter) {
     app.use('/api/personal', radarCloudSyncRouter);
   }

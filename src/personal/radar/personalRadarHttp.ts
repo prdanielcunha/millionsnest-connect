@@ -65,6 +65,7 @@ function humanSummary(error: unknown): string {
   if (code === 'PERSON_NOT_FOUND') return 'Esta pessoa não foi encontrada no seu cofre pessoal.';
   if (code === 'SIGNAL_NOT_FOUND') return 'Este sinal não está mais disponível.';
   if (code === 'SEARCH_QUERY_INVALID') return 'Digite pelo menos dois caracteres para pesquisar.';
+  if (code === 'CONTACTS_REQUIRED') return 'Adicione pelo menos um contato válido.';
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
   if (code === 'MANUAL_PRIORITY_INVALID') return 'Escolha uma prioridade válida.';
   if (code === 'MANUAL_POTENTIAL_INVALID') return 'Escolha um nível de potencial válido.';
@@ -112,6 +113,21 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
       return res.status(result.status === 'deduplicated' ? 200 : 201).json({ success: true, ...result });
     }),
   );
+
+
+  router.post('/imports/contacts', express.json({ limit: '512kb' }), execute(async (req, res) => {
+    const body = req.body as Record<string, unknown>;
+    const result = await service.importContacts(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      { contacts: Array.isArray(body.contacts) ? body.contacts as Array<{ name?: unknown; phone?: unknown }> : [] },
+    );
+    return res.status(201).json(result);
+  }));
+
+  router.get('/people', execute(async (req, res) => {
+    const result = await service.getPeople({ authToken: authToken(req), organizationId: organizationId(req) });
+    return res.status(200).json({ success: true, ...result });
+  }));
 
   router.get('/radar', execute(async (req, res) => {
     const result = await service.getRadar({
@@ -193,6 +209,34 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
       return res.status(200).json(result);
     }),
   );
+
+
+  router.get('/message-models', execute(async (req, res) => {
+    const result = await service.listMessageModels({ authToken: authToken(req), organizationId: organizationId(req) });
+    return res.status(200).json({ success: true, ...result });
+  }));
+
+  router.post('/message-models', express.json({ limit: '32kb' }), execute(async (req, res) => {
+    const body = req.body as Record<string, unknown>;
+    const result = await service.saveMessageModel(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      {
+        label: body.label,
+        text: body.text,
+        objective: typeof body.objective === 'string' ? body.objective as ComposerObjective : undefined,
+        tone: typeof body.tone === 'string' ? body.tone as RadarComposerTone : undefined,
+      },
+    );
+    return res.status(201).json(result);
+  }));
+
+  router.delete('/message-models/:modelId', execute(async (req, res) => {
+    const result = await service.deleteMessageModel(
+      { authToken: authToken(req), organizationId: organizationId(req) },
+      safeId(req.params.modelId),
+    );
+    return res.status(200).json(result);
+  }));
 
   router.post(
     '/composer/draft',

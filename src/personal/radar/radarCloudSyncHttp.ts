@@ -66,10 +66,6 @@ export function createRadarCloudSyncRouter(
     }
   };
 
-  // This route intentionally mounts before the legacy /radar handler. Opening
-  // Radar on any device first upgrades stale imported cloud data, then reads the
-  // canonical Firestore result. Once the version marker is current this becomes
-  // a cheap metadata read and does not repeat the migration.
   router.get('/radar', execute(async (req, res) => {
     const request = {
       authToken: authToken(req),

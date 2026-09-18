@@ -24,14 +24,15 @@ function normalizeOrigin(raw: string): string {
 /**
  * Browser-safe projection endpoint for live Connect bootstrap.
  * Hub remains the authority: this handler only forwards the Firebase bearer,
- * verifies tenant consistency, and returns Hub's already-sanitized Connect
- * session-context response. It never derives roles or permissions locally.
+ * asks Hub to independently revalidate the exact organization selected during
+ * handoff, verifies tenant consistency, and returns Hub's sanitized response.
+ * It never derives roles or permissions locally.
  */
 export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandlerOptions) {
   const endpoint = new URL(
     '/api/ecosystem/connect/session-context',
     normalizeOrigin(options.hubOrigin),
-  ).toString();
+  );
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = Math.max(1_000, options.timeoutMs ?? 8_000);
 
@@ -59,10 +60,13 @@ export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandl
       });
     }
 
+    const upstreamUrl = new URL(endpoint.toString());
+    upstreamUrl.searchParams.set('organizationId', requestedOrganizationId);
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const upstream = await fetchImpl(endpoint, {
+      const upstream = await fetchImpl(upstreamUrl.toString(), {
         method: 'GET',
         headers: {
           Authorization: authorization,

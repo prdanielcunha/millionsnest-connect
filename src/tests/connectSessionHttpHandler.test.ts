@@ -33,9 +33,11 @@ console.log('--- Running Connect Session HTTP Handler Tests ---');
 
 {
   let forwardedAuthorization = '';
+  let forwardedUrl = '';
   const handler = createConnectSessionHttpHandler({
     hubOrigin: 'https://www.millionsnest.com',
-    fetchImpl: (async (_input: any, init?: any) => {
+    fetchImpl: (async (input: any, init?: any) => {
+      forwardedUrl = String(input);
       forwardedAuthorization = init?.headers?.Authorization || '';
       return new Response(JSON.stringify({
         success: true,
@@ -59,6 +61,38 @@ console.log('--- Running Connect Session HTTP Handler Tests ---');
   equal(res.statusCode, 200, 'canonical session is returned');
   equal(res.body.activeOrganizationId, 'org-1', 'canonical tenant is preserved');
   equal(forwardedAuthorization, 'Bearer firebase-id-token', 'Firebase bearer is forwarded only to Hub');
+  equal(
+    forwardedUrl,
+    'https://www.millionsnest.com/api/ecosystem/connect/session-context?organizationId=org-1',
+    'selected organization is forwarded for canonical revalidation',
+  );
+}
+
+{
+  let forwardedUrl = '';
+  const handler = createConnectSessionHttpHandler({
+    hubOrigin: 'https://www.millionsnest.com',
+    fetchImpl: (async (input: any) => {
+      forwardedUrl = String(input);
+      return new Response(JSON.stringify({
+        success: true,
+        user: { uid: 'user-1' },
+        activeOrganizationId: 'org with space',
+        activeOrganization: { id: 'org with space' },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as any,
+  });
+  const res = new FakeResponse();
+  await handler({
+    headers: { authorization: 'Bearer firebase-id-token' },
+    query: { organizationId: 'org with space' },
+  } as any, res as any);
+  equal(res.statusCode, 200, 'encoded organization id can be validated');
+  equal(
+    forwardedUrl,
+    'https://www.millionsnest.com/api/ecosystem/connect/session-context?organizationId=org+with+space',
+    'selected organization is URL encoded',
+  );
 }
 
 {

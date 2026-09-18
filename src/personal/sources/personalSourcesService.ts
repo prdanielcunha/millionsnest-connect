@@ -736,10 +736,11 @@ export class PersonalSourcesService {
 
   async getPersonContext(request: RadarRequestContext, personId: string) {
     const context = await this.resolveContext(request);
-    const grouped = await this.buildGroupedRadar(request);
-    const person = grouped.people.find(item => String(item.id) === personId);
+    const peopleResult = await this.radar.getPeople(request);
+    const person = (peopleResult.people as Array<Record<string, unknown> & { id: string }>).find(item => String(item.id) === personId);
     if (!person) throw new Error('PERSON_NOT_FOUND');
-    const groupedPerson = person;
+    const grouped = await this.buildGroupedRadar(request);
+    const groupedPerson = grouped.people.find(item => String(item.id) === personId) || person;
     const rawSourceIds = uniqueStrings(person.sourceIds, person.sourceId);
     const aliases = new Set(uniqueStrings(person.displayName, person.probableName, person.identityAliases)
       .map(normalizeIdentityName)

@@ -1,5 +1,15 @@
 import { LiveConnectSession } from './liveConnectSession';
 
+export type SavedMessageModel = {
+  id: string;
+  label: string;
+  text: string;
+  objective: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+  tone: 'curto' | 'conversa' | 'audio' | 'video';
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type RadarManualPriority = 'normal' | 'important' | 'priority';
 
@@ -61,9 +71,13 @@ export type RadarClientPerson = {
   identityConfidence?: number;
   identityReview?: RadarIdentityReviewCandidate[];
   identityAliases?: string[];
+  salesStage?: string | null;
   lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
   lastCommercialAt?: string | null;
   lastCommercialDraft?: string | null;
+  followUpAt?: string | null;
+  sourceKinds?: string[];
+  radarEligible?: boolean;
   signals: Array<{
     id: string;
     type: string;
@@ -76,7 +90,6 @@ export type RadarClientPerson = {
     }>;
   }>;
 };
-
 
 export type PersonalSourceDetail = {
   source: RadarConversationSummary;
@@ -155,7 +168,6 @@ export class PersonalRadarClient {
     return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0), conversations: Array.isArray(body.conversations) ? body.conversations : [] };
   }
 
-
   async getSources(): Promise<{
     sources: RadarConversationSummary[];
     count: number;
@@ -202,8 +214,23 @@ export class PersonalRadarClient {
     } = {},
   ) {
     const response = await fetch(`/api/personal/v2/sources/${encodeURIComponent(sourceId)}/outreach`, {
-      method: 'POST', headers: this.headers(true),
+      method: 'POST',
+      headers: this.headers(true),
       body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...input }),
+    });
+    return parseResponse(response);
+  }
+
+  async getPeople(): Promise<{ people: RadarClientPerson[]; count: number }> {
+    const response = await fetch('/api/personal/people', { method: 'GET', headers: this.headers(), cache: 'no-store' });
+    const body = await parseResponse(response);
+    return { people: Array.isArray(body.people) ? body.people : [], count: Number(body.count || 0) };
+  }
+
+  async importContacts(contacts: Array<{ name: string; phone?: string }>) {
+    const response = await fetch('/api/personal/imports/contacts', {
+      method: 'POST', headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, contacts }),
     });
     return parseResponse(response);
   }
@@ -237,8 +264,10 @@ export class PersonalRadarClient {
       manualPriority?: RadarManualPriority;
       manualPotential?: RadarPotentialLevel | null;
       notRelevant?: boolean;
+      salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
       commercialDraft?: string;
+      followUpDays?: number;
     },
   ) {
     const response = await fetch(`/api/personal/people/${encodeURIComponent(personId)}`, {
@@ -287,7 +316,7 @@ export class PersonalRadarClient {
     preferences: {
       style?: 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
       channel?: 'texto' | 'audio' | 'video' | 'followup';
-      objective?: 'iniciar_conversa' | 'descobrir_dor' | 'pedir_video' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
+      objective?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
     } = {},
   ) {
     const response = await fetch('/api/personal/composer/draft', {
@@ -300,6 +329,29 @@ export class PersonalRadarClient {
         tone,
         ...preferences,
       }),
+    });
+    return parseResponse(response);
+  }
+
+  async getMessageModels(): Promise<{ models: SavedMessageModel[]; count: number }> {
+    const response = await fetch('/api/personal/message-models', {
+      method: 'GET', headers: this.headers(), cache: 'no-store',
+    });
+    const body = await parseResponse(response);
+    return { models: Array.isArray(body.models) ? body.models : [], count: Number(body.count || 0) };
+  }
+
+  async saveMessageModel(model: Omit<SavedMessageModel, 'id' | 'createdAt' | 'updatedAt'>) {
+    const response = await fetch('/api/personal/message-models', {
+      method: 'POST', headers: this.headers(true),
+      body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...model }),
+    });
+    return parseResponse(response) as Promise<{ success: true; model: SavedMessageModel }>;
+  }
+
+  async deleteMessageModel(modelId: string) {
+    const response = await fetch(`/api/personal/message-models/${encodeURIComponent(modelId)}`, {
+      method: 'DELETE', headers: this.headers(),
     });
     return parseResponse(response);
   }
