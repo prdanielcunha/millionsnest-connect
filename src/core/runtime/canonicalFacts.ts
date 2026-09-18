@@ -160,6 +160,29 @@ export class StructuredLogCoreFactPort implements CoreFactPort {
 }
 
 /**
+ * Fan-out adapter used by the P1 foundation so one canonical fact can feed
+ * observability and deterministic projections without coupling the Core to a
+ * specific database/event-bus implementation.
+ *
+ * All sinks are attempted. If one or more fail, the caller receives a failure
+ * after the other sinks had a chance to record the same event. The existing
+ * FactRecording decorator remains fail-open for the user-facing read flow.
+ */
+export class CoreFactFanoutPort implements CoreFactPort {
+  constructor(private readonly ports: CoreFactPort[]) {}
+
+  async record(event: CanonicalFactEvent): Promise<void> {
+    if (this.ports.length === 0) return;
+    const results = await Promise.allSettled(
+      this.ports.map((port) => port.record(event)),
+    );
+    if (results.some((result) => result.status === 'rejected')) {
+      throw new Error('CORE_FACT_FANOUT_PARTIAL_FAILURE');
+    }
+  }
+}
+
+/**
  * Decorates the existing real MusicScale tool boundary with canonical facts.
  *
  * Fact recording is deliberately fail-open in this first slice: audit remains
