@@ -98,7 +98,12 @@ export class HubSessionContextHttpProvider implements CanonicalContextProvider {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const response = await this.fetchImpl(this.endpoint, {
+      const endpoint = new URL(this.endpoint);
+      if (input.requestedOrganizationId?.trim()) {
+        endpoint.searchParams.set('organizationId', input.requestedOrganizationId.trim());
+      }
+
+      const response = await this.fetchImpl(endpoint.toString(), {
         method: 'GET',
         headers: {
           Authorization: authorization,
