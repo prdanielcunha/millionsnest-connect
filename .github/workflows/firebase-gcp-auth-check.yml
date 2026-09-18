@@ -64,24 +64,90 @@ jobs:
           if [ "$POLICY_STATUS" -ne 0 ]; then
             echo "CONNECT_RUNTIME_IAM_DISCOVERY=unavailable"
             echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=unknown"
+          else
+            echo "CONNECT_RUNTIME_IAM_DISCOVERY=available"
+            if [ -n "$RUNTIME_ROLES" ]; then
+              printf '%s\n' "$RUNTIME_ROLES" | sort -u | sed 's/^/CONNECT_RUNTIME_ROLE=/'
+            else
+              echo "CONNECT_RUNTIME_ROLE=none"
+            fi
+
+            if printf '%s\n' "$RUNTIME_ROLES" | grep -qx 'roles/datastore.user'; then
+              echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=least_privilege_candidate"
+            elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eqx 'roles/(owner|editor|datastore.owner)'; then
+              echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=overprivileged_candidate"
+            elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eq 'datastore|firebase|firestore'; then
+              echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=review_required"
+            else
+              echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=not_observed"
+            fi
+          fi
+
+          # Prefer effective-permission evidence over role-name inference when
+          # the deploy identity is allowed to impersonate the runtime identity.
+          # The token is captured in-memory only and never printed.
+          set +e
+          RUNTIME_TOKEN="$(gcloud auth print-access-token \
+            --impersonate-service-account="$RUNTIME_SA" 2>/dev/null)"
+          IMPERSONATION_STATUS=$?
+          set -e
+
+          if [ "$IMPERSONATION_STATUS" -ne 0 ] || [ -z "$RUNTIME_TOKEN" ]; then
+            echo "CONNECT_RUNTIME_IMPERSONATION=unavailable"
+            echo "CONNECT_RUNTIME_FIRESTORE_EFFECTIVE_STATE=unknown"
+            echo "CONNECT_RUNTIME_STORAGE_READINESS_READ_ONLY_OK"
             exit 0
           fi
 
-          echo "CONNECT_RUNTIME_IAM_DISCOVERY=available"
-          if [ -n "$RUNTIME_ROLES" ]; then
-            printf '%s\n' "$RUNTIME_ROLES" | sort -u | sed 's/^/CONNECT_RUNTIME_ROLE=/'
-          else
-            echo "CONNECT_RUNTIME_ROLE=none"
+          echo "CONNECT_RUNTIME_IMPERSONATION=available"
+          PERMISSIONS_URL="https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default):testIamPermissions"
+
+          set +e
+          PERMISSIONS_STATUS="$(curl --silent --show-error \
+            -o /tmp/connect-runtime-firestore-permissions.json \
+            -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $RUNTIME_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data '{"permissions":["datastore.entities.get","datastore.entities.create","datastore.entities.update"]}' \
+            "$PERMISSIONS_URL")"
+          CURL_STATUS=$?
+          set -e
+          unset RUNTIME_TOKEN
+
+          if [ "$CURL_STATUS" -ne 0 ] || [ "$PERMISSIONS_STATUS" != "200" ]; then
+            echo "CONNECT_RUNTIME_FIRESTORE_PERMISSION_PROBE=http_$PERMISSIONS_STATUS"
+            echo "CONNECT_RUNTIME_FIRESTORE_EFFECTIVE_STATE=unknown"
+            echo "CONNECT_RUNTIME_STORAGE_READINESS_READ_ONLY_OK"
+            exit 0
           fi
 
-          if printf '%s\n' "$RUNTIME_ROLES" | grep -qx 'roles/datastore.user'; then
-            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=least_privilege_candidate"
-          elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eqx 'roles/(owner|editor|datastore.owner)'; then
-            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=overprivileged_candidate"
-          elif printf '%s\n' "$RUNTIME_ROLES" | grep -Eq 'datastore|firebase|firestore'; then
-            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=review_required"
-          else
-            echo "CONNECT_RUNTIME_FIRESTORE_ROLE_STATE=not_observed"
-          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(
+            fs.readFileSync('/tmp/connect-runtime-firestore-permissions.json', 'utf8'),
+          );
+          const granted = new Set(Array.isArray(payload.permissions) ? payload.permissions : []);
+          const required = [
+            'datastore.entities.get',
+            'datastore.entities.create',
+            'datastore.entities.update',
+          ];
+          for (const permission of required) {
+            console.log(
+              `CONNECT_RUNTIME_EFFECTIVE_PERMISSION=${permission}:${granted.has(permission) ? 'granted' : 'missing'}`,
+            );
+          }
+          const read = granted.has('datastore.entities.get');
+          const write =
+            granted.has('datastore.entities.create') &&
+            granted.has('datastore.entities.update');
+          const state = read && write
+            ? 'read_write_confirmed'
+            : read
+              ? 'read_only'
+              : 'denied_or_missing';
+          console.log(`CONNECT_RUNTIME_FIRESTORE_EFFECTIVE_STATE=${state}`);
+          NODE
 
           echo "CONNECT_RUNTIME_STORAGE_READINESS_READ_ONLY_OK"
