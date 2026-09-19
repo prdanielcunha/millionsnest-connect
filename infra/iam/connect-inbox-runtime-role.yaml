@@ -1,0 +1,8 @@
+title: "MillionsNest Connect Inbox Runtime"
+description: "Minimum Firestore data-plane permissions for the canonical Connect Inbox thread event and snapshot store."
+stage: "GA"
+includedPermissions:
+  - datastore.entities.get
+  - datastore.entities.list
+  - datastore.entities.create
+  - datastore.entities.update
