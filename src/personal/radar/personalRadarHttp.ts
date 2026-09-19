@@ -1,6 +1,6 @@
 import express from 'express';
 import { PersonalRadarService, RadarComposerTone } from './personalRadarService';
-import { ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
+import { ApproachProfile, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
 import { ManualPriority, PotentialLevel } from './identityResolution';
 
 function authToken(req: express.Request): string {
@@ -69,6 +69,7 @@ function humanSummary(error: unknown): string {
   if (code === 'SNOOZE_DAYS_INVALID') return 'Escolha um adiamento entre 1 e 90 dias.';
   if (code === 'MANUAL_PRIORITY_INVALID') return 'Escolha uma prioridade válida.';
   if (code === 'MANUAL_POTENTIAL_INVALID') return 'Escolha um nível de potencial válido.';
+  if (code === 'APPROACH_PROFILE_INVALID') return 'Escolha um perfil de abordagem válido.';
   if (code === 'IDENTITY_SAME_PERSON') return 'Escolha duas pessoas diferentes para revisar a identidade.';
   if (code === 'IDENTITY_MERGE_NOT_FOUND') return 'Este vínculo não está mais disponível para desfazer.';
   return 'Não foi possível concluir esta operação do Radar.';
@@ -163,6 +164,13 @@ export function createPersonalRadarRouter(service: PersonalRadarService) {
             ? body.manualPotential as PotentialLevel | null
             : undefined,
           notRelevant: typeof body.notRelevant === 'boolean' ? body.notRelevant : undefined,
+          approachProfile: typeof body.approachProfile === 'string' ? body.approachProfile as ApproachProfile : undefined,
+          salesStage: typeof body.salesStage === 'string' ? body.salesStage as ComposerObjective : undefined,
+          commercialAction: typeof body.commercialAction === 'string'
+            ? body.commercialAction as 'whatsapp_opened' | 'sent_manual' | 'copied'
+            : undefined,
+          commercialDraft: typeof body.commercialDraft === 'string' ? body.commercialDraft : undefined,
+          followUpDays: typeof body.followUpDays === 'number' ? body.followUpDays : undefined,
         },
       );
       return res.status(200).json(result);
