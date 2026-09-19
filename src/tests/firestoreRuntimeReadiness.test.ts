@@ -40,6 +40,7 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
       return response(200, {
         permissions: [
           'datastore.entities.get',
+          'datastore.entities.list',
           'datastore.entities.create',
           'datastore.entities.update',
         ],
@@ -49,6 +50,7 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
 
   equal(result.state, 'read_write_confirmed', 'read/write runtime is confirmed');
   equal(result.permissions.read, true, 'read permission is visible');
+  equal(result.permissions.list, true, 'list permission is visible');
   equal(result.permissions.create, true, 'create permission is visible');
   equal(result.permissions.update, true, 'update permission is visible');
   equal(calls.length, 2, 'probe performs exactly metadata + project IAM requests');
@@ -79,10 +81,13 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
     timeoutMs: 0,
     fetchImpl: async (input) => String(input).includes('metadata.google.internal')
       ? response(200, { access_token: 'token' })
-      : response(200, { permissions: ['datastore.entities.get'] }),
+      : response(200, {
+          permissions: ['datastore.entities.get', 'datastore.entities.list'],
+        }),
   });
 
-  equal(result.state, 'read_only', 'read-only runtime is not treated as writable');
+  equal(result.state, 'read_only', 'read/list-only runtime is not treated as writable');
+  equal(result.permissions.list, true, 'list permission is required for event rebuild');
   equal(result.permissions.create, false, 'missing create is explicit');
   equal(result.permissions.update, false, 'missing update is explicit');
 }
@@ -96,6 +101,28 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
   });
 
   equal(result.state, 'denied_or_missing', 'missing read permission fails closed');
+}
+
+{
+  const result = await probeConnectRuntimeFirestoreReadiness({
+    timeoutMs: 0,
+    fetchImpl: async (input) => String(input).includes('metadata.google.internal')
+      ? response(200, { access_token: 'token' })
+      : response(200, {
+          permissions: [
+            'datastore.entities.get',
+            'datastore.entities.create',
+            'datastore.entities.update',
+          ],
+        }),
+  });
+
+  equal(
+    result.state,
+    'denied_or_missing',
+    'missing list permission blocks durable Inbox readiness',
+  );
+  equal(result.permissions.list, false, 'missing list permission is explicit');
 }
 
 {
