@@ -115,6 +115,11 @@ assert.match(
   /CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=/,
   'Production smoke must emit a machine-readable runtime Firestore readiness state',
 );
+assert.match(
+  release,
+  /CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=/,
+  'Production smoke must emit the safe source of the runtime Firestore readiness probe',
+);
 
 assert.match(release, /CONNECT_PRODUCTION_RELEASE_OK/, 'Release must end with a production smoke gate');
 assert.match(
