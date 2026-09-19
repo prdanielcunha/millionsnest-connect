@@ -28,6 +28,7 @@ export type ExperiencePreviewConfig = {
   device: PreviewDevice;
   accountState: PreviewAccountState;
   dataMode: PreviewDataMode;
+  capabilities: string[] | null;
 };
 
 export const EXPERIENCE_PREVIEW_OPTIONS: ExperienceView[] = [
