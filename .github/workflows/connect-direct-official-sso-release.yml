@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Inbox A8 readiness certified release trigger — 2026-09-19
+# A9 operations observability certified release trigger — 2026-09-19
 
 on:
   push:
