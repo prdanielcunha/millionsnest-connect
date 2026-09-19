@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Project IAM runtime readiness release trigger — 2026-09-19
+# Empty project IAM response classification release trigger — 2026-09-19
 
 on:
   push:
