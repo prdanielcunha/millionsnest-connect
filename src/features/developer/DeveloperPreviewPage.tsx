@@ -29,7 +29,6 @@ interface DeveloperPreviewPageProps {
   session: LiveConnectSession;
   currentLang: LanguageCode;
   config: ExperiencePreviewConfig;
-  realProfile: ExperienceProfile;
   showRadar: boolean;
   onChange: (next: ExperiencePreviewConfig) => void;
   onChangeLang: (lang: LanguageCode) => void;
@@ -150,14 +149,13 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
   session,
   currentLang,
   config,
-  realProfile,
   showRadar,
   onChange,
   onChangeLang,
   onOpenHome,
 }) => {
   const t = copy[currentLang];
-  const update = <K extends keyof ExperiencePreviewConfig>(key: K, value: ExperiencePreviewConfig[K]) => {
+  const update = <K extends keyof ExperiencePreviewConfig,>(key: K, value: ExperiencePreviewConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
 
