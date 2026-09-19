@@ -8,6 +8,7 @@ export interface ConnectRuntimeFirestoreReadiness {
   state: ConnectRuntimeFirestoreState;
   permissions: {
     read: boolean;
+    list: boolean;
     create: boolean;
     update: boolean;
   };
@@ -30,6 +31,7 @@ const DEFAULT_METADATA_TOKEN_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
 
 const PERMISSION_READ = 'datastore.entities.get';
+const PERMISSION_LIST = 'datastore.entities.list';
 const PERMISSION_CREATE = 'datastore.entities.create';
 const PERMISSION_UPDATE = 'datastore.entities.update';
 
@@ -56,6 +58,7 @@ function unknown(
     state: 'unknown',
     permissions: {
       read: false,
+      list: false,
       create: false,
       update: false,
     },
@@ -68,7 +71,7 @@ function unknown(
  *
  * It obtains the Cloud Run service account token from the Google metadata
  * server and asks Cloud Resource Manager projects.testIamPermissions for the
- * three datastore permissions the durable Connect-owned Inbox store requires.
+ * four datastore permissions the durable Connect-owned Inbox store requires.
  * Project IAM is the authority for these Firestore data permissions. The probe
  * never writes a document, mutates IAM, logs the token, or returns the token
  * to callers.
@@ -119,6 +122,7 @@ export async function probeConnectRuntimeFirestoreReadiness(
       body: JSON.stringify({
         permissions: [
           PERMISSION_READ,
+          PERMISSION_LIST,
           PERMISSION_CREATE,
           PERMISSION_UPDATE,
         ],
@@ -145,17 +149,19 @@ export async function probeConnectRuntimeFirestoreReadiness(
       permissions.filter((value): value is string => typeof value === 'string'),
     );
     const read = granted.has(PERMISSION_READ);
+    const list = granted.has(PERMISSION_LIST);
     const create = granted.has(PERMISSION_CREATE);
     const update = granted.has(PERMISSION_UPDATE);
 
     return {
-      state: read && create && update
+      state: read && list && create && update
         ? 'read_write_confirmed'
-        : read
+        : read && list
           ? 'read_only'
           : 'denied_or_missing',
       permissions: {
         read,
+        list,
         create,
         update,
       },

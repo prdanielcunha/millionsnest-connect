@@ -175,6 +175,7 @@ await withServer(async (origin) => {
             return {
               permissions: [
                 'datastore.entities.get',
+                'datastore.entities.list',
                 'datastore.entities.create',
                 'datastore.entities.update',
               ],
