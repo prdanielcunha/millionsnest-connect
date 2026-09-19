@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Empty project IAM response classification release trigger — 2026-09-19
+# Durable Inbox store readiness release trigger — 2026-09-19
 
 on:
   push:
