@@ -108,6 +108,21 @@ A arquitetura é fundamentada em **Zero Trust Client**:
 ### Endpoints server-side preparados
 * `GET /api/health` — healthcheck da runtime do Connect Core.
 * `POST /api/core/message` — boundary in-app autenticada da primeira vertical do Core.
+* `GET /api/core/nestjourney/followup` — projeção mínima e autenticada de um primeiro contato pendente do NestJourney. O Hub revalida tenant, entitlement, capability, escopo, owner e consentimento antes de liberar nome/telefone para o Connect.
+
+### NestJourney Resolve Loop V1
+
+O Connect pode receber um deep link seguro `/journey-followup/:id` vindo do NestJourney pelo handoff canônico do Hub. O identificador na URL é opaco e não contém nome, telefone ou texto pastoral.
+
+Nesta V1, o Connect:
+* busca o contexto mínimo de forma server-authoritative no Hub;
+* prepara um roteiro de primeiro contato baseado no playbook Raiz e Mesa;
+* abre o composer do WhatsApp com o rascunho;
+* não afirma que a mensagem foi enviada;
+* não encerra a Care Promise;
+* devolve o usuário ao NestJourney para registrar o outcome humano observado.
+
+A execução real de provider/WhatsApp API continua fora desta fatia. Abrir um draft não é evidência de entrega nem resolução.
 
 Esses endpoints existem no código da runtime, mas o Firebase Hosting atual continua estático até que uma integração Cloud Run/rewrite seja explicitamente validada e promovida.
 
