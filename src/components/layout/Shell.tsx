@@ -490,7 +490,7 @@ export const Shell: React.FC<ShellProps> = ({
                 </button>
               </div>
             )}
-            <main className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6 ${isLive ? 'pb-24 lg:pb-6' : ''}`}>
+            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col p-4 pb-24 md:p-6 lg:pb-6">
               {children}
             </main>
           </section>
