@@ -5,6 +5,7 @@ import { createConnectCoreRuntime } from '../core/runtime/connectCoreRuntimeFact
 import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionHttpHandler';
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
 import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
+import { probeConnectRuntimeFirestoreReadiness } from '../core/runtime/firestoreRuntimeReadiness';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -39,6 +40,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const logger = options.logger ?? console;
   const env = options.env ?? process.env;
   const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
+  const storageReadinessProbeEnabled =
+    env.CONNECT_STORAGE_READINESS_PROBE_ENABLED?.trim().toLowerCase() === 'true';
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -133,6 +136,29 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       service: 'millionsnest-connect-core',
       protocolVersion: '1.0.0',
       releaseSha: releaseSha || undefined,
+    });
+  });
+
+  app.get('/api/health/storage-readiness', async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+
+    if (!storageReadinessProbeEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'STORAGE_READINESS_PROBE_DISABLED',
+      });
+    }
+
+    const readiness = await probeConnectRuntimeFirestoreReadiness({
+      projectId: env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest',
+      fetchImpl: options.fetchImpl,
+    });
+
+    return res.status(200).json({
+      success: true,
+      service: 'millionsnest-connect-core',
+      storageReadiness: readiness.state,
+      source: readiness.source,
     });
   });
 
