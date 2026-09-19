@@ -45,6 +45,47 @@ jobs:
           gcloud secrets list --project millionsnest --format='value(name)' || true
           echo "READ_ONLY_DISCOVERY_OK"
 
+      - name: Prove deploy identity can bootstrap least-privilege Connect IAM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_ID="millionsnest"
+          DEPLOY_TOKEN="$(gcloud auth print-access-token)"
+          STATUS="$(curl --silent --show-error             -o /tmp/connect-iam-bootstrap-permissions.json             -w '%{http_code}'             -X POST             -H "Authorization: Bearer $DEPLOY_TOKEN"             -H 'Content-Type: application/json'             --data '{"permissions":["iam.roles.create","iam.roles.get","iam.roles.update","resourcemanager.projects.getIamPolicy","resourcemanager.projects.setIamPolicy"]}'             "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT_ID:testIamPermissions")"
+          unset DEPLOY_TOKEN
+
+          if [ "$STATUS" != "200" ]; then
+            echo "CONNECT_IAM_BOOTSTRAP_CAPABILITY=unknown_http_$STATUS"
+            exit 0
+          fi
+
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(
+            fs.readFileSync('/tmp/connect-iam-bootstrap-permissions.json', 'utf8'),
+          );
+          const granted = new Set(Array.isArray(payload.permissions) ? payload.permissions : []);
+          const required = [
+            'iam.roles.create',
+            'iam.roles.get',
+            'iam.roles.update',
+            'resourcemanager.projects.getIamPolicy',
+            'resourcemanager.projects.setIamPolicy',
+          ];
+          let complete = true;
+          for (const permission of required) {
+            const has = granted.has(permission);
+            if (!has) complete = false;
+            console.log(
+              `CONNECT_IAM_BOOTSTRAP_PERMISSION=${permission}:${has ? 'granted' : 'missing'}`,
+            );
+          }
+          console.log(
+            `CONNECT_IAM_BOOTSTRAP_CAPABILITY=${complete ? 'available' : 'insufficient'}`,
+          );
+          NODE
+
       - name: Inspect Connect runtime storage readiness
         shell: bash
         run: |
@@ -100,7 +141,7 @@ jobs:
           fi
 
           echo "CONNECT_RUNTIME_IMPERSONATION=available"
-          PERMISSIONS_URL="https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default):testIamPermissions"
+          PERMISSIONS_URL="https://cloudresourcemanager.googleapis.com/v1/projects/$PROJECT_ID:testIamPermissions"
 
           set +e
           PERMISSIONS_STATUS="$(curl --silent --show-error \
@@ -109,7 +150,7 @@ jobs:
             -X POST \
             -H "Authorization: Bearer $RUNTIME_TOKEN" \
             -H 'Content-Type: application/json' \
-            --data '{"permissions":["datastore.entities.get","datastore.entities.create","datastore.entities.update"]}' \
+            --data '{"permissions":["datastore.entities.get","datastore.entities.list","datastore.entities.create","datastore.entities.update"]}' \
             "$PERMISSIONS_URL")"
           CURL_STATUS=$?
           set -e
@@ -130,6 +171,7 @@ jobs:
           const granted = new Set(Array.isArray(payload.permissions) ? payload.permissions : []);
           const required = [
             'datastore.entities.get',
+            'datastore.entities.list',
             'datastore.entities.create',
             'datastore.entities.update',
           ];
@@ -138,7 +180,9 @@ jobs:
               `CONNECT_RUNTIME_EFFECTIVE_PERMISSION=${permission}:${granted.has(permission) ? 'granted' : 'missing'}`,
             );
           }
-          const read = granted.has('datastore.entities.get');
+          const read =
+            granted.has('datastore.entities.get') &&
+            granted.has('datastore.entities.list');
           const write =
             granted.has('datastore.entities.create') &&
             granted.has('datastore.entities.update');
