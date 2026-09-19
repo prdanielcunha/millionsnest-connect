@@ -9,6 +9,11 @@ import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionH
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
 import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
 import { createNestJourneyFollowupContextHttpHandler } from '../core/runtime/nestJourneyFollowupContextHttpHandler';
+import { createConnectChannelReadinessHttpHandler } from '../core/runtime/connectChannelReadinessHttpHandler';
+import {
+  createWhatsAppWebhookIngressHandler,
+  createWhatsAppWebhookVerificationHandler,
+} from '../core/runtime/whatsappOfficialWebhookHttpHandler';
 import {
   probeConnectRuntimeFirestoreReadiness,
   type ConnectRuntimeFirestoreReadiness,
@@ -69,6 +74,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
   let outboundValidationHandler: ReturnType<typeof createOutboundDeliveryHttpHandler> | null = null;
   let journeyFollowupHandler: ReturnType<typeof createNestJourneyFollowupContextHttpHandler> | null = null;
+  let channelReadinessHandler: ReturnType<typeof createConnectChannelReadinessHttpHandler> | null = null;
+  const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
+  const whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
@@ -102,6 +110,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         contextProvider: personalContextProvider,
         hubOrigin,
         fetchImpl: options.fetchImpl,
+      });
+      channelReadinessHandler = createConnectChannelReadinessHttpHandler({
+        contextProvider: personalContextProvider,
+        env,
+        storageReadinessProbe: options.inboxStorageReadinessProbe,
       });
       const vault = new FirestorePersonalVault({
         projectId: env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest',
@@ -190,6 +203,16 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   if (personalRadarRouter) {
     app.use('/api/personal', personalRadarRouter);
   }
+
+  // Meta webhook signature validation must receive the exact raw request bytes.
+  // Keep these routes ahead of the global JSON parser.
+  app.get('/api/channels/whatsapp/webhook', whatsappWebhookVerificationHandler);
+  app.post(
+    '/api/channels/whatsapp/webhook',
+    express.raw({ type: 'application/json', limit: '256kb' }),
+    whatsappWebhookIngressHandler,
+  );
+
   app.use(express.json({ limit: '32kb' }));
 
   app.get('/api/health', (_req, res) => {
@@ -269,6 +292,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return sessionHandler(req, res);
+  });
+
+  app.get('/api/core/channels/readiness', async (req, res) => {
+    if (!channelReadinessHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        success: false,
+        code: 'CORE_CONFIGURATION_MISSING',
+      });
+    }
+    return channelReadinessHandler(req, res);
   });
 
   app.get('/api/core/nestjourney/followup', async (req, res) => {
