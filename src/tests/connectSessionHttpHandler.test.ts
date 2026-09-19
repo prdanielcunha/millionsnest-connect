@@ -96,6 +96,30 @@ console.log('--- Running Connect Session HTTP Handler Tests ---');
 }
 
 {
+  let forwardedUrl = '';
+  const handler = createConnectSessionHttpHandler({
+    hubOrigin: 'https://www.millionsnest.com',
+    fetchImpl: (async (input: any) => {
+      forwardedUrl = String(input);
+      return new Response(JSON.stringify({
+        success: true,
+        user: { uid: 'direct-user' },
+        activeOrganizationId: 'org-direct',
+        activeOrganization: { id: 'org-direct', name: 'Direct Organization' },
+        organizations: [{ id: 'org-direct', name: 'Direct Organization' }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as any,
+  });
+  const res = new FakeResponse();
+  await handler({
+    headers: { authorization: 'Bearer direct-id-token' },
+    query: {},
+  } as any, res as any);
+  equal(res.statusCode, 200, 'direct session may omit an organization routing hint');
+  equal(forwardedUrl, 'https://www.millionsnest.com/api/ecosystem/connect/session-context', 'Hub resolves the canonical default organization for direct entry');
+}
+
+{
   const handler = createConnectSessionHttpHandler({
     hubOrigin: 'https://www.millionsnest.com',
     fetchImpl: (async () => new Response(JSON.stringify({
