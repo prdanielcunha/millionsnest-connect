@@ -10,7 +10,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
-import { ExperienceProfile } from '../../core/client/liveSurfacePolicy';
+import { ExperiencePreviewConfig, ExperienceProfile } from '../../core/client/liveSurfacePolicy';
 import { LanguageCode } from '../../types';
 
 interface AdaptiveHomePageProps {
@@ -19,6 +19,8 @@ interface AdaptiveHomePageProps {
   profile: ExperienceProfile;
   onNavigate: (route: string) => void;
   showRadar: boolean;
+  previewConfig?: ExperiencePreviewConfig;
+  previewOrganizationName?: string;
 }
 
 type ModuleStatus = 'ready' | 'controlled' | 'next';
@@ -89,6 +91,9 @@ const uiCopy = {
     peopleDesc: 'Contexto e identidades em uma visão única, respeitando separação entre dados pessoais e organizacionais.',
     operations: 'Operação omnichannel',
     operationsDesc: 'Canais, agentes e automações entram progressivamente sem fingir integrações que ainda não estão ativas.',
+    synthetic: 'Cenário de pré-visualização',
+    syntheticDesc: 'Ações reais ficam bloqueadas quando organização, plano, produto, estado da conta ou dados são simulados.',
+    simulated: 'simulado',
   },
   'en-US': {
     today: 'Today in Connect', available: 'Available', controlled: 'Controlled activation', next: 'Next phase', open: 'Open',
@@ -98,6 +103,7 @@ const uiCopy = {
     inbox: 'Inbox', inboxDesc: 'The durable foundation exists, while production activation remains protected by the IAM gate.',
     people: 'People', peopleDesc: 'Context and identities in one view while keeping personal and organizational data separated.',
     operations: 'Omnichannel operations', operationsDesc: 'Channels, agents and automations roll out progressively without pretending unfinished integrations are live.',
+    synthetic: 'Preview scenario', syntheticDesc: 'Real actions stay locked when organization, plan, product, account state or data are simulated.', simulated: 'simulated',
   },
   'es-ES': {
     today: 'Hoy en Connect', available: 'Disponible', controlled: 'Activación controlada', next: 'Próxima fase', open: 'Abrir',
@@ -107,6 +113,7 @@ const uiCopy = {
     inbox: 'Bandeja de entrada', inboxDesc: 'La base duradera ya existe, mientras la activación en producción sigue protegida por el gate de IAM.',
     people: 'Personas', peopleDesc: 'Contexto e identidades en una sola vista, manteniendo separados los datos personales y organizacionales.',
     operations: 'Operación omnicanal', operationsDesc: 'Canales, agentes y automatizaciones llegan progresivamente sin fingir integraciones que todavía no están activas.',
+    synthetic: 'Escenario de vista previa', syntheticDesc: 'Las acciones reales quedan bloqueadas cuando organización, plan, producto, estado o datos son simulados.', simulated: 'simulado',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
 
@@ -194,18 +201,35 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
   profile,
   onNavigate,
   showRadar,
+  previewConfig,
+  previewOrganizationName,
 }) => {
   const hero = profileCopy[profile][currentLang];
   const t = uiCopy[currentLang];
   const allowed = visibleActionIds(profile, showRadar);
   const visibleActions = actions.filter(action => allowed.has(action.id));
+  const syntheticPreview = Boolean(previewConfig && (
+    previewConfig.organizationId !== session.context.activeOrganization.id ||
+    previewConfig.product !== 'auto' ||
+    previewConfig.plan !== 'real' ||
+    previewConfig.accountState !== 'active' ||
+    previewConfig.dataMode !== 'real_permitted'
+  ));
+  const previewWidth = previewConfig?.device === 'mobile'
+    ? 'max-w-[430px]'
+    : previewConfig?.device === 'tablet'
+      ? 'max-w-3xl'
+      : 'max-w-7xl';
+  const previewProduct = previewConfig?.product === 'auto' ? null : previewConfig?.product;
+  const previewPlan = previewConfig?.plan === 'real' ? session.context.activeOrganization.plan : previewConfig?.plan;
+  const previewAccount = previewConfig?.accountState && previewConfig.accountState !== 'active' ? previewConfig.accountState : null;
 
   const statusLabel = (status: ModuleStatus) => (
     status === 'ready' ? t.available : status === 'controlled' ? t.controlled : t.next
   );
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
+    <main className={`mx-auto w-full ${previewWidth} space-y-5 pb-28 transition-[max-width] duration-300 lg:pb-10`}>
       <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_15%_0%,rgba(99,102,241,.15),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(34,211,238,.07),transparent_30%),linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.018))] p-5 shadow-[0_30px_90px_rgba(0,0,0,.22)] sm:p-7 lg:p-9">
         <div className="relative max-w-4xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-black/15 px-3 py-1.5 text-[10px] font-semibold tracking-[0.18em] text-indigo-200">
@@ -219,8 +243,11 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">
-              {session.context.activeOrganization.name}
+              {previewOrganizationName || session.context.activeOrganization.name}
             </span>
+            {previewProduct && <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">{previewProduct}</span>}
+            {previewPlan && <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">{previewPlan}</span>}
+            {previewAccount && <span className="rounded-full border border-amber-300/15 bg-amber-300/[0.05] px-3 py-1.5 text-amber-100">{previewAccount}</span>}
             <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">
               {t.today}
             </span>
@@ -228,17 +255,32 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
         </div>
       </section>
 
+      {syntheticPreview && (
+        <section className="flex items-start gap-3 rounded-[22px] border border-indigo-400/15 bg-indigo-400/[0.05] p-4 text-indigo-100">
+          <Sparkles size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <div className="text-xs font-semibold">{t.synthetic}</div>
+            <p className="mt-1 text-xs leading-5 text-indigo-100/55">{t.syntheticDesc}</p>
+          </div>
+        </section>
+      )}
+
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleActions.map((action) => {
           const Icon = action.icon;
-          const effectiveStatus: ModuleStatus = action.id === 'people' && !showRadar ? 'controlled' : action.status;
+          const effectiveStatus: ModuleStatus = previewConfig?.accountState === 'missing_permission'
+            ? 'controlled'
+            : action.id === 'people' && !showRadar
+              ? 'controlled'
+              : action.status;
           const ready = effectiveStatus === 'ready';
           return (
             <button
               key={action.id}
               type="button"
-              onClick={() => onNavigate(action.route)}
-              className="group min-h-44 rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.14] hover:bg-white/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+              onClick={() => { if (!syntheticPreview) onNavigate(action.route); }}
+              aria-disabled={syntheticPreview || undefined}
+              className={`group min-h-44 rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-5 text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${syntheticPreview ? 'cursor-default opacity-80' : 'hover:-translate-y-0.5 hover:border-white/[0.14] hover:bg-white/[0.04]'}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
@@ -268,7 +310,7 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
         <article className="rounded-[24px] border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><Bot size={16} className="text-indigo-300" /> {t.ecosystem}</div>
           <p className="mt-3 text-sm leading-6 text-slate-500">{t.ecosystemDesc}</p>
-          <button type="button" onClick={() => onNavigate('assist')} className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-400/[0.07] px-3.5 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-400/[0.11]">
+          <button type="button" onClick={() => { if (!syntheticPreview) onNavigate('assist'); }} aria-disabled={syntheticPreview || undefined} className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-400/[0.07] px-3.5 text-xs font-semibold text-indigo-100 transition ${syntheticPreview ? 'cursor-default opacity-60' : 'hover:bg-indigo-400/[0.11]'}`}>
             {t.ask} <ArrowRight size={13} />
           </button>
         </article>
@@ -285,7 +327,7 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
                 : t.peopleDesc}
           </p>
           {(profile === 'commercial' || profile === 'ceo') && showRadar && (
-            <button type="button" onClick={() => onNavigate('radar')} className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[0.09] px-3.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.05]">
+            <button type="button" onClick={() => { if (!syntheticPreview) onNavigate('radar'); }} aria-disabled={syntheticPreview || undefined} className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[0.09] px-3.5 text-xs font-semibold text-slate-200 transition ${syntheticPreview ? 'cursor-default opacity-60' : 'hover:bg-white/[0.05]'}`}>
               {t.relationship} <ArrowRight size={13} />
             </button>
           )}
