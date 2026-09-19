@@ -96,8 +96,24 @@ assert.match(
 );
 assert.match(
   release,
+  /CONNECT_STORAGE_READINESS_PROBE_ENABLED=true/,
+  'Production release must explicitly enable the narrow runtime storage readiness diagnostic',
+);
+assert.match(
+  release,
   /x\.releaseSha!==process\.env\.GITHUB_SHA/,
   'Local and production health smokes must verify the serving revision',
+);
+
+assert.match(
+  release,
+  /\/api\/health\/storage-readiness/,
+  'Production smoke must query Firestore readiness from inside the deployed Connect runtime',
+);
+assert.match(
+  release,
+  /CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=/,
+  'Production smoke must emit a machine-readable runtime Firestore readiness state',
 );
 
 assert.match(release, /CONNECT_PRODUCTION_RELEASE_OK/, 'Release must end with a production smoke gate');
