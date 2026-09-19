@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Gated durable Inbox runtime release trigger — 2026-09-19
+# Productized Connect certified release trigger — 2026-09-19
 
 on:
   push:
