@@ -20,6 +20,8 @@ import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
 import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
 import { RelationshipIntelligencePage } from './features/intelligence/RelationshipIntelligencePage';
+import { JourneyFollowupConnectPage } from './features/journey/JourneyFollowupConnectPage';
+import { resolveJourneyFollowupId } from './features/journey/journeyFollowup';
 
 // Demo feature pages remain available while the live rollout flag is off.
 import { OverviewPage } from './features/overview/OverviewPage';
@@ -107,6 +109,10 @@ function LiveStagedSection() {
   );
 }
 
+function initialLiveRoute() {
+  return resolveJourneyFollowupId(window.location.pathname) ? 'journey-followup' : 'overview';
+}
+
 export default function App() {
   const [demoContext, setDemoContext] = useState<EffectiveEcosystemContext>(mockEcosystemContext);
   const [liveSession, setLiveSession] = useState<LiveConnectSession | null>(null);
@@ -114,7 +120,7 @@ export default function App() {
     CONNECT_LIVE_MODE_ENABLED ? 'loading' : 'idle',
   );
   const [liveBootErrorCode, setLiveBootErrorCode] = useState<string | null>(null);
-  const [activeRoute, setActiveRoute] = useState<string>('overview');
+  const [activeRoute, setActiveRoute] = useState<string>(initialLiveRoute);
   const [currentLang, setCurrentLang] = useState<LanguageCode>('pt-BR');
 
   useEffect(() => {
@@ -130,7 +136,7 @@ export default function App() {
         // directly in Relationship Intelligence instead of a generic overview.
         // Non-governance users keep the existing Core landing and RBAC boundary.
         if (isGlobalGovernanceRole(session.context.user.systemRole)) {
-          setActiveRoute('radar');
+          setActiveRoute((current) => current === 'journey-followup' ? current : 'radar');
         }
         setLiveBootErrorCode(null);
         setLiveBootState('idle');
@@ -195,6 +201,9 @@ export default function App() {
 
   const renderCurrentPage = () => {
     if (!liveSession) return renderDemoPage();
+    if (activeRoute === 'journey-followup') {
+      return <JourneyFollowupConnectPage session={liveSession} currentLang={currentLang} />;
+    }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
     }
