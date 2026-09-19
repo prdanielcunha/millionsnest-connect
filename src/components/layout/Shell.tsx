@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
   LayoutDashboard, MessageSquare, MessageSquareText, Wrench, Users, BrainCircuit,
-  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar, Database, Eye, Sparkles as SparklesIcon
+  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar, Database, Eye, Code2, Sparkles as SparklesIcon
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
@@ -108,6 +108,7 @@ const routeLabels: Record<string, Record<LanguageCode, string>> = {
   knowledge: { 'pt-BR': 'Conhecimento', 'en-US': 'Knowledge', 'es-ES': 'Conocimiento' },
   audit: { 'pt-BR': 'Auditoria', 'en-US': 'Audit', 'es-ES': 'Auditoría' },
   settings: { 'pt-BR': 'Configurações', 'en-US': 'Settings', 'es-ES': 'Configuración' },
+  developer: { 'pt-BR': 'Central do desenvolvedor', 'en-US': 'Developer Center', 'es-ES': 'Central del desarrollador' },
   sources: { 'pt-BR': 'Fontes pessoais', 'en-US': 'Personal sources', 'es-ES': 'Fuentes personales' },
   imports: { 'pt-BR': 'Importações', 'en-US': 'Imports', 'es-ES': 'Importaciones' },
   preferences: { 'pt-BR': 'Preferências', 'en-US': 'Preferences', 'es-ES': 'Preferencias' },
@@ -168,6 +169,7 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'knowledge', icon: BookOpen, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
     { id: 'audit', icon: ShieldCheck, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
     { id: 'settings', icon: Settings, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'developer', icon: Code2, section: 'governance' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'sources', icon: Database, section: 'personal' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'imports', icon: Database, section: 'personal' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'preferences', icon: Settings, section: 'personal' as LiveNavSection, status: 'controlled' as LiveNavStatus },

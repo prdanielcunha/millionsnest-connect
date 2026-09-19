@@ -23,7 +23,8 @@ interface RadarPageProps {
 type Tone = 'curto' | 'conversa' | 'audio' | 'video';
 type ComposerStyle = 'amigavel' | 'profissional' | 'descontraido' | 'objetivo' | 'proximo' | 'pastoral' | 'consultivo';
 type ComposerObjective = 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
-type FilterMode = 'all' | 'favorites' | 'priority' | 'very_high' | 'review';
+type FilterMode = 'all' | 'favorites' | 'priority' | 'very_high' | 'opportunities' | 'review';
+type SalesStageFilter = 'all' | ComposerObjective;
 
 type SelectedSignal = {
   person: RadarClientPerson;
@@ -43,7 +44,8 @@ const copy = {
     people: 'Pessoas', messages: 'mensagens', merged: 'contatos reaproveitados', review: 'para revisar',
     empty: 'Nenhuma pessoa priorizada ainda', emptyDesc: 'Importe uma conversa autorizada para o Connect organizar os contatos e explicar por que alguém merece sua atenção.',
     search: 'Buscar no histórico', searchPlaceholder: 'Pessoa, assunto, louvor, escala…', searchAction: 'Buscar', noSearch: 'Nenhum resultado.',
-    all: 'Todos', favorites: 'Favoritos', priority: 'Prioritários', veryHigh: 'Muito alto', duplicates: 'Revisar identidade',
+    all: 'Todos', favorites: 'Favoritos', priority: 'Prioritários', veryHigh: 'Muito alto', opportunities: 'Oportunidades', duplicates: 'Revisar identidade',
+    product: 'Produto', stage: 'Estágio', allStages: 'Todos os estágios',
     potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridade', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritário',
     unknown: 'Sem evidência', low: 'Baixo', medium: 'Médio', high: 'Alto', very_high: 'Muito alto',
     identityPossible: 'Pode ser a mesma pessoa', merge: 'É a mesma', separate: 'São diferentes', undo: 'Desfazer vínculo',
@@ -64,7 +66,7 @@ const copy = {
     importTitle: 'Bring a WhatsApp conversation', importHint: 'WhatsApp TXT or ZIP export · up to 5 MB', selfName: 'Your name in the export', choose: 'Choose file', importing: 'Analyzing people, conversations and duplicates…', importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. Nothing was duplicated.',
     people: 'People', messages: 'messages', merged: 'contacts reused', review: 'to review', empty: 'No prioritized people yet', emptyDesc: 'Import an authorized conversation so Connect can organize contacts and explain why someone deserves attention.',
     search: 'Search history', searchPlaceholder: 'Person, topic, worship, schedule…', searchAction: 'Search', noSearch: 'No results.',
-    all: 'All', favorites: 'Favorites', priority: 'Priority', veryHigh: 'Very high', duplicates: 'Review identity', potential: 'Potential', auto: 'suggested', priorityLabel: 'Priority', normal: 'Normal', important: 'Important', priorityTop: 'Priority', unknown: 'Not enough evidence', low: 'Low', medium: 'Medium', high: 'High', very_high: 'Very high',
+    all: 'All', favorites: 'Favorites', priority: 'Priority', veryHigh: 'Very high', opportunities: 'Opportunities', duplicates: 'Review identity', product: 'Product', stage: 'Stage', allStages: 'All stages', potential: 'Potential', auto: 'suggested', priorityLabel: 'Priority', normal: 'Normal', important: 'Important', priorityTop: 'Priority', unknown: 'Not enough evidence', low: 'Low', medium: 'Medium', high: 'High', very_high: 'Very high',
     identityPossible: 'May be the same person', merge: 'Same person', separate: 'Different people', undo: 'Undo link', identityMerged: 'People linked. History was preserved.', identitySeparate: 'Got it. Connect will keep these people separate.',
     evidence: 'Why they surfaced', next: 'Next step', compose: 'Create approach', promote: 'Make opportunity', promoted: 'Opportunity marked', phone: 'WhatsApp/phone', snooze: 'Talk later', ignore: 'Not relevant',
     composerTitle: 'MusicScale Composer', tone: 'Format', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video', guidance: 'Suggested next move', why: 'Why', nextYes: 'Next small yes', usedContext: 'Context used', chooseOption: 'Choose an option', style: 'Style', approach: 'Approach profile', approachHint: 'Confirm it manually. Connect does not infer a person’s role from a title or conversation.', regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'No saved number: choose the contact in WhatsApp.', error: 'Could not complete this operation.', noAuto: 'Sending stays manual.', saved: 'Saved', saving: 'Saving…',
@@ -75,7 +77,7 @@ const copy = {
     productLens: 'Producto · MusicScale', funnelLens: 'Ventas MusicScale', strategyLens: 'Estrategia · líder primero',
     privacy: 'Cofre personal · privado · nadie se convierte en lead automáticamente.', importTitle: 'Traer conversación de WhatsApp', importHint: 'Exportación TXT o ZIP de WhatsApp · hasta 5 MB', selfName: 'Tu nombre en la exportación', choose: 'Elegir archivo', importing: 'Analizando personas, conversaciones y duplicados…', importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. Nada fue duplicado.',
     people: 'Personas', messages: 'mensajes', merged: 'contactos reutilizados', review: 'para revisar', empty: 'Aún no hay personas priorizadas', emptyDesc: 'Importa una conversación autorizada para que Connect organice los contactos y explique por qué alguien merece atención.',
-    search: 'Buscar en el historial', searchPlaceholder: 'Persona, tema, alabanza, escala…', searchAction: 'Buscar', noSearch: 'Sin resultados.', all: 'Todos', favorites: 'Favoritos', priority: 'Prioritarios', veryHigh: 'Muy alto', duplicates: 'Revisar identidad', potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridad', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritario', unknown: 'Sin evidencia', low: 'Bajo', medium: 'Medio', high: 'Alto', very_high: 'Muy alto',
+    search: 'Buscar en el historial', searchPlaceholder: 'Persona, tema, alabanza, escala…', searchAction: 'Buscar', noSearch: 'Sin resultados.', all: 'Todos', favorites: 'Favoritos', priority: 'Prioritarios', veryHigh: 'Muy alto', opportunities: 'Oportunidades', duplicates: 'Revisar identidad', product: 'Producto', stage: 'Etapa', allStages: 'Todas las etapas', potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridad', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritario', unknown: 'Sin evidencia', low: 'Bajo', medium: 'Medio', high: 'Alto', very_high: 'Muy alto',
     identityPossible: 'Puede ser la misma persona', merge: 'Es la misma', separate: 'Son diferentes', undo: 'Deshacer vínculo', identityMerged: 'Personas vinculadas. El historial fue preservado.', identitySeparate: 'Listo. Connect mantendrá estas personas separadas.', evidence: 'Por qué apareció', next: 'Siguiente paso', compose: 'Crear enfoque', promote: 'Crear oportunidad', promoted: 'Oportunidad marcada', phone: 'WhatsApp/teléfono', snooze: 'Hablar después', ignore: 'No relevante', composerTitle: 'Composer MusicScale', tone: 'Formato', short: 'Corto', conversation: 'Conversación', audio: 'Audio', video: 'Video', guidance: 'Sugerencia para ahora', why: 'Por qué', nextYes: 'Próximo pequeño sí', usedContext: 'Contexto usado', chooseOption: 'Elige una opción', style: 'Estilo', approach: 'Perfil de enfoque', approachHint: 'Confírmalo manualmente. Connect no infiere el rol de una persona por el título o las conversaciones.', regenerate: 'Generar', copy: 'Copiar', copied: 'Copiado', whatsapp: 'Abrir WhatsApp', noPhone: 'Sin número guardado: elige el contacto en WhatsApp.', error: 'No fue posible completar esta operación.', noAuto: 'El envío sigue siendo manual.', saved: 'Guardado', saving: 'Guardando…',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
@@ -99,6 +101,37 @@ function approachProfileLabel(profile: ApproachProfile, lang: LanguageCode): str
   };
   return labels[profile][lang];
 }
+
+function salesStageLabel(stage: ComposerObjective, lang: LanguageCode): string {
+  const labels: Record<ComposerObjective, Record<LanguageCode, string>> = {
+    iniciar_conversa: { 'pt-BR': 'Iniciar conversa', 'en-US': 'Start conversation', 'es-ES': 'Iniciar conversación' },
+    descobrir_dor: { 'pt-BR': 'Descobrir dor', 'en-US': 'Discover pain', 'es-ES': 'Descubrir dolor' },
+    contar_historia: { 'pt-BR': 'Contar história', 'en-US': 'Tell the story', 'es-ES': 'Contar historia' },
+    pedir_video: { 'pt-BR': 'Pedir permissão para vídeo', 'en-US': 'Ask permission for video', 'es-ES': 'Pedir permiso para video' },
+    enviar_video: { 'pt-BR': 'Enviar vídeo', 'en-US': 'Send video', 'es-ES': 'Enviar video' },
+    diagnosticar: { 'pt-BR': 'Diagnosticar', 'en-US': 'Diagnose', 'es-ES': 'Diagnosticar' },
+    explicar_dor: { 'pt-BR': 'Explicar a solução', 'en-US': 'Explain solution', 'es-ES': 'Explicar solución' },
+    convidar_trial: { 'pt-BR': 'Convidar para trial', 'en-US': 'Invite to trial', 'es-ES': 'Invitar al trial' },
+    acompanhar_trial: { 'pt-BR': 'Acompanhar trial', 'en-US': 'Follow trial', 'es-ES': 'Acompañar trial' },
+    retomar_conversa: { 'pt-BR': 'Retomar conversa', 'en-US': 'Resume conversation', 'es-ES': 'Retomar conversación' },
+    fechar: { 'pt-BR': 'Fechar / ativar', 'en-US': 'Close / activate', 'es-ES': 'Cerrar / activar' },
+  };
+  return labels[stage][lang];
+}
+
+const salesStages: ComposerObjective[] = [
+  'iniciar_conversa',
+  'descobrir_dor',
+  'contar_historia',
+  'pedir_video',
+  'enviar_video',
+  'diagnosticar',
+  'explicar_dor',
+  'convidar_trial',
+  'acompanhar_trial',
+  'retomar_conversa',
+  'fechar',
+];
 
 function composerStyleLabel(style: ComposerStyle, lang: LanguageCode): string {
   const labels: Record<ComposerStyle, Record<LanguageCode, string>> = {
@@ -144,6 +177,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
   const [error, setError] = useState('');
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState<FilterMode>('all');
+  const [stageFilter, setStageFilter] = useState<SalesStageFilter>('all');
   const [selected, setSelected] = useState<SelectedSignal | null>(null);
   const [tone, setTone] = useState<Tone>('curto');
   const [draft, setDraft] = useState('');
@@ -253,10 +287,13 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
           : signal.type === 'commercial_followup_due'
             ? 'proximo'
             : 'consultivo';
+    const savedStage = salesStages.includes(person.salesStage as ComposerObjective)
+      ? person.salesStage as ComposerObjective
+      : null;
     const hasPriorContact = Boolean(person.lastCommercialAction || person.lastCommercialAt)
-      || (Boolean(person.salesStage) && person.salesStage !== 'iniciar_conversa')
+      || (Boolean(savedStage) && savedStage !== 'iniciar_conversa')
       || signal.type === 'commercial_followup_due';
-    const initialObjective: ComposerObjective = hasPriorContact ? 'retomar_conversa' : 'iniciar_conversa';
+    const initialObjective: ComposerObjective = savedStage || (hasPriorContact ? 'retomar_conversa' : 'iniciar_conversa');
     setComposerStyle(initialStyle);
     setComposerObjective(initialObjective);
     setTimeout(() => void compose(selection, 'curto', initialStyle, initialObjective), 0);
@@ -303,13 +340,15 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
     if (sourceFilter !== 'all' && !sourceIds.includes(sourceFilter)) return false;
     if (filter === 'favorites') return Boolean(person.favorite);
     if (filter === 'priority') return person.manualPriority === 'priority';
+    if (stageFilter !== 'all' && person.salesStage !== stageFilter) return false;
     if (filter === 'very_high') return (person.manualPotential || person.effectivePotential || person.automaticPotential) === 'very_high';
+    if (filter === 'opportunities') return person.opportunityStatus === 'open' || Boolean(promoted[person.id]);
     if (filter === 'review') return Boolean(person.identityReview?.length);
     return true;
-  }), [people, filter, sourceFilter]);
+  }), [people, filter, sourceFilter, stageFilter, promoted]);
 
   const filterItems: Array<[FilterMode, string]> = [
-    ['all', t.all], ['favorites', t.favorites], ['priority', t.priority], ['very_high', t.veryHigh], ['review', t.duplicates],
+    ['all', t.all], ['favorites', t.favorites], ['priority', t.priority], ['very_high', t.veryHigh], ['opportunities', t.opportunities], ['review', t.duplicates],
   ];
 
   return (
@@ -342,6 +381,24 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
       {(notice || error) && <div className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${error ? 'border-rose-400/20 bg-rose-400/[0.07] text-rose-100' : 'border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-100'}`}><div className="flex items-center gap-2">{error ? <AlertCircle size={16} /> : <Check size={16} />}{error || notice}</div>{lastMergeId && !error && <button onClick={() => void undoMerge()} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs font-medium">{t.undo}</button>}</div>}
 
       {conversations.length > 0 && <section className="rounded-[24px] border border-white/10 bg-white/[0.022] p-3 sm:p-4"><div className="flex items-center gap-2 text-xs font-semibold text-slate-300"><FileArchive size={15} className="text-indigo-300" /> {s.title}</div><div className="mt-3 flex gap-2 overflow-x-auto pb-1"><button onClick={() => setSourceFilter('all')} className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs transition ${sourceFilter === 'all' ? 'border-indigo-400/30 bg-indigo-400/15 text-indigo-100' : 'border-white/8 bg-black/10 text-slate-500 hover:text-white'}`}>{s.all}</button>{conversations.map(conversation => <button key={conversation.sourceId} onClick={() => setSourceFilter(conversation.sourceId)} className={`whitespace-nowrap rounded-xl border px-3 py-2 text-left text-xs transition ${sourceFilter === conversation.sourceId ? 'border-indigo-400/30 bg-indigo-400/15 text-indigo-100' : 'border-white/8 bg-black/10 text-slate-500 hover:text-white'}`}><span className="font-medium">{conversation.label}</span><span className="ml-2 text-[10px] opacity-60">{conversation.kind === 'group' ? s.group : conversation.kind === 'direct' ? s.direct : 'WhatsApp'} · {conversation.messageCount}</span></button>)}</div></section>}
+
+      <section className="grid gap-2 sm:grid-cols-2 lg:max-w-2xl">
+        <label className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2.5">
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.product}</span>
+          <select value="musicscale" className="mt-1 w-full bg-transparent text-xs font-semibold text-slate-200 outline-none" aria-label={t.product}>
+            <option value="musicscale">MusicScale</option>
+            <option value="nestlocal" disabled>NestLocal · next</option>
+            <option value="nestfinance" disabled>NestFinance · next</option>
+          </select>
+        </label>
+        <label className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2.5">
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.stage}</span>
+          <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as SalesStageFilter)} className="mt-1 w-full bg-transparent text-xs font-semibold text-slate-200 outline-none" aria-label={t.stage}>
+            <option value="all">{t.allStages}</option>
+            {salesStages.map(stage => <option key={stage} value={stage}>{salesStageLabel(stage, currentLang)}</option>)}
+          </select>
+        </label>
+      </section>
 
       <section className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -387,6 +444,20 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
               <span className="mt-2 block text-[10px] leading-4 text-slate-600">{t.approachHint}</span>
             </label>
 
+            <label className="mt-3 block rounded-2xl border border-white/8 bg-black/15 p-3">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.stage}</span>
+              <div className="mt-2 flex items-center gap-2">
+                <select
+                  value={(person.salesStage as ComposerObjective) || 'iniciar_conversa'}
+                  onChange={e => void patchPerson(person, { salesStage: e.target.value as ComposerObjective })}
+                  className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-slate-200 outline-none"
+                >
+                  {salesStages.map(stage => <option key={stage} value={stage}>{salesStageLabel(stage, currentLang)}</option>)}
+                </select>
+                <ChevronDown size={12} className="shrink-0 text-slate-600" />
+              </div>
+            </label>
+
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.potential}</span><div className="mt-2 flex items-center gap-2"><span className={`rounded-lg border px-2 py-1 text-[11px] ${potentialClasses(effectivePotential)}`}>{t[effectivePotential]}</span><select value={person.manualPotential || ''} onChange={e => void patchPerson(person, { manualPotential: e.target.value ? e.target.value as RadarPotentialLevel : null })} className="min-w-0 flex-1 appearance-none bg-transparent text-right text-[11px] text-slate-400 outline-none"><option value="">{t.auto}</option>{potentialOrder.map(level => <option key={level} value={level}>{t[level]}</option>)}</select><ChevronDown size={12} className="text-slate-600" /></div></label>
               <label className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.priorityLabel}</span><div className="mt-2 flex items-center gap-2"><select value={person.manualPriority || 'normal'} onChange={e => void patchPerson(person, { manualPriority: e.target.value as RadarManualPriority })} className="w-full appearance-none bg-transparent text-sm font-medium text-slate-200 outline-none">{priorityOrder.map(value => <option key={value} value={value}>{value === 'normal' ? t.normal : value === 'important' ? t.important : t.priorityTop}</option>)}</select><ChevronDown size={12} className="text-slate-600" /></div></label>
@@ -394,7 +465,7 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
 
             {primarySignal && <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600"><Sparkles size={12} /> {t.evidence}</div><p className="mt-2 text-sm leading-5 text-slate-300">{primarySignal.reason}</p>{primarySignal.evidence?.[0]?.snippet && <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">“{primarySignal.evidence[0].snippet}”</p>}<div className="mt-3 text-xs text-indigo-200">{t.next}: {primarySignal.nextAction}</div></div>}
 
-            <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => openComposer(person)} disabled={!primarySignal} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-semibold text-slate-950 disabled:opacity-30"><Sparkles size={14} /> {t.compose}</button><button onClick={async () => { await client.promote(person.id); setPromoted(current => ({ ...current, [person.id]: true })); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300"><UserRoundCheck size={14} /> {promoted[person.id] ? t.promoted : t.promote}</button><button onClick={() => void patchPerson(person, { radarState: 'snoozed', snoozeDays: 7 })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-500 hover:text-white">{t.snooze}</button><button onClick={() => void patchPerson(person, { notRelevant: true })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-600 hover:text-rose-200">{t.ignore}</button></div>
+            <div className="mt-4 flex flex-wrap gap-2"><button onClick={() => openComposer(person)} disabled={!primarySignal} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs font-semibold text-slate-950 disabled:opacity-30"><Sparkles size={14} /> {t.compose}</button><button onClick={async () => { await client.promote(person.id); setPromoted(current => ({ ...current, [person.id]: true })); setPeople(current => current.map(item => item.id === person.id ? { ...item, opportunityStatus: 'open', opportunityPromotedAt: new Date().toISOString() } : item)); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-medium text-slate-300"><UserRoundCheck size={14} /> {(promoted[person.id] || person.opportunityStatus === 'open') ? t.promoted : t.promote}</button><button onClick={() => void patchPerson(person, { radarState: 'snoozed', snoozeDays: 7 })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-500 hover:text-white">{t.snooze}</button><button onClick={() => void patchPerson(person, { notRelevant: true })} className="min-h-10 rounded-xl border border-white/8 px-3 text-xs text-slate-600 hover:text-rose-200">{t.ignore}</button></div>
 
             <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/8 bg-black/10 px-3 py-2"><MessageCircle size={13} className="text-slate-600" /><input value={phones[person.id] || ''} onChange={e => setPhones(current => ({ ...current, [person.id]: e.target.value }))} onBlur={() => { const value = phones[person.id]?.trim() || ''; if (value !== (person.phone || '')) void patchPerson(person, { phone: value || null }); }} placeholder={t.phone} className="min-w-0 flex-1 bg-transparent text-xs text-slate-300 outline-none placeholder:text-slate-700" /></div>
           </article>;

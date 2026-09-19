@@ -15,6 +15,21 @@ export type ExperienceProfile =
   | 'organization_admin';
 
 export type ExperienceView = 'real' | ExperienceProfile;
+export type PreviewDevice = 'auto' | 'desktop' | 'tablet' | 'mobile';
+export type PreviewAccountState = 'active' | 'new' | 'trial' | 'limited' | 'missing_permission';
+export type PreviewDataMode = 'real_permitted' | 'simulated';
+export type PreviewProduct = 'auto' | 'connect' | 'musicscale' | 'nestjourney' | 'nestfinance' | 'nestlocal';
+
+export type ExperiencePreviewConfig = {
+  view: ExperienceView;
+  organizationId: string;
+  product: PreviewProduct;
+  plan: 'real' | 'starter' | 'advanced' | 'pro';
+  device: PreviewDevice;
+  accountState: PreviewAccountState;
+  dataMode: PreviewDataMode;
+  capabilities: string[] | null;
+};
 
 export const EXPERIENCE_PREVIEW_OPTIONS: ExperienceView[] = [
   'real',
@@ -143,6 +158,7 @@ export function getExperienceNavigationRouteIds(
         'knowledge',
         'audit',
         'settings',
+        'developer',
         'sources',
         'imports',
         'preferences',

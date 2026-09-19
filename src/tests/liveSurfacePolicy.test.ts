@@ -47,6 +47,8 @@ equal(resolveExperienceProfile('real', 'ceo'), 'ceo', 'real lens keeps the canon
 ok(getExperienceNavigationRouteIds('commercial', true).includes('radar'), 'commercial experience exposes Radar');
 ok(!getExperienceNavigationRouteIds('musician', true).includes('radar'), 'musician experience does not expose commercial Radar');
 ok(getExperienceNavigationRouteIds('organization_admin', false).includes('channels'), 'admin experience can see staged operations');
+ok(getExperienceNavigationRouteIds('ceo', true).includes('developer'), 'CEO experience exposes the safe Developer Center');
+ok(!getExperienceNavigationRouteIds('organization_admin', true).includes('developer'), 'Developer Center stays out of organization-admin navigation');
 ok(!getExperienceNavigationRouteIds('commercial', false).includes('radar'), 'relationship routes remain gated when Radar capability is unavailable');
 
 equal(
