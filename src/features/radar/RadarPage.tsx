@@ -32,9 +32,10 @@ type SelectedSignal = {
 
 const copy = {
   'pt-BR': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE',
-    title: 'As pessoas certas, no momento certo.',
-    subtitle: 'O Connect organiza as conversas, encontra sinais reais de potencial e deixa sua decisão acima da automação.',
+    eyebrow: 'RELACIONAMENTO · COMERCIAL',
+    title: 'Quem merece acompanhamento agora?',
+    subtitle: 'O Connect organiza as conversas, explica por que alguém merece atenção e prepara a próxima abordagem sem retirar seu controle.',
+    productLens: 'Produto · MusicScale', funnelLens: 'Vendas MusicScale', strategyLens: 'Estratégia · líder primeiro',
     privacy: 'Cofre pessoal · privado · nenhuma pessoa vira lead automaticamente.',
     importTitle: 'Trazer conversa do WhatsApp', importHint: 'TXT ou ZIP exportado pelo WhatsApp · até 5 MB',
     selfName: 'Seu nome no export', choose: 'Escolher arquivo', importing: 'Analisando pessoas, conversas e duplicidades…',
@@ -56,8 +57,9 @@ const copy = {
     error: 'Não foi possível concluir esta operação.', noAuto: 'O envio continua manual.', saved: 'Salvo', saving: 'Salvando…',
   },
   'en-US': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'The right people, at the right moment.',
-    subtitle: 'Connect organizes conversations, finds explainable potential signals, and keeps your judgment above automation.',
+    eyebrow: 'RELATIONSHIPS · COMMERCIAL', title: 'Who deserves follow-up now?',
+    subtitle: 'Connect organizes conversations, explains why someone deserves attention, and prepares the next approach without taking control away from you.',
+    productLens: 'Product · MusicScale', funnelLens: 'MusicScale sales', strategyLens: 'Strategy · leader first',
     privacy: 'Personal vault · private · nobody becomes a lead automatically.',
     importTitle: 'Bring a WhatsApp conversation', importHint: 'WhatsApp TXT or ZIP export · up to 5 MB', selfName: 'Your name in the export', choose: 'Choose file', importing: 'Analyzing people, conversations and duplicates…', importAction: 'Import and analyze', imported: 'Import complete', dedup: 'This file was already in your vault. Nothing was duplicated.',
     people: 'People', messages: 'messages', merged: 'contacts reused', review: 'to review', empty: 'No prioritized people yet', emptyDesc: 'Import an authorized conversation so Connect can organize contacts and explain why someone deserves attention.',
@@ -68,8 +70,9 @@ const copy = {
     composerTitle: 'MusicScale Composer', tone: 'Format', short: 'Short', conversation: 'Conversation', audio: 'Audio', video: 'Video', guidance: 'Suggested next move', why: 'Why', nextYes: 'Next small yes', usedContext: 'Context used', chooseOption: 'Choose an option', style: 'Style', approach: 'Approach profile', approachHint: 'Confirm it manually. Connect does not infer a person’s role from a title or conversation.', regenerate: 'Generate', copy: 'Copy', copied: 'Copied', whatsapp: 'Open WhatsApp', noPhone: 'No saved number: choose the contact in WhatsApp.', error: 'Could not complete this operation.', noAuto: 'Sending stays manual.', saved: 'Saved', saving: 'Saving…',
   },
   'es-ES': {
-    eyebrow: 'RADAR · RELATIONSHIP INTELLIGENCE', title: 'Las personas correctas, en el momento correcto.',
-    subtitle: 'Connect organiza conversaciones, encuentra señales explicables de potencial y mantiene tu decisión por encima de la automatización.',
+    eyebrow: 'RELACIONES · COMERCIAL', title: '¿Quién merece seguimiento ahora?',
+    subtitle: 'Connect organiza conversaciones, explica por qué alguien merece atención y prepara el próximo enfoque sin quitarte el control.',
+    productLens: 'Producto · MusicScale', funnelLens: 'Ventas MusicScale', strategyLens: 'Estrategia · líder primero',
     privacy: 'Cofre personal · privado · nadie se convierte en lead automáticamente.', importTitle: 'Traer conversación de WhatsApp', importHint: 'Exportación TXT o ZIP de WhatsApp · hasta 5 MB', selfName: 'Tu nombre en la exportación', choose: 'Elegir archivo', importing: 'Analizando personas, conversaciones y duplicados…', importAction: 'Importar y analizar', imported: 'Importación completa', dedup: 'Este archivo ya estaba en tu cofre. Nada fue duplicado.',
     people: 'Personas', messages: 'mensajes', merged: 'contactos reutilizados', review: 'para revisar', empty: 'Aún no hay personas priorizadas', emptyDesc: 'Importa una conversación autorizada para que Connect organice los contactos y explique por qué alguien merece atención.',
     search: 'Buscar en el historial', searchPlaceholder: 'Persona, tema, alabanza, escala…', searchAction: 'Buscar', noSearch: 'Sin resultados.', all: 'Todos', favorites: 'Favoritos', priority: 'Prioritarios', veryHigh: 'Muy alto', duplicates: 'Revisar identidad', potential: 'Potencial', auto: 'sugerido', priorityLabel: 'Prioridad', normal: 'Normal', important: 'Importante', priorityTop: 'Prioritario', unknown: 'Sin evidencia', low: 'Bajo', medium: 'Medio', high: 'Alto', very_high: 'Muy alto',
@@ -315,6 +318,11 @@ export const RadarPage: React.FC<RadarPageProps> = ({ session, currentLang }) =>
         <div className="relative grid gap-7 lg:grid-cols-[1fr_360px] lg:items-end">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-300"><Radar size={15} /> {t.eyebrow}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {[t.productLens, t.funnelLens, t.strategyLens].map(label => (
+                <span key={label} className="rounded-full border border-white/[0.08] bg-black/15 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.10em] text-slate-400">{label}</span>
+              ))}
+            </div>
             <h1 className="mt-4 max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-white sm:text-5xl">{t.title}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.07] px-3 py-2 text-xs text-emerald-100"><ShieldCheck size={14} /> {t.privacy}</div>
