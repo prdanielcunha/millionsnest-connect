@@ -14,7 +14,13 @@ import {
   LiveConnectSession,
 } from './core/client/liveConnectSession';
 import { isGlobalGovernanceRole } from './core/roles/systemRoles';
+import {
+  ExperienceView,
+  resolveExperienceProfile,
+  resolveRealExperienceProfile,
+} from './core/client/liveSurfacePolicy';
 import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
+import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -95,15 +101,37 @@ function LiveBootScreen({ failed, errorCode }: { failed?: boolean; errorCode?: s
   );
 }
 
-function LiveStagedSection() {
+function LiveStagedSection({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-4xl items-center justify-center px-5 py-12">
-      <section className="w-full rounded-[28px] border border-white/10 bg-white/[0.035] p-7 text-center backdrop-blur-xl sm:p-10">
-        <ShieldCheck className="mx-auto text-slate-400" size={25} />
-        <h2 className="mt-4 text-xl font-semibold text-white">Integração em liberação controlada</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">
-          Esta área ainda não foi conectada ao backend real. Para não misturar dados demonstrativos com sua organização, ela permanece bloqueada no modo ao vivo.
-        </p>
+    <main className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-4xl items-center justify-center px-3 py-10 sm:px-5">
+      <section className="relative w-full overflow-hidden rounded-[30px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,.12),transparent_35%),rgba(255,255,255,.025)] p-7 text-center shadow-[0_28px_80px_rgba(0,0,0,.2)] sm:p-10">
+        <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.04]">
+          <ShieldCheck className="text-slate-300" size={20} />
+        </div>
+        <div className="mx-auto mt-4 w-fit rounded-full border border-amber-300/15 bg-amber-300/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-100">
+          Ativação controlada
+        </div>
+        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">{description}</p>
+        {actionLabel && onAction && (
+          <button
+            type="button"
+            onClick={onAction}
+            className="mt-6 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.09]"
+          >
+            {actionLabel}
+          </button>
+        )}
       </section>
     </main>
   );
@@ -122,6 +150,7 @@ export default function App() {
   const [liveBootErrorCode, setLiveBootErrorCode] = useState<string | null>(null);
   const [activeRoute, setActiveRoute] = useState<string>(initialLiveRoute);
   const [currentLang, setCurrentLang] = useState<LanguageCode>('pt-BR');
+  const [experienceView, setExperienceView] = useState<ExperienceView>('real');
 
   useEffect(() => {
     if (!CONNECT_LIVE_MODE_ENABLED) return;
@@ -132,12 +161,10 @@ export default function App() {
       .then((session) => {
         if (!mounted) return;
         setLiveSession(session);
-        // Current commercial priority: eligible ecosystem-governance users land
-        // directly in Relationship Intelligence instead of a generic overview.
-        // Non-governance users keep the existing Core landing and RBAC boundary.
-        if (isGlobalGovernanceRole(session.context.user.systemRole)) {
-          setActiveRoute((current) => current === 'journey-followup' ? current : 'radar');
-        }
+        // Everyone lands on the adaptive home. Relationship Intelligence remains
+        // an optional capability instead of becoming the identity of Connect.
+        setActiveRoute((current) => current === 'journey-followup' ? current : 'overview');
+        setExperienceView('real');
         setLiveBootErrorCode(null);
         setLiveBootState('idle');
       })
@@ -165,6 +192,24 @@ export default function App() {
   const context = liveSession?.context ?? demoContext;
   const isLive = Boolean(liveSession);
   const showRadar = isLive && isGlobalGovernanceRole(context.user.systemRole);
+  const canPreviewExperience = isLive && isGlobalGovernanceRole(context.user.systemRole);
+  const activeMembership = context.memberships.find(
+    (membership) => membership.organizationId === context.activeOrganization.id,
+  );
+  const realExperienceProfile = resolveRealExperienceProfile(
+    context.user.systemRole,
+    activeMembership?.organizationRole,
+  );
+  const effectiveExperienceProfile = resolveExperienceProfile(
+    canPreviewExperience ? experienceView : 'real',
+    realExperienceProfile,
+  );
+
+  const handleExperienceViewChange = (view: ExperienceView) => {
+    if (!canPreviewExperience) return;
+    setExperienceView(view);
+    setActiveRoute('overview');
+  };
 
   const handleSelectOrg = (orgId: string) => {
     if (isLive) return;
@@ -204,22 +249,97 @@ export default function App() {
     if (activeRoute === 'journey-followup') {
       return <JourneyFollowupConnectPage session={liveSession} currentLang={currentLang} />;
     }
+    if (activeRoute === 'overview') {
+      return (
+        <AdaptiveHomePage
+          session={liveSession}
+          currentLang={currentLang}
+          profile={effectiveExperienceProfile}
+          onNavigate={setActiveRoute}
+          showRadar={showRadar}
+        />
+      );
+    }
+    if (activeRoute === 'assist') {
+      return <LiveCorePage session={liveSession} currentLang={currentLang} />;
+    }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
     }
-    if (activeRoute === 'sources' && showRadar) {
+    if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'intelligence' && showRadar) {
       return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} />;
     }
-    if (activeRoute === 'overview') {
-      return <LiveCorePage session={liveSession} currentLang={currentLang} />;
-    }
     if (activeRoute === 'contacts' && showRadar) {
       return <LivePeoplePage session={liveSession} currentLang={currentLang} />;
     }
-    return <LiveStagedSection />;
+
+    const staged: Record<string, { title: string; description: string; actionLabel?: string; actionRoute?: string }> = {
+      inbox: {
+        title: 'Inbox real',
+        description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.',
+      },
+      opportunities: {
+        title: 'Oportunidades',
+        description: 'A promoção manual já funciona dentro do Radar. O workspace dedicado está sendo separado para deixar o funil comercial claro sem transformar o Connect em um CRM genérico.',
+        actionLabel: 'Abrir Radar',
+        actionRoute: 'radar',
+      },
+      playbooks: {
+        title: 'Playbooks',
+        description: 'O playbook MusicScale já orienta o Composer por etapas e pequenos “sins”. A gestão visual dedicada entra como superfície do módulo comercial.',
+        actionLabel: 'Abrir Radar',
+        actionRoute: 'radar',
+      },
+      composer: {
+        title: 'Composer',
+        description: 'O Composer já gera abordagens editáveis no fluxo do Radar. Esta área dedicada reunirá modelos, tons, objetivos e follow-ups sem automatizar o envio.',
+        actionLabel: 'Abrir Radar',
+        actionRoute: 'radar',
+      },
+      automations: {
+        title: 'Automações',
+        description: 'Os contratos de eventos e ações auditadas estão preparados. A ativação visual acontecerá por fatias reais, começando pelos eventos do MusicScale.',
+      },
+      channels: {
+        title: 'Canais',
+        description: 'WhatsApp oficial, in-app e adapters futuros serão mostrados aqui somente quando a integração correspondente estiver realmente conectada.',
+      },
+      agents: {
+        title: 'Agentes',
+        description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.',
+      },
+      knowledge: {
+        title: 'Conhecimento',
+        description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.',
+      },
+      audit: {
+        title: 'Auditoria',
+        description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.',
+      },
+      settings: {
+        title: 'Configurações',
+        description: 'Configurações avançadas aparecem conforme capability e somente quando houver uma ação real e segura para administrar.',
+      },
+      preferences: {
+        title: 'Preferências',
+        description: 'Idioma, experiência e preferências pessoais serão centralizados aqui sem alterar permissões reais do Hub.',
+      },
+    };
+    const item = staged[activeRoute] || {
+      title: 'Integração em liberação controlada',
+      description: 'Esta área ainda não está conectada a uma superfície de produção. O Connect mostra esse estado de forma explícita para não confundir fundação técnica com recurso disponível.',
+    };
+    return (
+      <LiveStagedSection
+        title={item.title}
+        description={item.description}
+        actionLabel={item.actionLabel}
+        onAction={item.actionRoute ? () => setActiveRoute(item.actionRoute!) : undefined}
+      />
+    );
   };
 
   return (
@@ -232,6 +352,10 @@ export default function App() {
       onChangeLang={setCurrentLang}
       isLive={isLive}
       showRadar={showRadar}
+      experienceProfile={effectiveExperienceProfile}
+      experienceView={experienceView}
+      canPreviewExperience={canPreviewExperience}
+      onExperienceViewChange={handleExperienceViewChange}
     >
       {renderCurrentPage()}
     </Shell>
