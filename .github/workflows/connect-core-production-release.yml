@@ -221,6 +221,14 @@ jobs:
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=$STORAGE_STATE"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=$STORAGE_SOURCE"
 
+          INBOX_DARK_STATUS="$(curl --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            -o /tmp/connect-inbox-dark.json -w '%{http_code}' \
+            "$BASE/api/core/inbox/threads/release-smoke?organizationId=release-smoke")"
+          test "$INBOX_DARK_STATUS" = "404"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-dark.json','utf8'));if(x.success!==false||x.code!=='INBOX_DURABLE_DISABLED')process.exit(1)"
+          echo "CONNECT_INBOX_DURABLE_DARK_OK"
+
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             -o /tmp/connect-core-unauth.json -w '%{http_code}' \
