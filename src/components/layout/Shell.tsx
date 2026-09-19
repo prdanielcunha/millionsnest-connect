@@ -201,6 +201,7 @@ export const Shell: React.FC<ShellProps> = ({
           setIsCommandPaletteOpen={setIsCommandPaletteOpen}
           currentLang={currentLang}
           onSelectOrg={onSelectOrg}
+          onNavigate={onNavigate}
           isLive={isLive}
         />
 
