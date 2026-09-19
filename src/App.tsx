@@ -23,6 +23,11 @@ import {
 import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
 import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
 import { DeveloperPreviewPage } from './features/developer/DeveloperPreviewPage';
+import {
+  CommercialComposerPage,
+  CommercialOpportunitiesPage,
+  CommercialPlaybooksPage,
+} from './features/commercial/CommercialWorkspacePages';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -146,9 +151,6 @@ type StagedLiveItem = { title: string; description: string; actionLabel?: string
 const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'pt-BR': {
     inbox: { title: 'Inbox real', description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.' },
-    opportunities: { title: 'Oportunidades', description: 'A promoção manual já funciona dentro do Radar. O workspace dedicado está sendo separado para deixar o funil comercial claro sem transformar o Connect em um CRM genérico.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
-    playbooks: { title: 'Playbooks', description: 'O playbook MusicScale já orienta o Composer por etapas e pequenos “sins”. A gestão visual dedicada entra como superfície do módulo comercial.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
-    composer: { title: 'Composer', description: 'O Composer já gera abordagens editáveis no fluxo do Radar. Esta área dedicada reunirá modelos, tons, objetivos e follow-ups sem automatizar o envio.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
     automations: { title: 'Automações', description: 'Os contratos de eventos e ações auditadas estão preparados. A ativação visual acontecerá por fatias reais, começando pelos eventos do MusicScale.' },
     channels: { title: 'Canais', description: 'WhatsApp oficial, in-app e adapters futuros serão mostrados aqui somente quando a integração correspondente estiver realmente conectada.' },
     agents: { title: 'Agentes', description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.' },
@@ -160,9 +162,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   },
   'en-US': {
     inbox: { title: 'Real Inbox', description: 'Durable storage, authorization and persistence are already in place. The UI stays under controlled activation until the IAM gate is safely released.' },
-    opportunities: { title: 'Opportunities', description: 'Manual promotion already works inside Radar. The dedicated workspace is being separated so the commercial funnel stays clear without turning Connect into a generic CRM.', actionLabel: 'Open Radar', actionRoute: 'radar' },
-    playbooks: { title: 'Playbooks', description: 'The MusicScale playbook already guides Composer through stages and small yeses. Dedicated visual management becomes part of the commercial module.', actionLabel: 'Open Radar', actionRoute: 'radar' },
-    composer: { title: 'Composer', description: 'Composer already creates editable outreach drafts inside Radar. This dedicated area will gather models, tones, goals and follow-ups without automating the send.', actionLabel: 'Open Radar', actionRoute: 'radar' },
     automations: { title: 'Automations', description: 'Audited event and action contracts are prepared. The visual surface will activate in real vertical slices, starting with MusicScale events.' },
     channels: { title: 'Channels', description: 'Official WhatsApp, in-app and future adapters will appear here only when the corresponding integration is actually connected.' },
     agents: { title: 'Agents', description: 'Autonomy will be progressive, with context, policies and risk-based confirmation. No agent is shown as active before the real connection exists.' },
@@ -174,9 +173,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   },
   'es-ES': {
     inbox: { title: 'Inbox real', description: 'La base duradera, la autorización y la persistencia ya existen. La interfaz permanece en activación controlada hasta que el gate de IAM sea liberado con seguridad.' },
-    opportunities: { title: 'Oportunidades', description: 'La promoción manual ya funciona dentro de Radar. El workspace dedicado se está separando para que el embudo comercial sea claro sin convertir Connect en un CRM genérico.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
-    playbooks: { title: 'Playbooks', description: 'El playbook de MusicScale ya guía Composer por etapas y pequeños “sí”. La gestión visual dedicada será una superficie del módulo comercial.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
-    composer: { title: 'Composer', description: 'Composer ya crea borradores editables dentro de Radar. Esta área reunirá modelos, tonos, objetivos y follow-ups sin automatizar el envío.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
     automations: { title: 'Automatizaciones', description: 'Los contratos de eventos y acciones auditadas están preparados. La superficie visual se activará por flujos reales, comenzando con eventos de MusicScale.' },
     channels: { title: 'Canales', description: 'WhatsApp oficial, in-app y futuros adapters aparecerán aquí solo cuando la integración correspondiente esté realmente conectada.' },
     agents: { title: 'Agentes', description: 'La autonomía será progresiva, con contexto, políticas y confirmación según riesgo. Ningún agente aparecerá activo antes de la conexión real.' },
@@ -358,6 +354,15 @@ export default function App() {
     }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'opportunities' && showRadar) {
+      return <CommercialOpportunitiesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'playbooks' && showRadar) {
+      return <CommercialPlaybooksPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'composer' && showRadar) {
+      return <CommercialComposerPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
