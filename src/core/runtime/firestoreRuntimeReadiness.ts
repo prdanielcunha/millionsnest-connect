@@ -14,7 +14,7 @@ export interface ConnectRuntimeFirestoreReadiness {
   source:
     | 'runtime_metadata'
     | 'metadata_unavailable'
-    | 'firestore_probe_unavailable'
+    | 'project_iam_probe_unavailable'
     | 'invalid_response';
 }
 
@@ -67,8 +67,10 @@ function unknown(
  * Read-only runtime capability probe.
  *
  * It obtains the Cloud Run service account token from the Google metadata
- * server and asks Firestore testIamPermissions for the three permissions the
- * durable Connect-owned Inbox store requires. It never writes a document,
+ * server and asks Cloud Resource Manager projects.testIamPermissions for the
+ * three datastore permissions the durable Connect-owned Inbox store requires.
+ * Project IAM is the authority for these Firestore data permissions. The probe
+ * never writes a document,
  * mutates IAM, logs the token, or returns the token to callers.
  */
 export async function probeConnectRuntimeFirestoreReadiness(
@@ -106,7 +108,7 @@ export async function probeConnectRuntimeFirestoreReadiness(
 
   try {
     const permissionUrl =
-      `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default):testIamPermissions`;
+      `https://cloudresourcemanager.googleapis.com/v1/projects/${encodeURIComponent(projectId)}:testIamPermissions`;
     const response = await fetchImpl(permissionUrl, {
       method: 'POST',
       headers: {
@@ -126,7 +128,7 @@ export async function probeConnectRuntimeFirestoreReadiness(
     });
 
     accessToken = '';
-    if (!response.ok) return unknown('firestore_probe_unavailable');
+    if (!response.ok) return unknown('project_iam_probe_unavailable');
 
     const payload = await response.json() as {
       permissions?: unknown;
@@ -155,6 +157,6 @@ export async function probeConnectRuntimeFirestoreReadiness(
     };
   } catch {
     accessToken = '';
-    return unknown('firestore_probe_unavailable');
+    return unknown('project_iam_probe_unavailable');
   }
 }
