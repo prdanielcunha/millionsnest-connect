@@ -69,6 +69,12 @@ jobs:
             'https://www.millionsnest.com/api/ecosystem/connect/session-context')"
           test "$HUB_STATUS" = "401"
 
+          HUB_JOURNEY_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/hub-nestjourney-followup.json -w '%{http_code}' \
+            'https://www.millionsnest.com/api/ecosystem/connect/nestjourney/followup-context?organizationId=release-smoke&followupId=release-smoke')"
+          test "$HUB_JOURNEY_STATUS" = "401"
+
           probe_unauthenticated_route() {
             local name="$1"
             local url="$2"
@@ -236,6 +242,12 @@ jobs:
             --data '{"organizationId":"release-smoke","sourceApp":"nestlocal"}' \
             "$BASE/api/core/outbound/validate")"
           test "$OUTBOUND_STATUS" = "401"
+
+          JOURNEY_STATUS="$(curl --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            -o /tmp/connect-journey-unauth.json -w '%{http_code}' \
+            "$BASE/api/core/nestjourney/followup?organizationId=release-smoke&followupId=release-smoke")"
+          test "$JOURNEY_STATUS" = "401"
 
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ inputs.live_mode }}"
