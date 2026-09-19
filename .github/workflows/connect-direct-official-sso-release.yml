@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Inbox runtime storage self-probe release trigger — 2026-09-18
+# Project IAM runtime readiness release trigger — 2026-09-19
 
 on:
   push:
