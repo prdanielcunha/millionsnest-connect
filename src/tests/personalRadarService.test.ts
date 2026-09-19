@@ -177,6 +177,8 @@ console.log('--- Running Personal Radar Service Tests ---');
   assert(vault.records.has(`relationshipOpportunities/${person.id}`), 'manual promotion creates an owner-scoped opportunity record');
   equal((vault.records.get(`relationshipOpportunities/${person.id}`) as any).salesStage, 'pedir_video', 'opportunity receives minimal commercial stage metadata');
   assert(typeof (vault.records.get(`relationshipOpportunities/${person.id}`) as any).followUpAt === 'string', 'opportunity receives follow-up metadata without raw history');
+  equal((vault.records.get(`personalPeople/${person.id}`) as any).opportunityStatus, 'open', 'manual promotion persists a reusable opportunity state on the person');
+  assert(typeof (vault.records.get(`personalPeople/${person.id}`) as any).opportunityPromotedAt === 'string', 'promotion timestamp survives Radar refreshes');
 
   const deletion = await service.deleteSource(request, first.sourceId);
   equal(deletion.deleted, true, 'source deletion succeeds');
