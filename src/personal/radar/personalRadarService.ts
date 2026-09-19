@@ -5,7 +5,7 @@ import { extractWhatsAppText, parseWhatsAppExport, ParsedWhatsAppMessage } from 
 import { deriveConversationMetadata } from '../whatsapp/conversationIdentity';
 import { inferProbableIdentity, IdentityInferenceEvidence } from './identityInference';
 import { deriveRadarPeople, RadarPerson, RadarSignal } from './radarSignals';
-import { buildComposerPlan, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
+import { ApproachProfile, buildComposerPlan, ComposerChannel, ComposerObjective, ComposerStyle } from './composerPlaybook';
 import {
   automaticPotentialFromPriority,
   compareIdentity,
@@ -111,6 +111,13 @@ const SALES_STAGES = new Set<ComposerObjective>([
   'diagnosticar', 'explicar_dor', 'convidar_trial', 'acompanhar_trial', 'retomar_conversa', 'fechar',
 ]);
 const COMMERCIAL_ACTIONS = new Set(['whatsapp_opened', 'sent_manual', 'copied']);
+const APPROACH_PROFILES = new Set<ApproachProfile>([
+  'worship_leader',
+  'pastor_bridge',
+  'pastor_worship',
+  'administrative',
+  'unknown',
+]);
 const MESSAGE_MODEL_TONES = new Set<RadarComposerTone>(['curto', 'conversa', 'audio', 'video']);
 
 function resolveFollowUpDays(value: unknown): number {
@@ -564,6 +571,7 @@ export class PersonalRadarService {
       manualPriority?: ManualPriority;
       manualPotential?: PotentialLevel | null;
       notRelevant?: boolean;
+      approachProfile?: ApproachProfile;
       salesStage?: ComposerObjective;
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
       commercialDraft?: string;
@@ -579,6 +587,9 @@ export class PersonalRadarService {
       ? input.radarState
       : String(person.radarState || 'active');
 
+    if (input.approachProfile !== undefined && !APPROACH_PROFILES.has(input.approachProfile)) {
+      throw new Error('APPROACH_PROFILE_INVALID');
+    }
     if (input.salesStage !== undefined && !SALES_STAGES.has(input.salesStage)) throw new Error('SALES_STAGE_INVALID');
     if (input.commercialAction !== undefined && !COMMERCIAL_ACTIONS.has(input.commercialAction)) throw new Error('COMMERCIAL_ACTION_INVALID');
     const commercialDraft = input.commercialDraft === undefined ? undefined : String(input.commercialDraft || '').trim();
@@ -618,6 +629,7 @@ export class PersonalRadarService {
       manualPriority,
       manualPotential: input.manualPotential === undefined ? person.manualPotential || null : requestedPotential,
       notRelevant: input.notRelevant === undefined ? Boolean(person.notRelevant) : input.notRelevant,
+      approachProfile: input.approachProfile === undefined ? (person.approachProfile || 'unknown') : input.approachProfile,
       salesStage: input.salesStage === undefined ? person.salesStage || null : input.salesStage,
       lastCommercialAction: input.commercialAction === undefined ? person.lastCommercialAction || null : input.commercialAction,
       lastCommercialAt: commercialAt,

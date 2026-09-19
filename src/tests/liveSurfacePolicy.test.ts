@@ -1,4 +1,10 @@
-import { getLiveNavigationRouteIds, isLiveRouteEnabled } from '../core/client/liveSurfacePolicy';
+import {
+  getExperienceNavigationRouteIds,
+  getLiveNavigationRouteIds,
+  isLiveRouteEnabled,
+  resolveExperienceProfile,
+  resolveRealExperienceProfile,
+} from '../core/client/liveSurfacePolicy';
 import { toTrustedMusicScaleUrl } from '../core/client/liveDeepLink';
 
 let passed = 0;
@@ -18,15 +24,30 @@ function ok(value: unknown, message: string) {
 
 console.log('--- Running Live Surface Policy Tests ---');
 
-equal(getLiveNavigationRouteIds(false), ['overview'], 'non-governance live users only see the real Core overview');
-equal(getLiveNavigationRouteIds(true), ['overview', 'radar', 'sources', 'contacts', 'intelligence'], 'governance live users see Core, Radar, Personal Sources, People and Relationship Intelligence surfaces');
-ok(isLiveRouteEnabled('overview', true), 'overview is live');
+equal(getLiveNavigationRouteIds(false), ['overview', 'assist'], 'non-governance live users get adaptive home plus real Assist');
+equal(
+  getLiveNavigationRouteIds(true),
+  ['overview', 'assist', 'radar', 'sources', 'contacts', 'intelligence'],
+  'governance live surfaces include adaptive home, Assist and Relationship Intelligence modules',
+);
+ok(isLiveRouteEnabled('overview', true), 'adaptive overview is live');
+ok(isLiveRouteEnabled('assist', true), 'Assist is live');
 ok(isLiveRouteEnabled('radar', true), 'Radar is live for governance users');
 ok(isLiveRouteEnabled('sources', true), 'Personal Sources is live for governance users');
-ok(!isLiveRouteEnabled('inbox', true), 'Inbox is not advertised as live before its backend is connected');
-ok(!isLiveRouteEnabled('tools', true), 'Tool Gateway UI is not advertised as live before its backend surface is connected');
+ok(!isLiveRouteEnabled('inbox', true), 'Inbox is visible as controlled but not advertised as activated');
+ok(!isLiveRouteEnabled('tools', true), 'Tool Gateway technical UI is not a live user surface');
 ok(isLiveRouteEnabled('contacts', true), 'People/Contacts is live for governance users');
 ok(isLiveRouteEnabled('intelligence', true), 'Relationship Intelligence is live for governance users');
+
+equal(resolveRealExperienceProfile('ceo'), 'ceo', 'CEO resolves to executive experience');
+equal(resolveRealExperienceProfile('support'), 'support', 'support role resolves to support experience');
+equal(resolveRealExperienceProfile(null, 'Líder de Louvor'), 'worship_leader', 'canonical organization role resolves to worship leader experience');
+equal(resolveExperienceProfile('commercial', 'ceo'), 'commercial', 'preview lens changes experience only');
+equal(resolveExperienceProfile('real', 'ceo'), 'ceo', 'real lens keeps the canonical experience');
+ok(getExperienceNavigationRouteIds('commercial', true).includes('radar'), 'commercial experience exposes Radar');
+ok(!getExperienceNavigationRouteIds('musician', true).includes('radar'), 'musician experience does not expose commercial Radar');
+ok(getExperienceNavigationRouteIds('organization_admin', false).includes('channels'), 'admin experience can see staged operations');
+ok(!getExperienceNavigationRouteIds('commercial', false).includes('radar'), 'relationship routes remain gated when Radar capability is unavailable');
 
 equal(
   toTrustedMusicScaleUrl('/scales/scale-123'),

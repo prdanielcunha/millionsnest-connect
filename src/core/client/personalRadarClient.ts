@@ -12,6 +12,12 @@ export type SavedMessageModel = {
 
 export type RadarPotentialLevel = 'very_high' | 'high' | 'medium' | 'low' | 'unknown';
 export type RadarManualPriority = 'normal' | 'important' | 'priority';
+export type ApproachProfile =
+  | 'worship_leader'
+  | 'pastor_bridge'
+  | 'pastor_worship'
+  | 'administrative'
+  | 'unknown';
 
 export type RadarConversationSummary = {
   id: string;
@@ -56,6 +62,7 @@ export type RadarClientPerson = {
   identityEvidence?: RadarIdentityEvidence[];
   sources?: RadarConversationSummary[];
   phone?: string | null;
+  approachProfile?: ApproachProfile;
   lastDateKey?: string | null;
   messageCount?: number;
   radarState?: string;
@@ -264,6 +271,7 @@ export class PersonalRadarClient {
       manualPriority?: RadarManualPriority;
       manualPotential?: RadarPotentialLevel | null;
       notRelevant?: boolean;
+      approachProfile?: ApproachProfile;
       salesStage?: 'iniciar_conversa' | 'descobrir_dor' | 'contar_historia' | 'pedir_video' | 'enviar_video' | 'diagnosticar' | 'explicar_dor' | 'convidar_trial' | 'acompanhar_trial' | 'retomar_conversa' | 'fechar';
       commercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied';
       commercialDraft?: string;
