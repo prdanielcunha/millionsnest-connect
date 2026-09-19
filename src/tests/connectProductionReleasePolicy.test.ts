@@ -111,6 +111,16 @@ assert.match(
 );
 assert.match(
   release,
+  /INBOX_DURABLE_DISABLED/,
+  'Production smoke must prove the durable Inbox route remains dark before activation',
+);
+assert.match(
+  release,
+  /CONNECT_INBOX_DURABLE_DARK_OK/,
+  'Production smoke must emit an explicit durable Inbox dark gate',
+);
+assert.match(
+  release,
   /x\.releaseSha!==process\.env\.GITHUB_SHA/,
   'Local and production health smokes must verify the serving revision',
 );

@@ -15,6 +15,13 @@ export type ComposerObjective =
   | 'retomar_conversa'
   | 'fechar';
 
+export type ApproachProfile =
+  | 'worship_leader'
+  | 'pastor_bridge'
+  | 'pastor_worship'
+  | 'administrative'
+  | 'unknown';
+
 export type ComposerOption = {
   id: string;
   text: string;
@@ -34,6 +41,7 @@ export type ComposerPlan = {
   nextSmallYes: string;
   estimatedDurationSeconds?: number;
   factsUsed: string[];
+  approachProfile: ApproachProfile;
   relationship: RelationshipComposerContext;
   options: ComposerOption[];
 };
@@ -49,6 +57,7 @@ type PersonLike = {
   lastDateKey?: unknown;
   messageCount?: unknown;
   recentConversationMessages?: unknown;
+  approachProfile?: unknown;
 };
 
 export type RelationshipComposerContext = {
@@ -200,6 +209,21 @@ function hasRelationship(signal: RadarSignal): boolean {
   return signal.type === 'commercial_followup_due';
 }
 
+function resolveApproachProfile(person: PersonLike): ApproachProfile {
+  const value = String(person.approachProfile || '').trim();
+  return ['worship_leader', 'pastor_bridge', 'pastor_worship', 'administrative'].includes(value)
+    ? value as ApproachProfile
+    : 'unknown';
+}
+
+function approachLabel(profile: ApproachProfile): string {
+  if (profile === 'worship_leader') return 'líder/ministro de louvor';
+  if (profile === 'pastor_bridge') return 'pastor como ponte para o responsável do louvor';
+  if (profile === 'pastor_worship') return 'pastor envolvido diretamente no louvor';
+  if (profile === 'administrative') return 'secretaria/administrativo';
+  return 'perfil ainda não identificado';
+}
+
 function resolveStage(signal: RadarSignal, objective?: ComposerObjective): number {
   if (objective === 'contar_historia') return 3;
   if (objective === 'pedir_video') return 4;
@@ -236,7 +260,10 @@ function defaultObjective(stage: number): ComposerObjective {
   return 'descobrir_dor';
 }
 
-function defaultStyle(signal: RadarSignal): ComposerStyle {
+function defaultStyle(signal: RadarSignal, profile: ApproachProfile): ComposerStyle {
+  if (profile === 'pastor_bridge' || profile === 'pastor_worship') return 'pastoral';
+  if (profile === 'administrative') return 'profissional';
+  if (profile === 'worship_leader' || profile === 'unknown') return 'consultivo';
   if (isPastoral(signal)) return 'pastoral';
   if (hasRelationship(signal)) return 'proximo';
   if (hasProductInterest(signal)) return 'consultivo';
@@ -365,7 +392,13 @@ function soften(style: ComposerStyle, text: string): string {
   return result;
 }
 
-function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle, continuation = false): string[] {
+function openingVariants(
+  name: string,
+  signal: RadarSignal,
+  style: ComposerStyle,
+  continuation = false,
+  profile: ApproachProfile = 'unknown',
+): string[] {
   const g = greeting(name, style, continuation);
   const t = topic(signal);
   if (continuation) {
@@ -375,6 +408,47 @@ function openingVariants(name: string, signal: RadarSignal, style: ComposerStyle
       `${g} Sobre nossa conversa de ${t}: isso ainda continua sendo uma dificuldade para vocês?`,
     ].map(text => soften(style, text.trim()));
   }
+
+  if (profile === 'worship_leader') {
+    return [
+      `${g} Eu também vivo a rotina do louvor e queria te perguntar uma coisa: vocês organizam escala, músicas, tons e confirmações mais pelo WhatsApp ou usam alguma ferramenta?`,
+      `${g} Falando de líder para líder: qual parte da rotina do louvor mais pesa hoje — escala, repertório, cifras ou confirmação da equipe?`,
+      `${g} Antes de te mostrar qualquer coisa, quero entender a realidade de vocês. Como vocês organizam a equipe de louvor hoje na prática?`,
+    ].map(text => soften(style, text));
+  }
+
+  if (profile === 'pastor_bridge') {
+    return [
+      `${g} Nós desenvolvemos uma ferramenta para a rotina do ministério de louvor e eu queria conversar diretamente com quem cuida dessa área aí, sem compromisso. Você poderia me apresentar ou encaminhar meu contato para essa pessoa?`,
+      `${g} Para não tomar seu tempo com algo operacional do louvor: quem cuida de escala, repertório e equipe aí? Se puder, queria conversar direto com essa pessoa.`,
+      `${g} Tenho algo feito a partir da nossa própria rotina de louvor, mas prefiro falar primeiro com quem vive essa operação no dia a dia. Você consegue me apresentar ao responsável?`,
+    ].map(text => soften(style, text));
+  }
+
+  if (profile === 'pastor_worship') {
+    return [
+      `${g} Como você também acompanha o louvor de perto, queria entender a rotina de vocês: escala, repertório, tons e confirmações ficam mais no WhatsApp ou já usam alguma ferramenta?`,
+      `${g} Pensando na parte do louvor que você vive diretamente, o que mais dá trabalho hoje para organizar a equipe?`,
+      `${g} Antes de apresentar o MusicScale, queria ouvir sua experiência no louvor. Onde a organização mais pesa hoje?`,
+    ].map(text => soften(style, text));
+  }
+
+  if (profile === 'administrative') {
+    return [
+      `${g} Queria falar com quem cuida da rotina do louvor aí. Você consegue me indicar a pessoa responsável por escala, repertório e equipe?`,
+      `${g} Para eu falar com a pessoa certa: quem coordena o ministério de louvor e a organização das escalas por aí?`,
+      `${g} Estou tentando chegar ao responsável pelo louvor sem fazer uma abordagem genérica. Você pode me orientar com quem devo falar?`,
+    ].map(text => soften(style, text));
+  }
+
+  if (profile === 'unknown') {
+    return [
+      `${g} Para eu não presumir seu papel: você é quem cuida do louvor ou existe alguém responsável por escala, repertório e equipe aí?`,
+      `${g} Me ajuda a falar com a pessoa certa? Quem vive mais de perto a organização do ministério de louvor por aí?`,
+      `${g} Antes de qualquer apresentação, queria entender com quem faz mais sentido conversar sobre a rotina do louvor na igreja.`,
+    ].map(text => soften(style, text));
+  }
+
   if (hasProductInterest(signal)) {
     return [
       `${g} Vi o que você comentou sobre ${t}. Hoje vocês ainda organizam isso mais pelo WhatsApp ou já usam alguma ferramenta?`,
@@ -505,7 +579,8 @@ export function buildComposerPlan(input: {
     ? relationship.suggestedObjective
     : requestedObjective || relationship.suggestedObjective;
   const stage = resolveStage(input.signal, objective);
-  const style = input.style || defaultStyle(input.signal);
+  const approachProfile = resolveApproachProfile(input.person);
+  const style = input.style || defaultStyle(input.signal, approachProfile);
   const continuation = relationship.continuation;
   const name = firstName(input.person.displayName);
   const t = topic(input.signal);
@@ -537,7 +612,7 @@ export function buildComposerPlan(input: {
   } else if (objective === 'fechar') {
     texts = closingVariants(name, style, true);
   } else {
-    texts = openingVariants(name, input.signal, style, continuation);
+    texts = openingVariants(name, input.signal, style, continuation, approachProfile);
   }
 
   texts = rankNovelOptions(
@@ -546,6 +621,9 @@ export function buildComposerPlan(input: {
   );
 
   const factsUsed = input.signal.evidence.slice(0, 4).map(item => `${item.dateKey}: ${item.snippet}`);
+  if (approachProfile !== 'unknown') {
+    factsUsed.unshift(`Perfil de abordagem confirmado manualmente: ${approachLabel(approachProfile)}.`);
+  }
   if (relationship.previousAction && input.person.lastCommercialAt) {
     factsUsed.unshift(`Última ação registrada: ${relationship.previousAction} · ${String(input.person.lastCommercialAt).slice(0, 10)}`);
   }
@@ -559,10 +637,20 @@ export function buildComposerPlan(input: {
         : relationship.state === 'dormant'
           ? 'Faz tempo desde o último contato. Reative o contexto sem fingir intimidade e sem começar do zero.'
           : 'Continue do ponto anterior, sem novo cumprimento de primeiro contato e sem repetir a pergunta já usada.';
+  const firstContactRecommendation = approachProfile === 'pastor_bridge'
+    ? 'O objetivo não é vender ao pastor: peça uma apresentação segura para quem cuida do louvor e pare por aí.'
+    : approachProfile === 'worship_leader'
+      ? 'Converse como alguém que conhece a rotina do louvor. Descubra a dor específica antes de mostrar produto.'
+      : approachProfile === 'pastor_worship'
+        ? 'Ele vive a dor e pode decidir. Faça descoberta direta, mas sem despejar recursos ou preço.'
+        : approachProfile === 'administrative'
+          ? 'Use este contato como ponte operacional. Identifique o responsável do louvor antes de apresentar produto.'
+          : 'Primeiro identifique quem realmente vive a rotina do louvor. Não presuma cargo pelo nome ou pela conversa.';
+
   const recommendation = stage <= 2
     ? continuation
       ? continuityRecommendation
-      : 'Comece com uma pergunta curta. Não apresente o MusicScale inteiro ainda.'
+      : firstContactRecommendation
     : stage === 3
       ? 'Conte a história em 35–50 segundos, como conversa. Termine pedindo permissão para mostrar.'
       : stage === 4
@@ -579,19 +667,27 @@ export function buildComposerPlan(input: {
             ? 'Pergunte primeiro se facilitou. Só depois apresente continuidade e plano vigente.'
             : 'Avance uma etapa por vez e adapte a próxima mensagem à resposta real.';
 
+  const profileWhy = approachProfile === 'pastor_bridge'
+    ? 'O perfil foi confirmado manualmente como pastor-ponte; a melhor primeira ação é chegar ao responsável do louvor, não tentar fechar uma venda com quem não vive a rotina.'
+    : approachProfile === 'worship_leader'
+      ? 'O perfil foi confirmado manualmente como líder/ministro de louvor; a conversa começa pela dor operacional que essa pessoa vive no dia a dia.'
+      : approachProfile === 'pastor_worship'
+        ? 'O perfil foi confirmado manualmente como pastor envolvido no louvor; ele pode ser usuário e decisor, então a descoberta da dor pode ser direta.'
+        : approachProfile === 'administrative'
+          ? 'O perfil foi confirmado manualmente como administrativo; a abordagem serve para identificar e alcançar o responsável do louvor.'
+          : 'O perfil ainda não foi confirmado. O Composer evita presumir cargo e começa identificando com quem faz sentido conversar.';
+
   const why = continuation
     ? relationship.respondedAfterLastContact
       ? `Há uma mensagem mais recente no histórico depois do último contato registrado. O Composer usa esse contexto sobre ${t} e evita reiniciar a conversa.`
       : relationship.followUpDue
         ? `O acompanhamento está no prazo ou vencido. A mensagem retoma ${t} sem repetir uma abertura de primeiro contato.`
         : `Já existe contato anterior registrado. A mensagem continua a conversa sobre ${t}, considera a etapa anterior e evita repetir a abordagem.`
-    : hasProductInterest(input.signal)
-    ? `A própria conversa trouxe uma dor ligada a ${t}, então vale começar por esse contexto real.`
-    : hasRelationship(input.signal)
-      ? 'Já existe relacionamento comprovado, então uma abordagem natural é melhor que uma apresentação comercial fria.'
-      : isPastoral(input.signal)
-        ? 'É um contato pastoral/de liderança; use respeito, calor humano e descoberta antes de apresentar produto.'
-        : 'Há contexto suficiente para uma abertura curta e consultiva.';
+    : approachProfile !== 'unknown'
+      ? profileWhy
+      : hasProductInterest(input.signal)
+        ? `A própria conversa trouxe uma dor ligada a ${t}, mas o papel da pessoa ainda não foi confirmado; use a evidência sem presumir cargo.`
+        : profileWhy;
 
   const channelTip = effectiveChannel === 'audio'
     ? 'Fale como conversa, com frases curtas e pausas naturais. Não leia como anúncio.'
@@ -599,7 +695,11 @@ export function buildComposerPlan(input: {
   const tip = `${styleGuidance(style)} ${channelTip}`;
 
   const nextSmallYes = stage <= 2
-    ? 'Conseguir uma resposta sobre como eles organizam o louvor hoje.'
+    ? approachProfile === 'pastor_bridge' || approachProfile === 'administrative'
+      ? 'Conseguir uma apresentação ou o contato do responsável que vive a rotina do louvor.'
+      : approachProfile === 'unknown'
+        ? 'Identificar quem realmente cuida da rotina do louvor sem presumir o papel da pessoa.'
+        : 'Conseguir uma resposta sobre a dor real de quem vive a rotina do louvor.'
     : stage === 4
       ? 'Conseguir permissão para enviar um vídeo curto.'
       : stage === 7
@@ -622,6 +722,7 @@ export function buildComposerPlan(input: {
     nextSmallYes,
     estimatedDurationSeconds: effectiveChannel === 'audio' ? (stage === 3 ? 45 : 30) : undefined,
     factsUsed: factsUsed.slice(0, 6),
+    approachProfile,
     relationship,
     options: texts.slice(0, 3).map((text, index) => ({
       id: `option_${index + 1}`,
