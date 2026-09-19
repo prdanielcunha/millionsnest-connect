@@ -23,6 +23,7 @@ import {
   createConnectInboxThreadReadHttpHandler,
 } from '../core/runtime/connectInboxThreadHttpHandler';
 import { createConnectInboxReadinessHttpHandler } from '../core/runtime/connectInboxReadinessHttpHandler';
+import { createConnectOperationalReadinessHttpHandler } from '../core/runtime/connectOperationalReadinessHttpHandler';
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
 import type { ConnectThreadStore } from '../core/inbox/threadStore';
@@ -85,6 +86,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
+  let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
@@ -104,6 +106,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         inboxContextProvider = personalContextProvider;
       }
       inboxReadinessHandler = createConnectInboxReadinessHttpHandler({
+        contextProvider: personalContextProvider,
+        env,
+        storageReadinessProbe: options.inboxStorageReadinessProbe,
+      });
+      operationalReadinessHandler = createConnectOperationalReadinessHttpHandler({
         contextProvider: personalContextProvider,
         env,
         storageReadinessProbe: options.inboxStorageReadinessProbe,
@@ -253,6 +260,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       storageReadiness: readiness.state,
       source: readiness.source,
     });
+  });
+
+  app.get('/api/core/operations/readiness', async (req, res) => {
+    if (!operationalReadinessHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        success: false,
+        code: 'CORE_CONFIGURATION_MISSING',
+      });
+    }
+    return operationalReadinessHandler(req, res);
   });
 
   app.get('/api/core/inbox/readiness', async (req, res) => {
