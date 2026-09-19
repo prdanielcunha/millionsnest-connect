@@ -15,12 +15,14 @@ import {
 } from './core/client/liveConnectSession';
 import { isGlobalGovernanceRole } from './core/roles/systemRoles';
 import {
+  ExperiencePreviewConfig,
   ExperienceView,
   resolveExperienceProfile,
   resolveRealExperienceProfile,
 } from './core/client/liveSurfacePolicy';
 import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
 import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
+import { DeveloperPreviewPage } from './features/developer/DeveloperPreviewPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -205,7 +207,15 @@ export default function App() {
   const [liveBootErrorCode, setLiveBootErrorCode] = useState<string | null>(null);
   const [activeRoute, setActiveRoute] = useState<string>(initialLiveRoute);
   const [currentLang, setCurrentLang] = useState<LanguageCode>('pt-BR');
-  const [experienceView, setExperienceView] = useState<ExperienceView>('real');
+  const [previewConfig, setPreviewConfig] = useState<ExperiencePreviewConfig>({
+    view: 'real',
+    organizationId: '',
+    product: 'auto',
+    plan: 'real',
+    device: 'auto',
+    accountState: 'active',
+    dataMode: 'real_permitted',
+  });
 
   useEffect(() => {
     if (!CONNECT_LIVE_MODE_ENABLED) return;
@@ -219,7 +229,15 @@ export default function App() {
         // Everyone lands on the adaptive home. Relationship Intelligence remains
         // an optional capability instead of becoming the identity of Connect.
         setActiveRoute((current) => current === 'journey-followup' ? current : 'overview');
-        setExperienceView('real');
+        setPreviewConfig({
+          view: 'real',
+          organizationId: session.context.activeOrganization.id,
+          product: 'auto',
+          plan: 'real',
+          device: 'auto',
+          accountState: 'active',
+          dataMode: 'real_permitted',
+        });
         setLiveBootErrorCode(null);
         setLiveBootState('idle');
       })
@@ -256,13 +274,16 @@ export default function App() {
     activeMembership?.organizationRole,
   );
   const effectiveExperienceProfile = resolveExperienceProfile(
-    canPreviewExperience ? experienceView : 'real',
+    canPreviewExperience ? previewConfig.view : 'real',
     realExperienceProfile,
   );
+  const previewOrganization = context.availableOrganizations.find(
+    (organization) => organization.id === previewConfig.organizationId,
+  ) || context.activeOrganization;
 
   const handleExperienceViewChange = (view: ExperienceView) => {
     if (!canPreviewExperience) return;
-    setExperienceView(view);
+    setPreviewConfig((current) => ({ ...current, view }));
     setActiveRoute('overview');
   };
 
@@ -312,6 +333,22 @@ export default function App() {
           profile={effectiveExperienceProfile}
           onNavigate={setActiveRoute}
           showRadar={showRadar}
+          previewConfig={canPreviewExperience ? previewConfig : undefined}
+          previewOrganizationName={previewOrganization.name}
+        />
+      );
+    }
+    if (activeRoute === 'developer' && canPreviewExperience) {
+      return (
+        <DeveloperPreviewPage
+          session={liveSession}
+          currentLang={currentLang}
+          config={previewConfig}
+          realProfile={realExperienceProfile}
+          showRadar={showRadar}
+          onChange={setPreviewConfig}
+          onChangeLang={setCurrentLang}
+          onOpenHome={() => setActiveRoute('overview')}
         />
       );
     }
@@ -354,7 +391,7 @@ export default function App() {
       isLive={isLive}
       showRadar={showRadar}
       experienceProfile={effectiveExperienceProfile}
-      experienceView={experienceView}
+      experienceView={previewConfig.view}
       canPreviewExperience={canPreviewExperience}
       onExperienceViewChange={handleExperienceViewChange}
     >
