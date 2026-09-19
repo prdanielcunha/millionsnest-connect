@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import {
   createConnectThreadEvent,
   projectConnectThread,
@@ -16,6 +17,16 @@ function equal(actual: unknown, expected: unknown, message: string) {
     throw new Error(`${message}: expected ${String(expected)}, got ${String(actual)}`);
   }
   passed++;
+}
+
+function deepEqual(actual: unknown, expected: unknown, message: string) {
+  total++;
+  try {
+    assert.deepEqual(actual, expected);
+    passed++;
+  } catch {
+    throw new Error(message);
+  }
 }
 
 async function rejects(
@@ -289,12 +300,12 @@ const events = await store.readEvents({
 });
 equal(events.length, 2, 'event stream is persisted separately from snapshot');
 const rebuilt = projectConnectThread(events);
-equal(
-  JSON.stringify(rebuilt),
-  JSON.stringify(await store.load({
+deepEqual(
+  rebuilt,
+  await store.load({
     organizationId: 'org-1',
     conversationId: 'thread-1',
-  })),
+  }),
   'snapshot rebuild matches durable projection',
 );
 
