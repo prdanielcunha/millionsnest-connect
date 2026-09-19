@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Automation control plane certified release trigger — 2026-09-19
+# Inbox A8 readiness certified release trigger — 2026-09-19
 
 on:
   push:
