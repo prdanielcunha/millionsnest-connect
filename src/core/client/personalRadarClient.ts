@@ -79,6 +79,8 @@ export type RadarClientPerson = {
   identityReview?: RadarIdentityReviewCandidate[];
   identityAliases?: string[];
   salesStage?: string | null;
+  opportunityStatus?: 'open' | 'closed' | null;
+  opportunityPromotedAt?: string | null;
   lastCommercialAction?: 'whatsapp_opened' | 'sent_manual' | 'copied' | null;
   lastCommercialAt?: string | null;
   lastCommercialDraft?: string | null;
