@@ -31,6 +31,7 @@ import {
   CommercialPlaybooksPage,
 } from './features/commercial/CommercialWorkspacePages';
 import { LiveChannelsPage } from './features/channels/LiveChannelsPage';
+import { LiveAutomationsPage } from './features/automations/LiveAutomationsPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -157,7 +158,6 @@ type StagedLiveItem = { title: string; description: string; actionLabel?: string
 const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'pt-BR': {
     inbox: { title: 'Inbox real', description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.' },
-    automations: { title: 'Automações', description: 'Os contratos de eventos e ações auditadas estão preparados. A ativação visual acontecerá por fatias reais, começando pelos eventos do MusicScale.' },
     agents: { title: 'Agentes', description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.' },
     knowledge: { title: 'Conhecimento', description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.' },
     audit: { title: 'Auditoria', description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.' },
@@ -167,7 +167,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   },
   'en-US': {
     inbox: { title: 'Real Inbox', description: 'Durable storage, authorization and persistence are already in place. The UI stays under controlled activation until the IAM gate is safely released.' },
-    automations: { title: 'Automations', description: 'Audited event and action contracts are prepared. The visual surface will activate in real vertical slices, starting with MusicScale events.' },
     agents: { title: 'Agents', description: 'Autonomy will be progressive, with context, policies and risk-based confirmation. No agent is shown as active before the real connection exists.' },
     knowledge: { title: 'Knowledge', description: 'Contextual knowledge activates alongside real support and Assist flows instead of becoming a technical panel too early.' },
     audit: { title: 'Audit', description: 'Secure events are already recorded by Core. The consolidated administrative surface will ship without exposing unnecessary PII.' },
@@ -177,7 +176,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   },
   'es-ES': {
     inbox: { title: 'Inbox real', description: 'La base duradera, la autorización y la persistencia ya existen. La interfaz permanece en activación controlada hasta que el gate de IAM sea liberado con seguridad.' },
-    automations: { title: 'Automatizaciones', description: 'Los contratos de eventos y acciones auditadas están preparados. La superficie visual se activará por flujos reales, comenzando con eventos de MusicScale.' },
     agents: { title: 'Agentes', description: 'La autonomía será progresiva, con contexto, políticas y confirmación según riesgo. Ningún agente aparecerá activo antes de la conexión real.' },
     knowledge: { title: 'Conocimiento', description: 'La capa contextual se activará junto a los flujos reales de soporte y Assist, sin crear un panel técnico antes de tiempo.' },
     audit: { title: 'Auditoría', description: 'Core ya registra eventos seguros. La superficie administrativa consolidada se liberará sin exponer PII innecesaria.' },
@@ -472,6 +470,9 @@ export default function App() {
     }
     if (activeRoute === 'channels') {
       return <LiveChannelsPage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'automations') {
+      return <LiveAutomationsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
