@@ -157,3 +157,18 @@ The reference in-memory store freezes the semantics required from the future dur
 
 The in-memory adapter is **not** wired into the production HTTP runtime and is not presented as durable storage. It is a conformance reference for the Connect-owned persistence adapter tracked by issue #125.
 
+### Inbox authority and HTTP contract (not yet runtime-mounted)
+
+The real Inbox now has a server-side authorization and HTTP contract layer, but it remains deliberately **unmounted** from the production Express composition until durable Connect-owned storage is proven.
+
+Authority is evaluated only from the canonical Hub-resolved context:
+- ecosystem `globalAccess`;
+- canonical organization role `owner` / `admin`;
+- or explicit `connect.inbox.read` / `connect.inbox.manage` grants.
+
+Read never implies manage. Client-supplied uid, role, capabilities or permissions are not accepted.
+
+The command contract accepts only stable routing/audit fields (organization, action, requestId, evidenceRef, assignee ref/type and reasonCode). Unknown fields are rejected so message bodies, phone numbers, contact names or free-form pastoral notes cannot leak into the thread event stream accidentally.
+
+These handlers are conformance contracts for the future durable adapter. They are not registered in `createConnectServer` yet.
+
