@@ -213,7 +213,8 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
     previewConfig.product !== 'auto' ||
     previewConfig.plan !== 'real' ||
     previewConfig.accountState !== 'active' ||
-    previewConfig.dataMode !== 'real_permitted'
+    previewConfig.dataMode !== 'real_permitted' ||
+    previewConfig.capabilities !== null
   ));
   const previewWidth = previewConfig?.device === 'mobile'
     ? 'max-w-[430px]'
@@ -223,6 +224,14 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
   const previewProduct = previewConfig?.product === 'auto' ? null : previewConfig?.product;
   const previewPlan = previewConfig?.plan === 'real' ? session.context.activeOrganization.plan : previewConfig?.plan;
   const previewAccount = previewConfig?.accountState && previewConfig.accountState !== 'active' ? previewConfig.accountState : null;
+  const previewCapabilities = previewConfig?.capabilities;
+  const capabilityForAction: Record<string, string> = {
+    assist: 'scales.read',
+    inbox: 'inbox.read',
+    people: 'people.read',
+    radar: 'radar.read',
+    operations: 'automations.read',
+  };
 
   const statusLabel = (status: ModuleStatus) => (
     status === 'ready' ? t.available : status === 'controlled' ? t.controlled : t.next
@@ -268,7 +277,11 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleActions.map((action) => {
           const Icon = action.icon;
-          const effectiveStatus: ModuleStatus = previewConfig?.accountState === 'missing_permission'
+          const capability = capabilityForAction[action.id];
+          const capabilityMissing = Array.isArray(previewCapabilities) && capability
+            ? !previewCapabilities.includes(capability)
+            : false;
+          const effectiveStatus: ModuleStatus = previewConfig?.accountState === 'missing_permission' || capabilityMissing
             ? 'controlled'
             : action.id === 'people' && !showRadar
               ? 'controlled'
