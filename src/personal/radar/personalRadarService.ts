@@ -763,26 +763,38 @@ export class PersonalRadarService {
     const person = await this.vault.get(request.authToken, context.actorUid, ['personalPeople', personDocumentId]);
     if (!person) throw new Error('PERSON_NOT_FOUND');
     const createdAt = isoNow(this.now);
-    await this.vault.writeMany(request.authToken, context.actorUid, [{
-      path: ['relationshipOpportunities', personDocumentId],
-      data: {
-        id: personDocumentId,
-        personId: personDocumentId,
-        sourceId: person.sourceId || null,
-        displayName: person.displayName || null,
-        phone: person.phone || null,
-        organizationId: request.organizationId,
-        salesStage: person.salesStage || null,
-        lastCommercialAction: person.lastCommercialAction || null,
-        lastCommercialAt: person.lastCommercialAt || null,
-        followUpAt: person.followUpAt || null,
-        status: 'open',
-        promotedManually: true,
-        createdAt,
-        createdByUid: context.actorUid,
-        privacyScope: 'owner_only_pilot',
+    await this.vault.writeMany(request.authToken, context.actorUid, [
+      {
+        path: ['relationshipOpportunities', personDocumentId],
+        data: {
+          id: personDocumentId,
+          personId: personDocumentId,
+          sourceId: person.sourceId || null,
+          displayName: person.displayName || null,
+          phone: person.phone || null,
+          organizationId: request.organizationId,
+          salesStage: person.salesStage || null,
+          lastCommercialAction: person.lastCommercialAction || null,
+          lastCommercialAt: person.lastCommercialAt || null,
+          followUpAt: person.followUpAt || null,
+          status: 'open',
+          promotedManually: true,
+          createdAt,
+          createdByUid: context.actorUid,
+          privacyScope: 'owner_only_pilot',
+        },
       },
-    }]);
+      {
+        path: ['personalPeople', personDocumentId],
+        data: {
+          ...person,
+          id: personDocumentId,
+          opportunityStatus: 'open',
+          opportunityPromotedAt: createdAt,
+          updatedAt: createdAt,
+        },
+      },
+    ]);
     return { success: true, opportunityId: personDocumentId };
   }
 
