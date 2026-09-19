@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# NestJourney Resolve Loop V1 certified release trigger — 2026-09-19
+# Gated durable Inbox runtime release trigger — 2026-09-19
 
 on:
   push:
