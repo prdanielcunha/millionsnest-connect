@@ -35,6 +35,11 @@ assert.match(
 );
 assert.match(
   release,
+  /api\/ecosystem\/connect\/nestjourney\/followup-context/,
+  'Live activation must prove the Hub NestJourney follow-up context route exists in production',
+);
+assert.match(
+  release,
   /https:\/\/musicscale\.millionsnest\.com\/api\/v1\/connect\/next-schedule/,
   'Live activation must prove the MusicScale read route exists in production',
 );
@@ -131,6 +136,11 @@ assert.match(
   release,
   /test "\$OUTBOUND_STATUS" = "401"/,
   'Release smoke must prove unauthenticated outbound validation access is denied',
+);
+assert.match(
+  release,
+  /test "\$JOURNEY_STATUS" = "401"/,
+  'Release smoke must prove unauthenticated NestJourney Resolve Loop access is denied',
 );
 
 assert.match(hosting, /on:\s*\n\s*workflow_dispatch:/, 'Hosting deploy must be manual-only');
