@@ -211,7 +211,9 @@ jobs:
             --retry 12 --retry-delay 3 --retry-all-errors \
             "$BASE/api/health/storage-readiness" -o /tmp/connect-storage-readiness.json
           STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['read_write_confirmed','read_only','denied_or_missing','unknown']);if(x.success!==true||!allowed.has(x.storageReadiness))process.exit(1);process.stdout.write(x.storageReadiness)")"
+          STORAGE_SOURCE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['runtime_metadata','metadata_unavailable','project_iam_probe_unavailable','invalid_response']);if(!allowed.has(x.source))process.exit(1);process.stdout.write(x.source)")"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=$STORAGE_STATE"
+          echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=$STORAGE_SOURCE"
 
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
