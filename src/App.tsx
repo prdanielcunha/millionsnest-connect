@@ -215,6 +215,7 @@ export default function App() {
     device: 'auto',
     accountState: 'active',
     dataMode: 'real_permitted',
+    capabilities: null,
   });
 
   useEffect(() => {
@@ -237,6 +238,7 @@ export default function App() {
           device: 'auto',
           accountState: 'active',
           dataMode: 'real_permitted',
+          capabilities: null,
         });
         setLiveBootErrorCode(null);
         setLiveBootState('idle');
