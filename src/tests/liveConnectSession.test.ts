@@ -164,7 +164,7 @@ console.log('--- Running Live Connect Session Tests ---');
 }
 
 {
-  let threw = false;
+  let code = '';
   try {
     await bootstrapLiveConnectSession({
       locationHref: 'https://connect.example/start',
@@ -172,11 +172,58 @@ console.log('--- Running Live Connect Session Tests ---');
       fetchFn: (async () => { throw new Error('must not fetch'); }) as any,
       now: () => now,
       configuredApiKey: 'public-api-key',
+      restoreDirectIdentity: async () => null,
     });
   } catch (error) {
-    threw = error instanceof Error && error.message === 'HANDOFF_REQUIRED';
+    code = error instanceof Error ? error.message : '';
   }
-  ok(threw, 'live mode refuses to silently fall back without a Hub handoff');
+  equal(code, 'DIRECT_LOGIN_REQUIRED', 'direct access asks for native login when no Firebase identity is restored');
+}
+
+{
+  const sessionCalls: string[] = [];
+  const directFetch = (async (input: any) => {
+    const url = String(input);
+    sessionCalls.push(url);
+    const selected = url.includes('organizationId=org-2') ? 'org-2' : 'org-1';
+    return new Response(JSON.stringify({
+      success: true,
+      protocolVersion: '1.0.0',
+      user: { uid: 'direct-user', displayName: 'Direct User', systemRole: 'user', capabilities: [] },
+      activeOrganizationId: selected,
+      activeOrganization: {
+        id: selected,
+        name: selected === 'org-1' ? 'Organization One' : 'Organization Two',
+        slug: selected,
+        organizationRole: 'admin',
+        permissions: [],
+        capabilities: [],
+      },
+      organizations: [
+        { id: 'org-1', name: 'Organization One', slug: 'org-1', organizationRole: 'admin', permissions: [], capabilities: [] },
+        { id: 'org-2', name: 'Organization Two', slug: 'org-2', organizationRole: 'owner', permissions: [], capabilities: [] },
+      ],
+      appAccess: { musicscale: { accessible: true } },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  const directSession = await bootstrapLiveConnectSession({
+    locationHref: 'https://connect.example/start',
+    replaceUrl: () => {},
+    fetchFn: directFetch,
+    now: () => now,
+    configuredApiKey: 'public-api-key',
+    restoreDirectIdentity: async () => ({ uid: 'direct-user', idToken: 'direct-id-token' }),
+  });
+
+  equal(directSession.entrySource, 'direct', 'standalone Connect uses the direct Firebase identity path');
+  equal(directSession.organizationSelectionRequired, true, 'first direct entry asks the user to choose when multiple organizations are eligible');
+  equal(directSession.context.availableOrganizations.length, 2, 'canonical Hub organization set reaches the direct chooser');
+
+  const selectedSession = await directSession.selectOrganization('org-2');
+  equal(selectedSession.expectedOrganizationId, 'org-2', 'chosen organization is revalidated and becomes the live tenant');
+  equal(selectedSession.organizationSelectionRequired, false, 'organization chooser closes after canonical selection');
+  ok(sessionCalls.some((url) => url.includes('organizationId=org-2')), 'organization choice is revalidated through the canonical session endpoint');
 }
 
 {

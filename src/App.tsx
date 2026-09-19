@@ -20,7 +20,9 @@ import {
   resolveExperienceProfile,
   resolveRealExperienceProfile,
 } from './core/client/liveSurfacePolicy';
-import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
+import { buildHubConnectLaunchUrl } from './core/client/connectLaunchBridge';
+import { startConnectGoogleSignIn, signOutConnectDirectIdentity } from './core/client/connectDirectAuth';
+import { ConnectEntryScreen } from './features/auth/ConnectEntryScreen';
 import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
 import { DeveloperPreviewPage } from './features/developer/DeveloperPreviewPage';
 import {
@@ -64,6 +66,9 @@ const SAFE_BOOTSTRAP_ERROR_CODES = new Set([
   'ORGANIZATION_ACCESS_DENIED',
   'CANONICAL_CONTEXT_UNAVAILABLE',
   'CANONICAL_CONTEXT_MISMATCH',
+  'DIRECT_LOGIN_REQUIRED',
+  'USER_NOT_FOUND',
+  'USER_INACTIVE',
 ]);
 
 function safeBootstrapErrorCode(error: unknown): string {
@@ -242,10 +247,6 @@ export default function App() {
       .catch((error) => {
         if (!mounted) return;
         const errorCode = safeBootstrapErrorCode(error);
-        if (shouldRedirectToHubConnectLaunch(errorCode)) {
-          window.location.replace(buildHubConnectLaunchUrl());
-          return;
-        }
         setLiveSession(null);
         setLiveBootErrorCode(errorCode);
         setLiveBootState('failed');
@@ -253,11 +254,98 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  const handleGoogleEntry = async () => {
+    setLiveBootState('loading');
+    setLiveBootErrorCode(null);
+    try {
+      await startConnectGoogleSignIn();
+    } catch (error) {
+      setLiveBootErrorCode(safeBootstrapErrorCode(error));
+      setLiveBootState('failed');
+    }
+  };
+
+  const handleUseAnotherAccount = async () => {
+    setLiveBootState('loading');
+    setLiveBootErrorCode(null);
+    try {
+      await signOutConnectDirectIdentity();
+      try { localStorage.removeItem('mn_connect_last_org_id'); } catch {}
+      await startConnectGoogleSignIn();
+    } catch (error) {
+      setLiveBootErrorCode(safeBootstrapErrorCode(error));
+      setLiveBootState('failed');
+    }
+  };
+
+  const handleHubEntry = () => {
+    window.location.assign(buildHubConnectLaunchUrl());
+  };
+
+  const handleDirectOrganizationSelect = async (organizationId: string) => {
+    if (!liveSession) return;
+    setLiveBootState('loading');
+    try {
+      const nextSession = await liveSession.selectOrganization(organizationId);
+      setLiveSession(nextSession);
+      setPreviewConfig((current) => ({
+        ...current,
+        organizationId: nextSession.context.activeOrganization.id,
+        view: 'real',
+      }));
+      setLiveBootErrorCode(null);
+      setLiveBootState('idle');
+    } catch (error) {
+      setLiveBootErrorCode(safeBootstrapErrorCode(error));
+      setLiveBootState('failed');
+    }
+  };
+
   if (CONNECT_LIVE_MODE_ENABLED && liveBootState === 'loading') {
     return <LiveBootScreen />;
   }
-  if (CONNECT_LIVE_MODE_ENABLED && (liveBootState === 'failed' || !liveSession)) {
-    return <LiveBootScreen failed errorCode={liveBootErrorCode} />;
+  if (CONNECT_LIVE_MODE_ENABLED && liveBootState === 'failed' && !liveSession) {
+    return (
+      <ConnectEntryScreen
+        mode={liveBootErrorCode === 'DIRECT_LOGIN_REQUIRED' ? 'login' : 'error'}
+        language={currentLang}
+        onLanguageChange={setCurrentLang}
+        errorCode={liveBootErrorCode}
+        session={liveSession}
+        onGoogle={handleGoogleEntry}
+        onHub={handleHubEntry}
+        onUseAnotherAccount={handleUseAnotherAccount}
+        onSelectOrganization={handleDirectOrganizationSelect}
+      />
+    );
+  }
+  if (CONNECT_LIVE_MODE_ENABLED && liveSession?.organizationSelectionRequired) {
+    return (
+      <ConnectEntryScreen
+        mode="choose"
+        language={currentLang}
+        onLanguageChange={setCurrentLang}
+        session={liveSession}
+        onGoogle={handleGoogleEntry}
+        onHub={handleHubEntry}
+        onUseAnotherAccount={handleUseAnotherAccount}
+        onSelectOrganization={handleDirectOrganizationSelect}
+      />
+    );
+  }
+  if (CONNECT_LIVE_MODE_ENABLED && !liveSession) {
+    return (
+      <ConnectEntryScreen
+        mode="login"
+        language={currentLang}
+        onLanguageChange={setCurrentLang}
+        session={liveSession}
+        onGoogle={handleGoogleEntry}
+        onHub={handleHubEntry}
+        onUseAnotherAccount={handleUseAnotherAccount}
+        onSelectOrganization={handleDirectOrganizationSelect}
+      />
+    );
   }
 
   const context = liveSession?.context ?? demoContext;
@@ -285,8 +373,28 @@ export default function App() {
     setActiveRoute('overview');
   };
 
-  const handleSelectOrg = (orgId: string) => {
-    if (isLive) return;
+  const handleSelectOrg = async (orgId: string) => {
+    if (isLive && liveSession) {
+      if (orgId === liveSession.context.activeOrganization.id) return;
+      setLiveBootState('loading');
+      try {
+        const nextSession = await liveSession.selectOrganization(orgId);
+        setLiveSession(nextSession);
+        setPreviewConfig((current) => ({
+          ...current,
+          view: 'real',
+          organizationId: nextSession.context.activeOrganization.id,
+        }));
+        setActiveRoute('overview');
+        setLiveBootErrorCode(null);
+        setLiveBootState('idle');
+      } catch (error) {
+        setLiveBootErrorCode(safeBootstrapErrorCode(error));
+        setLiveBootState('failed');
+      }
+      return;
+    }
+
     const selectedOrg = context.availableOrganizations.find((o) => o.id === orgId);
     if (selectedOrg) {
       setDemoContext((prev) => ({

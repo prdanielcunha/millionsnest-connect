@@ -21,12 +21,21 @@ function normalizeOrigin(raw: string): string {
   return url.origin;
 }
 
+function safeOrganizationId(raw: unknown): string | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw !== 'string') return '';
+  const value = raw.trim();
+  if (!value || value.length > 256 || value.includes('/') || value.includes('\\')) return '';
+  return value;
+}
+
 /**
  * Browser-safe projection endpoint for live Connect bootstrap.
- * Hub remains the authority: this handler only forwards the Firebase bearer,
- * asks Hub to independently revalidate the exact organization selected during
- * handoff, verifies tenant consistency, and returns Hub's sanitized response.
- * It never derives roles or permissions locally.
+ *
+ * Hub remains the authority. A requested organization is only a routing hint
+ * and is revalidated by Hub. Direct app entry may omit it, allowing Hub to
+ * resolve the canonical active/primary organization after verifying the
+ * Firebase identity.
  */
 export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandlerOptions) {
   const endpoint = new URL(
@@ -49,19 +58,19 @@ export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandl
       });
     }
 
-    const requestedOrganizationId = typeof req.query.organizationId === 'string'
-      ? req.query.organizationId.trim()
-      : '';
-    if (!requestedOrganizationId || requestedOrganizationId.length > 256 || requestedOrganizationId.includes('/') || requestedOrganizationId.includes('\\')) {
+    const requestedOrganizationId = safeOrganizationId(req.query.organizationId);
+    if (requestedOrganizationId === '') {
       return res.status(400).json({
         success: false,
         code: 'ORGANIZATION_REQUIRED',
-        humanSummary: 'Selecione uma organização válida no MillionsNest.',
+        humanSummary: 'Selecione uma organização válida.',
       });
     }
 
     const upstreamUrl = new URL(endpoint.toString());
-    upstreamUrl.searchParams.set('organizationId', requestedOrganizationId);
+    if (requestedOrganizationId) {
+      upstreamUrl.searchParams.set('organizationId', requestedOrganizationId);
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -81,13 +90,20 @@ export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandl
         return res.status(401).json({
           success: false,
           code: 'AUTH_REQUIRED',
-          humanSummary: 'Sua sessão expirou. Abra o Connect novamente pelo MillionsNest.',
+          humanSummary: 'Sua sessão expirou. Entre novamente para continuar.',
         });
       }
       if (!upstream.ok || !payload || payload.success !== true) {
+        const upstreamCode = typeof payload?.code === 'string' ? payload.code : '';
+        const safeCodes = new Set([
+          'ORGANIZATION_ACCESS_DENIED',
+          'USER_NOT_FOUND',
+          'USER_INACTIVE',
+          'INVALID_ORGANIZATION_ID',
+        ]);
         return res.status(upstream.status >= 400 && upstream.status < 500 ? upstream.status : 503).json({
           success: false,
-          code: 'CANONICAL_CONTEXT_UNAVAILABLE',
+          code: safeCodes.has(upstreamCode) ? upstreamCode : 'CANONICAL_CONTEXT_UNAVAILABLE',
           humanSummary: 'Não foi possível confirmar seu contexto no MillionsNest.',
         });
       }
@@ -98,17 +114,18 @@ export function createConnectSessionHttpHandler(options: ConnectSessionHttpHandl
       const activeObjectId = typeof payload.activeOrganization?.id === 'string'
         ? payload.activeOrganization.id.trim()
         : '';
+      const uid = typeof payload.user?.uid === 'string' ? payload.user.uid.trim() : '';
 
       if (
-        activeOrganizationId !== requestedOrganizationId ||
-        activeObjectId !== requestedOrganizationId ||
-        typeof payload.user?.uid !== 'string' ||
-        !payload.user.uid.trim()
+        !uid ||
+        !activeOrganizationId ||
+        activeObjectId !== activeOrganizationId ||
+        (requestedOrganizationId && activeOrganizationId !== requestedOrganizationId)
       ) {
         return res.status(409).json({
           success: false,
           code: 'ORGANIZATION_CONTEXT_MISMATCH',
-          humanSummary: 'A organização ativa mudou. Abra o Connect novamente pelo MillionsNest.',
+          humanSummary: 'A organização ativa mudou. Escolha novamente onde deseja trabalhar.',
         });
       }
 
