@@ -178,7 +178,7 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }}" \
+            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true" \
             --quiet
 
       - name: Verify Cloud Run readiness
@@ -206,6 +206,12 @@ jobs:
             --retry 12 --retry-delay 3 --retry-all-errors \
             "$BASE/api/health" -o /tmp/connect-health.json
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core'||x.releaseSha!==process.env.GITHUB_SHA)process.exit(1)"
+
+          curl --fail --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            "$BASE/api/health/storage-readiness" -o /tmp/connect-storage-readiness.json
+          STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['read_write_confirmed','read_only','denied_or_missing','unknown']);if(x.success!==true||!allowed.has(x.storageReadiness))process.exit(1);process.stdout.write(x.storageReadiness)")"
+          echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=$STORAGE_STATE"
 
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \

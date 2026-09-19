@@ -75,6 +75,15 @@ await withServer(async (origin) => {
   checkEqual(healthPayload.releaseSha, 'test-release-sha', 'health exposes immutable release sha when configured');
   checkEqual(health.headers.get('cache-control'), 'no-store', 'health is not cacheable');
 
+  const disabledStorageProbe = await fetch(`${origin}/api/health/storage-readiness`);
+  const disabledStorageProbePayload = await disabledStorageProbe.json() as any;
+  checkEqual(disabledStorageProbe.status, 404, 'storage readiness probe is disabled by default');
+  checkEqual(
+    disabledStorageProbePayload.code,
+    'STORAGE_READINESS_PROBE_DISABLED',
+    'disabled storage readiness probe is explicit',
+  );
+
   const unauthorized = await fetch(`${origin}/api/core/message`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -140,6 +149,61 @@ await withServer(async (origin) => {
     const outboundPayload = await outbound.json() as any;
     checkEqual(outbound.status, 503, 'outbound validation boundary fails closed without Hub configuration');
     checkEqual(outboundPayload.code, 'CORE_CONFIGURATION_MISSING', 'outbound configuration failure is explicit');
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+{
+  const app = createConnectServer({
+    env: {
+      CONNECT_STORAGE_READINESS_PROBE_ENABLED: 'true',
+      FIREBASE_PROJECT_ID: 'millionsnest',
+    },
+    fetchImpl: async (input) => String(input).includes('metadata.google.internal')
+      ? {
+          ok: true,
+          status: 200,
+          async json() {
+            return { access_token: 'runtime-test-token' };
+          },
+        } as Response
+      : {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              permissions: [
+                'datastore.entities.get',
+                'datastore.entities.create',
+                'datastore.entities.update',
+              ],
+            };
+          },
+        } as Response,
+  });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/health/storage-readiness`,
+    );
+    const payload = await response.json() as any;
+    checkEqual(response.status, 200, 'enabled storage readiness probe is reachable');
+    checkEqual(
+      payload.storageReadiness,
+      'read_write_confirmed',
+      'storage readiness endpoint reports runtime effective state',
+    );
+    checkEqual(
+      JSON.stringify(payload).includes('runtime-test-token'),
+      false,
+      'storage readiness endpoint never exposes runtime access token',
+    );
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
