@@ -1,0 +1,55 @@
+name: Connect Storage Self-Probe Source
+
+on:
+  push:
+    branches:
+      - production
+    paths:
+      - .github/workflows/connect-storage-self-probe-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read deployed Connect storage readiness source
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://mn-connect-555464791734.web.app"
+          curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 2 --retry-all-errors \
+            "$BASE/api/health/storage-readiness" \
+            -o /tmp/connect-storage-readiness.json
+
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(
+            fs.readFileSync('/tmp/connect-storage-readiness.json', 'utf8'),
+          );
+          const states = new Set([
+            'read_write_confirmed',
+            'read_only',
+            'denied_or_missing',
+            'unknown',
+          ]);
+          const sources = new Set([
+            'runtime_metadata',
+            'metadata_unavailable',
+            'firestore_probe_unavailable',
+            'invalid_response',
+          ]);
+          if (payload.success !== true) process.exit(1);
+          if (!states.has(payload.storageReadiness)) process.exit(1);
+          if (!sources.has(payload.source)) process.exit(1);
+
+          console.log(
+            `CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=${payload.storageReadiness}`,
+          );
+          console.log(
+            `CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=${payload.source}`,
+          );
+          NODE
