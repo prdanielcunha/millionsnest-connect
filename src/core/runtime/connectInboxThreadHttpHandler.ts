@@ -187,6 +187,14 @@ function mapCommandError(error: unknown): {
     };
   }
 
+  if (code === 'INBOX_STORAGE_NOT_READY') {
+    return {
+      status: 503,
+      code,
+      summary: 'A persistência da caixa de entrada ainda não está pronta para uso.',
+    };
+  }
+
   if (
     code === 'ASSIGNEE_REQUIRED' ||
     code === 'INVALID_EXPECTED_VERSION' ||
@@ -240,10 +248,22 @@ export function createConnectInboxThreadReadHttpHandler(
     );
     if (!context) return;
 
-    const projection = await options.store.load({
-      organizationId: context.organizationId,
-      conversationId,
-    });
+    let projection;
+    try {
+      projection = await options.store.load({
+        organizationId: context.organizationId,
+        conversationId,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      return res.status(503).json({
+        success: false,
+        code: code === 'INBOX_STORAGE_NOT_READY'
+          ? 'INBOX_STORAGE_NOT_READY'
+          : 'INBOX_STORAGE_UNAVAILABLE',
+        humanSummary: 'A caixa de entrada ainda não está disponível para leitura.',
+      });
+    }
 
     if (!projection) {
       return res.status(404).json({

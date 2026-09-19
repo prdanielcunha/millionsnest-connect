@@ -1,12 +1,25 @@
 import express from 'express';
-import { ConnectCoreService } from '../core/runtime/connectCore';
+import {
+  ConnectCoreService,
+  type CanonicalContextProvider,
+} from '../core/runtime/connectCore';
 import { createConnectCoreHttpHandler } from '../core/runtime/connectCoreHttpHandler';
 import { createConnectCoreRuntime } from '../core/runtime/connectCoreRuntimeFactory';
 import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionHttpHandler';
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
 import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
 import { createNestJourneyFollowupContextHttpHandler } from '../core/runtime/nestJourneyFollowupContextHttpHandler';
-import { probeConnectRuntimeFirestoreReadiness } from '../core/runtime/firestoreRuntimeReadiness';
+import {
+  probeConnectRuntimeFirestoreReadiness,
+  type ConnectRuntimeFirestoreReadiness,
+} from '../core/runtime/firestoreRuntimeReadiness';
+import {
+  createConnectInboxThreadCommandHttpHandler,
+  createConnectInboxThreadReadHttpHandler,
+} from '../core/runtime/connectInboxThreadHttpHandler';
+import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
+import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
+import type { ConnectThreadStore } from '../core/inbox/threadStore';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -21,6 +34,9 @@ export interface CreateConnectServerOptions {
   core?: ConnectCoreService;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  inboxContextProvider?: CanonicalContextProvider;
+  inboxStore?: ConnectThreadStore;
+  inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
     info(message: string, meta?: Record<string, unknown>): void;
     warn?(message: string, meta?: Record<string, unknown>): void;
@@ -43,6 +59,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
   const storageReadinessProbeEnabled =
     env.CONNECT_STORAGE_READINESS_PROBE_ENABLED?.trim().toLowerCase() === 'true';
+  const durableInboxEnabled =
+    env.CONNECT_INBOX_DURABLE_ENABLED?.trim().toLowerCase() === 'true';
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -55,6 +73,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
   let personalIntelligenceRouter: ReturnType<typeof createPersonalIntelligenceRouter> | null = null;
+  let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
+  let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
+  let inboxContextProvider = options.inboxContextProvider ?? null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
     try {
@@ -69,6 +90,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           ? ((input: string, init: any) => options.fetchImpl!(input, init) as any)
           : undefined,
       });
+      if (!inboxContextProvider) {
+        inboxContextProvider = personalContextProvider;
+      }
       outboundValidationHandler = createOutboundDeliveryHttpHandler({
         contextProvider: personalContextProvider,
         env,
@@ -115,6 +139,38 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       personalIntelligenceRouter = createPersonalIntelligenceRouter(personalIntelligence);
     } catch (error) {
       logger.error?.('CONNECT_SESSION_CONFIGURATION_ERROR', {
+        error: error instanceof Error ? error.message : 'unknown_error',
+      });
+    }
+  }
+
+  if (durableInboxEnabled && inboxContextProvider) {
+    try {
+      const projectId =
+        env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest';
+      const durableStore = options.inboxStore ?? new FirestoreConnectThreadStore({
+        projectId,
+        fetchImpl: options.fetchImpl,
+      });
+      const readinessProbe = options.inboxStorageReadinessProbe ?? (() =>
+        probeConnectRuntimeFirestoreReadiness({
+          projectId,
+          fetchImpl: options.fetchImpl,
+        }));
+      const gatedStore = new ReadinessGatedConnectThreadStore(
+        durableStore,
+        readinessProbe,
+      );
+      inboxReadHandler = createConnectInboxThreadReadHttpHandler({
+        contextProvider: inboxContextProvider,
+        store: gatedStore,
+      });
+      inboxCommandHandler = createConnectInboxThreadCommandHttpHandler({
+        contextProvider: inboxContextProvider,
+        store: gatedStore,
+      });
+    } catch (error) {
+      logger.error?.('CONNECT_INBOX_CONFIGURATION_ERROR', {
         error: error instanceof Error ? error.message : 'unknown_error',
       });
     }
@@ -167,6 +223,40 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       storageReadiness: readiness.state,
       source: readiness.source,
     });
+  });
+
+  app.get('/api/core/inbox/threads/:conversationId', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!durableInboxEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'INBOX_DURABLE_DISABLED',
+      });
+    }
+    if (!inboxReadHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'INBOX_RUNTIME_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxReadHandler(req, res);
+  });
+
+  app.post('/api/core/inbox/threads/:conversationId/actions', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!durableInboxEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'INBOX_DURABLE_DISABLED',
+      });
+    }
+    if (!inboxCommandHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'INBOX_RUNTIME_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxCommandHandler(req, res);
   });
 
   app.get('/api/core/session', async (req, res) => {
