@@ -106,11 +106,13 @@ function LiveStagedSection({
   description,
   actionLabel,
   onAction,
+  statusLabel,
 }: {
   title: string;
   description: string;
   actionLabel?: string;
   onAction?: () => void;
+  statusLabel: string;
 }) {
   return (
     <main className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-4xl items-center justify-center px-3 py-10 sm:px-5">
@@ -119,7 +121,7 @@ function LiveStagedSection({
           <ShieldCheck className="text-slate-300" size={20} />
         </div>
         <div className="mx-auto mt-4 w-fit rounded-full border border-amber-300/15 bg-amber-300/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-100">
-          Ativação controlada
+          {statusLabel}
         </div>
         <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">{description}</p>
@@ -136,6 +138,59 @@ function LiveStagedSection({
     </main>
   );
 }
+
+type StagedLiveItem = { title: string; description: string; actionLabel?: string; actionRoute?: string };
+
+const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
+  'pt-BR': {
+    inbox: { title: 'Inbox real', description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.' },
+    opportunities: { title: 'Oportunidades', description: 'A promoção manual já funciona dentro do Radar. O workspace dedicado está sendo separado para deixar o funil comercial claro sem transformar o Connect em um CRM genérico.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    playbooks: { title: 'Playbooks', description: 'O playbook MusicScale já orienta o Composer por etapas e pequenos “sins”. A gestão visual dedicada entra como superfície do módulo comercial.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    composer: { title: 'Composer', description: 'O Composer já gera abordagens editáveis no fluxo do Radar. Esta área dedicada reunirá modelos, tons, objetivos e follow-ups sem automatizar o envio.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    automations: { title: 'Automações', description: 'Os contratos de eventos e ações auditadas estão preparados. A ativação visual acontecerá por fatias reais, começando pelos eventos do MusicScale.' },
+    channels: { title: 'Canais', description: 'WhatsApp oficial, in-app e adapters futuros serão mostrados aqui somente quando a integração correspondente estiver realmente conectada.' },
+    agents: { title: 'Agentes', description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.' },
+    knowledge: { title: 'Conhecimento', description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.' },
+    audit: { title: 'Auditoria', description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.' },
+    settings: { title: 'Configurações', description: 'Configurações avançadas aparecem conforme capability e somente quando houver uma ação real e segura para administrar.' },
+    preferences: { title: 'Preferências', description: 'Idioma, experiência e preferências pessoais serão centralizados aqui sem alterar permissões reais do Hub.' },
+    fallback: { title: 'Integração em liberação controlada', description: 'Esta área ainda não está conectada a uma superfície de produção. O Connect mostra esse estado de forma explícita para não confundir fundação técnica com recurso disponível.' },
+  },
+  'en-US': {
+    inbox: { title: 'Real Inbox', description: 'Durable storage, authorization and persistence are already in place. The UI stays under controlled activation until the IAM gate is safely released.' },
+    opportunities: { title: 'Opportunities', description: 'Manual promotion already works inside Radar. The dedicated workspace is being separated so the commercial funnel stays clear without turning Connect into a generic CRM.', actionLabel: 'Open Radar', actionRoute: 'radar' },
+    playbooks: { title: 'Playbooks', description: 'The MusicScale playbook already guides Composer through stages and small yeses. Dedicated visual management becomes part of the commercial module.', actionLabel: 'Open Radar', actionRoute: 'radar' },
+    composer: { title: 'Composer', description: 'Composer already creates editable outreach drafts inside Radar. This dedicated area will gather models, tones, goals and follow-ups without automating the send.', actionLabel: 'Open Radar', actionRoute: 'radar' },
+    automations: { title: 'Automations', description: 'Audited event and action contracts are prepared. The visual surface will activate in real vertical slices, starting with MusicScale events.' },
+    channels: { title: 'Channels', description: 'Official WhatsApp, in-app and future adapters will appear here only when the corresponding integration is actually connected.' },
+    agents: { title: 'Agents', description: 'Autonomy will be progressive, with context, policies and risk-based confirmation. No agent is shown as active before the real connection exists.' },
+    knowledge: { title: 'Knowledge', description: 'Contextual knowledge activates alongside real support and Assist flows instead of becoming a technical panel too early.' },
+    audit: { title: 'Audit', description: 'Secure events are already recorded by Core. The consolidated administrative surface will ship without exposing unnecessary PII.' },
+    settings: { title: 'Settings', description: 'Advanced settings appear by capability only when there is a real, safe action to administer.' },
+    preferences: { title: 'Preferences', description: 'Language, experience and personal preferences will live here without changing real Hub permissions.' },
+    fallback: { title: 'Controlled integration rollout', description: 'This area is not connected to a production surface yet. Connect exposes that state explicitly so technical foundations are never confused with available features.' },
+  },
+  'es-ES': {
+    inbox: { title: 'Inbox real', description: 'La base duradera, la autorización y la persistencia ya existen. La interfaz permanece en activación controlada hasta que el gate de IAM sea liberado con seguridad.' },
+    opportunities: { title: 'Oportunidades', description: 'La promoción manual ya funciona dentro de Radar. El workspace dedicado se está separando para que el embudo comercial sea claro sin convertir Connect en un CRM genérico.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    playbooks: { title: 'Playbooks', description: 'El playbook de MusicScale ya guía Composer por etapas y pequeños “sí”. La gestión visual dedicada será una superficie del módulo comercial.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    composer: { title: 'Composer', description: 'Composer ya crea borradores editables dentro de Radar. Esta área reunirá modelos, tonos, objetivos y follow-ups sin automatizar el envío.', actionLabel: 'Abrir Radar', actionRoute: 'radar' },
+    automations: { title: 'Automatizaciones', description: 'Los contratos de eventos y acciones auditadas están preparados. La superficie visual se activará por flujos reales, comenzando con eventos de MusicScale.' },
+    channels: { title: 'Canales', description: 'WhatsApp oficial, in-app y futuros adapters aparecerán aquí solo cuando la integración correspondiente esté realmente conectada.' },
+    agents: { title: 'Agentes', description: 'La autonomía será progresiva, con contexto, políticas y confirmación según riesgo. Ningún agente aparecerá activo antes de la conexión real.' },
+    knowledge: { title: 'Conocimiento', description: 'La capa contextual se activará junto a los flujos reales de soporte y Assist, sin crear un panel técnico antes de tiempo.' },
+    audit: { title: 'Auditoría', description: 'Core ya registra eventos seguros. La superficie administrativa consolidada se liberará sin exponer PII innecesaria.' },
+    settings: { title: 'Configuración', description: 'La configuración avanzada aparece por capability y solo cuando exista una acción real y segura para administrar.' },
+    preferences: { title: 'Preferencias', description: 'Idioma, experiencia y preferencias personales se centralizarán aquí sin cambiar los permisos reales del Hub.' },
+    fallback: { title: 'Integración en liberación controlada', description: 'Esta área todavía no está conectada a una superficie de producción. Connect muestra ese estado de forma explícita para no confundir base técnica con función disponible.' },
+  },
+};
+
+const controlledLabel: Record<LanguageCode, string> = {
+  'pt-BR': 'Ativação controlada',
+  'en-US': 'Controlled activation',
+  'es-ES': 'Activación controlada',
+};
 
 function initialLiveRoute() {
   return resolveJourneyFollowupId(window.location.pathname) ? 'journey-followup' : 'overview';
@@ -276,68 +331,14 @@ export default function App() {
       return <LivePeoplePage session={liveSession} currentLang={currentLang} />;
     }
 
-    const staged: Record<string, { title: string; description: string; actionLabel?: string; actionRoute?: string }> = {
-      inbox: {
-        title: 'Inbox real',
-        description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.',
-      },
-      opportunities: {
-        title: 'Oportunidades',
-        description: 'A promoção manual já funciona dentro do Radar. O workspace dedicado está sendo separado para deixar o funil comercial claro sem transformar o Connect em um CRM genérico.',
-        actionLabel: 'Abrir Radar',
-        actionRoute: 'radar',
-      },
-      playbooks: {
-        title: 'Playbooks',
-        description: 'O playbook MusicScale já orienta o Composer por etapas e pequenos “sins”. A gestão visual dedicada entra como superfície do módulo comercial.',
-        actionLabel: 'Abrir Radar',
-        actionRoute: 'radar',
-      },
-      composer: {
-        title: 'Composer',
-        description: 'O Composer já gera abordagens editáveis no fluxo do Radar. Esta área dedicada reunirá modelos, tons, objetivos e follow-ups sem automatizar o envio.',
-        actionLabel: 'Abrir Radar',
-        actionRoute: 'radar',
-      },
-      automations: {
-        title: 'Automações',
-        description: 'Os contratos de eventos e ações auditadas estão preparados. A ativação visual acontecerá por fatias reais, começando pelos eventos do MusicScale.',
-      },
-      channels: {
-        title: 'Canais',
-        description: 'WhatsApp oficial, in-app e adapters futuros serão mostrados aqui somente quando a integração correspondente estiver realmente conectada.',
-      },
-      agents: {
-        title: 'Agentes',
-        description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.',
-      },
-      knowledge: {
-        title: 'Conhecimento',
-        description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.',
-      },
-      audit: {
-        title: 'Auditoria',
-        description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.',
-      },
-      settings: {
-        title: 'Configurações',
-        description: 'Configurações avançadas aparecem conforme capability e somente quando houver uma ação real e segura para administrar.',
-      },
-      preferences: {
-        title: 'Preferências',
-        description: 'Idioma, experiência e preferências pessoais serão centralizados aqui sem alterar permissões reais do Hub.',
-      },
-    };
-    const item = staged[activeRoute] || {
-      title: 'Integração em liberação controlada',
-      description: 'Esta área ainda não está conectada a uma superfície de produção. O Connect mostra esse estado de forma explícita para não confundir fundação técnica com recurso disponível.',
-    };
+    const item = stagedLiveCopy[currentLang][activeRoute] || stagedLiveCopy[currentLang].fallback;
     return (
       <LiveStagedSection
         title={item.title}
         description={item.description}
         actionLabel={item.actionLabel}
         onAction={item.actionRoute ? () => setActiveRoute(item.actionRoute!) : undefined}
+        statusLabel={controlledLabel[currentLang]}
       />
     );
   };
