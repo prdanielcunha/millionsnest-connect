@@ -101,6 +101,26 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
 {
   const result = await probeConnectRuntimeFirestoreReadiness({
     timeoutMs: 0,
+    fetchImpl: async (input) => String(input).includes('metadata.google.internal')
+      ? response(200, { access_token: 'token' })
+      : response(200, {}),
+  });
+
+  equal(
+    result.state,
+    'denied_or_missing',
+    'omitted empty permissions field is treated as no granted permissions',
+  );
+  equal(
+    result.source,
+    'runtime_metadata',
+    'successful empty IAM response remains a valid runtime probe',
+  );
+}
+
+{
+  const result = await probeConnectRuntimeFirestoreReadiness({
+    timeoutMs: 0,
     fetchImpl: async () => response(404, {}),
   });
 
