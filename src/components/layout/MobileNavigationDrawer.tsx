@@ -214,7 +214,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   <div key={section || 'demo'} className="mb-3">
                     {isLive && section && (
                       <div className="px-3 pb-1.5 pt-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-600">
-                        {sectionNames[section]?.[currentLang] || section}
+                        {sectionNames[String(section)]?.[currentLang] || String(section)}
                       </div>
                     )}
                     <div className="space-y-1">
