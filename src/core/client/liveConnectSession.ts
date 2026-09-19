@@ -1,4 +1,5 @@
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
+import { restoreConnectDirectIdentity } from './connectDirectAuth';
 
 export type ConnectHandoffPayload = {
   appId: 'connect';
@@ -22,7 +23,9 @@ export type LiveCoreResponse = {
 export type LiveConnectSession = {
   idToken: string;
   expectedOrganizationId: string;
+  entrySource: 'handoff' | 'direct';
   context: EffectiveEcosystemContext;
+  selectOrganization(organizationId: string): Promise<LiveConnectSession>;
   sendMessage(text: string, conversationId: string, locale: LanguageCode): Promise<LiveCoreResponse>;
 };
 
@@ -32,6 +35,7 @@ type BootstrapDependencies = {
   fetchFn: typeof fetch;
   now(): number;
   configuredApiKey?: string;
+  restoreDirectIdentity?: typeof restoreConnectDirectIdentity;
 };
 
 function safeString(value: unknown): string {
@@ -120,39 +124,70 @@ async function exchangeCustomToken(
   const idToken = safeString(body?.idToken);
   const localId = safeString(body?.localId);
   if (!idToken) throw new Error('HANDOFF_IDENTITY_MISMATCH');
-  // Identity Toolkit does not guarantee localId in every successful custom-token
-  // response. When present, keep the fast client-side consistency check. When
-  // absent, defer identity authority to the next canonical Hub session call,
-  // where the Firebase ID token is verified server-side and its uid must match
-  // the handoff uid before LIVE_CORE is created.
   if (localId && localId !== payload.userId) throw new Error('HANDOFF_IDENTITY_MISMATCH');
   return idToken;
 }
 
-function mapCanonicalSessionToContext(session: any, expectedOrgId: string, expectedUid: string): EffectiveEcosystemContext {
+function mapCanonicalSessionToContext(
+  session: any,
+  expectedOrgId: string | null,
+  expectedUid: string,
+): EffectiveEcosystemContext {
+  const activeId = safeString(session?.activeOrganizationId);
+  const active = session?.activeOrganization;
+
   if (
     session?.success !== true ||
     safeString(session?.user?.uid) !== expectedUid ||
-    safeString(session?.activeOrganizationId) !== expectedOrgId ||
-    safeString(session?.activeOrganization?.id) !== expectedOrgId
+    !activeId ||
+    safeString(active?.id) !== activeId ||
+    (expectedOrgId && activeId !== expectedOrgId)
   ) {
     throw new Error('CANONICAL_CONTEXT_MISMATCH');
   }
 
-  const active = session.activeOrganization;
   const userSystemRole = safeString(session.user?.systemRole);
   const allowedSystemRoles = new Set(['ceo', 'global_admin', 'ecosystem_owner', 'founder', 'support']);
   const capabilities = Array.isArray(session.user?.capabilities)
     ? session.user.capabilities.filter((value: unknown): value is string => typeof value === 'string')
     : [];
 
-  const organization = {
-    id: expectedOrgId,
-    name: safeString(active.name) || expectedOrgId,
-    slug: safeString(active.slug) || expectedOrgId,
-    plan: 'ecosystem',
-    isDemo: false,
-  };
+  const rawOrganizations = Array.isArray(session?.organizations) ? session.organizations : [active];
+  const availableOrganizations = rawOrganizations
+    .filter((item: any) => item && safeString(item.id))
+    .map((item: any) => ({
+      id: safeString(item.id),
+      name: safeString(item.name) || safeString(item.id),
+      slug: safeString(item.slug) || safeString(item.id),
+      plan: 'ecosystem',
+      isDemo: false,
+    }));
+
+  if (!availableOrganizations.some((organization) => organization.id === activeId)) {
+    availableOrganizations.unshift({
+      id: activeId,
+      name: safeString(active.name) || activeId,
+      slug: safeString(active.slug) || activeId,
+      plan: 'ecosystem',
+      isDemo: false,
+    });
+  }
+
+  const organization = availableOrganizations.find((item) => item.id === activeId)!;
+
+  const memberships = rawOrganizations
+    .filter((item: any) => item && safeString(item.id))
+    .map((item: any) => ({
+      id: `${safeString(item.id)}:${expectedUid}`,
+      uid: expectedUid,
+      organizationId: safeString(item.id),
+      organizationName: safeString(item.name) || safeString(item.id),
+      organizationRole: safeString(item.organizationRole) || null,
+      status: 'active' as const,
+      permissions: Array.isArray(item.permissions)
+        ? item.permissions.filter((value: unknown): value is string => typeof value === 'string')
+        : [],
+    }));
 
   return {
     mode: 'LIVE_CORE',
@@ -164,19 +199,8 @@ function mapCanonicalSessionToContext(session: any, expectedOrgId: string, expec
       capabilities,
     },
     activeOrganization: organization,
-    // Organization switching remains owned by Hub in this first live slice.
-    availableOrganizations: [organization],
-    memberships: [{
-      id: `${expectedOrgId}:${expectedUid}`,
-      uid: expectedUid,
-      organizationId: expectedOrgId,
-      organizationName: organization.name,
-      organizationRole: safeString(active.organizationRole) || null,
-      status: 'active',
-      permissions: Array.isArray(active.permissions)
-        ? active.permissions.filter((value: unknown): value is string => typeof value === 'string')
-        : [],
-    }],
+    availableOrganizations,
+    memberships,
     appAccess: [{
       appId: 'musicscale',
       access: session.appAccess?.musicscale?.accessible === true,
@@ -191,46 +215,32 @@ const SAFE_CANONICAL_SESSION_ERROR_CODES = new Set([
   'ORGANIZATION_CONTEXT_MISMATCH',
   'ORGANIZATION_ACCESS_DENIED',
   'CANONICAL_CONTEXT_UNAVAILABLE',
+  'USER_NOT_FOUND',
+  'USER_INACTIVE',
 ]);
 
-export async function bootstrapLiveConnectSession(
-  injected?: Partial<BootstrapDependencies>,
-): Promise<LiveConnectSession> {
-  const deps: BootstrapDependencies = {
-    locationHref: injected?.locationHref ?? window.location.href,
-    replaceUrl: injected?.replaceUrl ?? ((url) => window.history.replaceState({}, '', url)),
-    fetchFn: injected?.fetchFn ?? globalThis.fetch.bind(globalThis),
-    now: injected?.now ?? Date.now,
-    configuredApiKey: injected?.configuredApiKey ?? readViteEnv('VITE_FIREBASE_API_KEY'),
-  };
+async function requestCanonicalSession(
+  idToken: string,
+  expectedUid: string,
+  fetchFn: typeof fetch,
+  organizationId?: string,
+): Promise<EffectiveEcosystemContext> {
+  const url = organizationId
+    ? `/api/core/session?organizationId=${encodeURIComponent(organizationId)}`
+    : '/api/core/session';
 
-  const url = new URL(deps.locationHref);
-  const encoded = url.searchParams.get('ecosystem_ctx');
-  if (!encoded) throw new Error('HANDOFF_REQUIRED');
-
-  // Remove credential-bearing handoff from browser history before any network I/O.
-  url.searchParams.delete('ecosystem_ctx');
-  deps.replaceUrl(url.toString());
-
-  const handoff = decodeHandoff(encoded, deps.now());
-  const apiKey = await resolveFirebaseApiKey(deps);
-  const idToken = await exchangeCustomToken(handoff, apiKey, deps.fetchFn);
-
-  const sessionResponse = await deps.fetchFn(
-    `/api/core/session?organizationId=${encodeURIComponent(handoff.orgId)}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        Accept: 'application/json',
-        'Cache-Control': 'no-store',
-      },
-      cache: 'no-store',
+  const response = await fetchFn(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      Accept: 'application/json',
+      'Cache-Control': 'no-store',
     },
-  );
-  const sessionPayload = await sessionResponse.json().catch(() => ({})) as any;
-  if (!sessionResponse.ok) {
-    const upstreamCode = safeString(sessionPayload?.code);
+    cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => ({})) as any;
+  if (!response.ok) {
+    const upstreamCode = safeString(payload?.code);
     throw new Error(
       SAFE_CANONICAL_SESSION_ERROR_CODES.has(upstreamCode)
         ? upstreamCode
@@ -238,14 +248,33 @@ export async function bootstrapLiveConnectSession(
     );
   }
 
-  const context = mapCanonicalSessionToContext(sessionPayload, handoff.orgId, handoff.userId);
+  return mapCanonicalSessionToContext(payload, organizationId || null, expectedUid);
+}
+
+function createLiveSession(params: {
+  idToken: string;
+  expectedUid: string;
+  context: EffectiveEcosystemContext;
+  entrySource: 'handoff' | 'direct';
+  fetchFn: typeof fetch;
+}): LiveConnectSession {
+  const { idToken, expectedUid, context, entrySource, fetchFn } = params;
+  const organizationId = context.activeOrganization.id;
 
   return {
     idToken,
-    expectedOrganizationId: handoff.orgId,
+    expectedOrganizationId: organizationId,
+    entrySource,
     context,
+    async selectOrganization(nextOrganizationId) {
+      const allowed = context.availableOrganizations.some((organization) => organization.id === nextOrganizationId);
+      if (!allowed) throw new Error('ORGANIZATION_ACCESS_DENIED');
+      const nextContext = await requestCanonicalSession(idToken, expectedUid, fetchFn, nextOrganizationId);
+      try { localStorage.setItem('mn_connect_last_org_id', nextOrganizationId); } catch {}
+      return createLiveSession({ idToken, expectedUid, context: nextContext, entrySource, fetchFn });
+    },
     async sendMessage(text, conversationId, locale) {
-      const response = await deps.fetchFn('/api/core/message', {
+      const response = await fetchFn('/api/core/message', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -255,7 +284,7 @@ export async function bootstrapLiveConnectSession(
         },
         body: JSON.stringify({
           text,
-          requestedOrganizationId: handoff.orgId,
+          requestedOrganizationId: organizationId,
           locale,
           conversationId,
         }),
@@ -274,6 +303,61 @@ export async function bootstrapLiveConnectSession(
       } as LiveCoreResponse;
     },
   };
+}
+
+export async function bootstrapLiveConnectSession(
+  injected?: Partial<BootstrapDependencies>,
+): Promise<LiveConnectSession> {
+  const deps: BootstrapDependencies = {
+    locationHref: injected?.locationHref ?? window.location.href,
+    replaceUrl: injected?.replaceUrl ?? ((url) => window.history.replaceState({}, '', url)),
+    fetchFn: injected?.fetchFn ?? globalThis.fetch.bind(globalThis),
+    now: injected?.now ?? Date.now,
+    configuredApiKey: injected?.configuredApiKey ?? readViteEnv('VITE_FIREBASE_API_KEY'),
+    restoreDirectIdentity: injected?.restoreDirectIdentity ?? restoreConnectDirectIdentity,
+  };
+
+  const url = new URL(deps.locationHref);
+  const encoded = url.searchParams.get('ecosystem_ctx');
+
+  if (encoded) {
+    url.searchParams.delete('ecosystem_ctx');
+    deps.replaceUrl(url.toString());
+
+    const handoff = decodeHandoff(encoded, deps.now());
+    const apiKey = await resolveFirebaseApiKey(deps);
+    const idToken = await exchangeCustomToken(handoff, apiKey, deps.fetchFn);
+    const context = await requestCanonicalSession(idToken, handoff.userId, deps.fetchFn, handoff.orgId);
+    return createLiveSession({
+      idToken,
+      expectedUid: handoff.userId,
+      context,
+      entrySource: 'handoff',
+      fetchFn: deps.fetchFn,
+    });
+  }
+
+  const identity = await deps.restoreDirectIdentity!();
+  if (!identity) throw new Error('DIRECT_LOGIN_REQUIRED');
+
+  let context = await requestCanonicalSession(identity.idToken, identity.uid, deps.fetchFn);
+  let remembered = '';
+  try { remembered = safeString(localStorage.getItem('mn_connect_last_org_id')); } catch {}
+  if (
+    remembered &&
+    remembered !== context.activeOrganization.id &&
+    context.availableOrganizations.some((organization) => organization.id === remembered)
+  ) {
+    context = await requestCanonicalSession(identity.idToken, identity.uid, deps.fetchFn, remembered);
+  }
+
+  return createLiveSession({
+    idToken: identity.idToken,
+    expectedUid: identity.uid,
+    context,
+    entrySource: 'direct',
+    fetchFn: deps.fetchFn,
+  });
 }
 
 export const CONNECT_LIVE_MODE_ENABLED = readViteEnv('VITE_CONNECT_LIVE_ENABLED') === 'true';
