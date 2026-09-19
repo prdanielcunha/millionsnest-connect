@@ -5,6 +5,7 @@ import { createConnectCoreRuntime } from '../core/runtime/connectCoreRuntimeFact
 import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionHttpHandler';
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
 import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
+import { createNestJourneyFollowupContextHttpHandler } from '../core/runtime/nestJourneyFollowupContextHttpHandler';
 import { probeConnectRuntimeFirestoreReadiness } from '../core/runtime/firestoreRuntimeReadiness';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
@@ -49,6 +50,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
   let outboundValidationHandler: ReturnType<typeof createOutboundDeliveryHttpHandler> | null = null;
+  let journeyFollowupHandler: ReturnType<typeof createNestJourneyFollowupContextHttpHandler> | null = null;
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
@@ -71,6 +73,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         contextProvider: personalContextProvider,
         env,
         logger,
+      });
+      journeyFollowupHandler = createNestJourneyFollowupContextHttpHandler({
+        contextProvider: personalContextProvider,
+        hubOrigin,
+        fetchImpl: options.fetchImpl,
       });
       const vault = new FirestorePersonalVault({
         projectId: env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || 'millionsnest',
@@ -172,6 +179,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return sessionHandler(req, res);
+  });
+
+  app.get('/api/core/nestjourney/followup', async (req, res) => {
+    if (!journeyFollowupHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        success: false,
+        code: 'CORE_CONFIGURATION_MISSING',
+      });
+    }
+    return journeyFollowupHandler(req, res);
   });
 
   app.post('/api/core/outbound/validate', async (req, res) => {
