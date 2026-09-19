@@ -8,7 +8,7 @@ const plan=buildComposerPlan({ person:{displayName:'Pr. João'}, signal });
 assert(plan.options.length===3,'generates three message options');
 assert(plan.stage===2,'fit starts with discovery instead of product dump');
 assert(plan.recommendedStyle==='consultivo','fit defaults to consultative style');
-assert(plan.recommendation.includes('Não apresente'),'recommends discovery before presentation');
+assert(/identifique|Não presuma|descubra/i.test(plan.recommendation),'recommends role-safe discovery before presentation');
 assert(plan.factsUsed.length===1,'shows facts used');
 assert(plan.nextSmallYes.length>10,'explains next small yes');
 const audio=buildComposerPlan({person:{displayName:'João'},signal,channel:'audio',style:'proximo'});
