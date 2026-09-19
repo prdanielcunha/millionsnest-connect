@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
   Search, Bell, Building2, Globe, ChevronDown, ChevronUp,
-  LayoutDashboard, MessageSquare, Wrench, Users, BrainCircuit,
-  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar, Database
+  LayoutDashboard, MessageSquare, MessageSquareText, Wrench, Users, BrainCircuit,
+  Workflow, Radio, LineChart, ShieldCheck, Settings, BookOpen, Radar, Database, Eye, Sparkles as SparklesIcon
 } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { BrandLogo } from '../common/BrandLogo';
@@ -11,7 +11,12 @@ import { CommandPalette } from './CommandPalette';
 import { MobileAppHeader } from './MobileAppHeader';
 import { MobileNavigationDrawer } from './MobileNavigationDrawer';
 import { getUxText } from '../../i18n/mobileUx';
-import { getLiveNavigationRouteIds } from '../../core/client/liveSurfacePolicy';
+import {
+  EXPERIENCE_PREVIEW_OPTIONS,
+  ExperienceProfile,
+  ExperienceView,
+  getExperienceNavigationRouteIds,
+} from '../../core/client/liveSurfacePolicy';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -23,6 +28,10 @@ interface ShellProps {
   onNavigate: (route: string) => void;
   isLive?: boolean;
   showRadar?: boolean;
+  experienceProfile?: ExperienceProfile;
+  experienceView?: ExperienceView;
+  canPreviewExperience?: boolean;
+  onExperienceViewChange?: (view: ExperienceView) => void;
 }
 
 const radarLabels: Record<LanguageCode, string> = {
@@ -44,15 +53,64 @@ const intelligenceLabels: Record<LanguageCode, string> = {
 };
 
 const liveSearchLabels: Record<LanguageCode, string> = {
-  'pt-BR': 'Busca global em breve',
-  'en-US': 'Global search coming soon',
-  'es-ES': 'Búsqueda global próximamente',
+  'pt-BR': 'Perguntar ao Connect',
+  'en-US': 'Ask Connect',
+  'es-ES': 'Preguntar a Connect',
 };
 
 const liveFooterLabels: Record<LanguageCode, string> = {
-  'pt-BR': 'CONTEXTO AO VIVO · ZERO TRUST',
-  'en-US': 'LIVE CONTEXT · ZERO TRUST',
-  'es-ES': 'CONTEXTO EN VIVO · ZERO TRUST',
+  'pt-BR': 'MillionsNest Connect',
+  'en-US': 'MillionsNest Connect',
+  'es-ES': 'MillionsNest Connect',
+};
+
+type LiveNavSection = 'work' | 'relationship' | 'operations' | 'governance' | 'personal';
+type LiveNavStatus = 'ready' | 'controlled' | 'next';
+
+const sectionLabels: Record<LiveNavSection, Record<LanguageCode, string>> = {
+  work: { 'pt-BR': 'Trabalho', 'en-US': 'Work', 'es-ES': 'Trabajo' },
+  relationship: { 'pt-BR': 'Relacionamento', 'en-US': 'Relationships', 'es-ES': 'Relaciones' },
+  operations: { 'pt-BR': 'Operação', 'en-US': 'Operations', 'es-ES': 'Operación' },
+  governance: { 'pt-BR': 'Governança', 'en-US': 'Governance', 'es-ES': 'Gobernanza' },
+  personal: { 'pt-BR': 'Meu espaço', 'en-US': 'My space', 'es-ES': 'Mi espacio' },
+};
+
+const profileLabels: Record<ExperienceView, Record<LanguageCode, string>> = {
+  real: { 'pt-BR': 'Minha visão real', 'en-US': 'My real view', 'es-ES': 'Mi vista real' },
+  ceo: { 'pt-BR': 'CEO', 'en-US': 'CEO', 'es-ES': 'CEO' },
+  musician: { 'pt-BR': 'Músico', 'en-US': 'Musician', 'es-ES': 'Músico' },
+  worship_leader: { 'pt-BR': 'Líder de louvor', 'en-US': 'Worship leader', 'es-ES': 'Líder de alabanza' },
+  pastor_leader: { 'pt-BR': 'Pastor ou líder', 'en-US': 'Pastor or leader', 'es-ES': 'Pastor o líder' },
+  support: { 'pt-BR': 'Atendimento', 'en-US': 'Support', 'es-ES': 'Atención' },
+  commercial: { 'pt-BR': 'Comercial', 'en-US': 'Commercial', 'es-ES': 'Comercial' },
+  organization_admin: { 'pt-BR': 'Administrador', 'en-US': 'Administrator', 'es-ES': 'Administrador' },
+};
+
+const previewLabels: Record<LanguageCode, { label: string; safe: string }> = {
+  'pt-BR': { label: 'Visualizar como', safe: 'Somente experiência · suas permissões reais continuam inalteradas' },
+  'en-US': { label: 'Preview as', safe: 'Experience preview only · your real permissions stay unchanged' },
+  'es-ES': { label: 'Visualizar como', safe: 'Solo vista previa · tus permisos reales siguen sin cambios' },
+};
+
+const routeLabels: Record<string, Record<LanguageCode, string>> = {
+  overview: { 'pt-BR': 'Início', 'en-US': 'Home', 'es-ES': 'Inicio' },
+  inbox: { 'pt-BR': 'Caixa de entrada', 'en-US': 'Inbox', 'es-ES': 'Bandeja de entrada' },
+  contacts: { 'pt-BR': 'Pessoas', 'en-US': 'People', 'es-ES': 'Personas' },
+  assist: { 'pt-BR': 'Assist', 'en-US': 'Assist', 'es-ES': 'Assist' },
+  radar: { 'pt-BR': 'Radar', 'en-US': 'Radar', 'es-ES': 'Radar' },
+  opportunities: { 'pt-BR': 'Oportunidades', 'en-US': 'Opportunities', 'es-ES': 'Oportunidades' },
+  playbooks: { 'pt-BR': 'Playbooks', 'en-US': 'Playbooks', 'es-ES': 'Playbooks' },
+  composer: { 'pt-BR': 'Composer', 'en-US': 'Composer', 'es-ES': 'Composer' },
+  intelligence: { 'pt-BR': 'Inteligência', 'en-US': 'Intelligence', 'es-ES': 'Inteligencia' },
+  automations: { 'pt-BR': 'Automações', 'en-US': 'Automations', 'es-ES': 'Automatizaciones' },
+  channels: { 'pt-BR': 'Canais', 'en-US': 'Channels', 'es-ES': 'Canales' },
+  agents: { 'pt-BR': 'Agentes', 'en-US': 'Agents', 'es-ES': 'Agentes' },
+  knowledge: { 'pt-BR': 'Conhecimento', 'en-US': 'Knowledge', 'es-ES': 'Conocimiento' },
+  audit: { 'pt-BR': 'Auditoria', 'en-US': 'Audit', 'es-ES': 'Auditoría' },
+  settings: { 'pt-BR': 'Configurações', 'en-US': 'Settings', 'es-ES': 'Configuración' },
+  sources: { 'pt-BR': 'Fontes pessoais', 'en-US': 'Personal sources', 'es-ES': 'Fuentes personales' },
+  imports: { 'pt-BR': 'Importações', 'en-US': 'Imports', 'es-ES': 'Importaciones' },
+  preferences: { 'pt-BR': 'Preferências', 'en-US': 'Preferences', 'es-ES': 'Preferencias' },
 };
 
 export const Shell: React.FC<ShellProps> = ({
@@ -65,13 +123,17 @@ export const Shell: React.FC<ShellProps> = ({
   onNavigate,
   isLive = false,
   showRadar = false,
+  experienceProfile = 'musician',
+  experienceView = 'real',
+  canPreviewExperience = false,
+  onExperienceViewChange,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopOrgMenuOpen, setIsDesktopOrgMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const t = getUxText(currentLang);
 
-  const allNavItems = [
+  const demoNavItems = [
     { id: 'overview', label: t.navigation.overview, icon: LayoutDashboard },
     { id: 'inbox', label: t.navigation.inbox, icon: MessageSquare },
     ...(showRadar ? [
@@ -89,10 +151,42 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'audit', label: t.navigation.audit, icon: ShieldCheck },
     { id: 'settings', label: t.navigation.settings, icon: Settings },
   ];
-  const liveRouteIds = new Set(getLiveNavigationRouteIds(showRadar));
+
+  const liveNavItems = [
+    { id: 'overview', icon: LayoutDashboard, section: 'work' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'inbox', icon: MessageSquare, section: 'work' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'contacts', icon: Users, section: 'work' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'assist', icon: MessageSquareText, section: 'work' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'radar', icon: Radar, section: 'relationship' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'opportunities', icon: Users, section: 'relationship' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'playbooks', icon: BookOpen, section: 'relationship' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'composer', icon: SparklesIcon, section: 'relationship' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'intelligence', icon: BrainCircuit, section: 'relationship' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'automations', icon: Workflow, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
+    { id: 'channels', icon: Radio, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
+    { id: 'agents', icon: BrainCircuit, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
+    { id: 'knowledge', icon: BookOpen, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
+    { id: 'audit', icon: ShieldCheck, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'settings', icon: Settings, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'sources', icon: Database, section: 'personal' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'imports', icon: Database, section: 'personal' as LiveNavSection, status: 'ready' as LiveNavStatus },
+    { id: 'preferences', icon: Settings, section: 'personal' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+  ].map(item => ({ ...item, label: routeLabels[item.id][currentLang] }));
+
+  const visibleLiveRouteIds = new Set(getExperienceNavigationRouteIds(experienceProfile, showRadar));
   const navItems = isLive
-    ? allNavItems.filter((item) => liveRouteIds.has(item.id))
-    : allNavItems;
+    ? liveNavItems.filter((item) => visibleLiveRouteIds.has(item.id))
+    : demoNavItems;
+
+  const liveSections: LiveNavSection[] = ['work', 'relationship', 'operations', 'governance', 'personal'];
+  const bottomPriority = experienceProfile === 'commercial'
+    ? ['overview', 'radar', 'contacts', 'assist']
+    : experienceProfile === 'organization_admin'
+      ? ['overview', 'inbox', 'contacts', 'assist']
+      : ['overview', 'assist', 'inbox', 'contacts'];
+  const bottomNavItems = isLive
+    ? bottomPriority.map(id => navItems.find(item => item.id === id)).filter(Boolean) as typeof navItems
+    : [];
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#0B0E14] overflow-x-hidden">
