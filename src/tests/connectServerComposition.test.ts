@@ -1,6 +1,8 @@
 import { AddressInfo } from 'node:net';
 import { CanonicalContextProvider, ConnectCoreService, CoreAuditPort, MusicScaleReadToolPort } from '../core/runtime/connectCore';
 import { createConnectServer } from '../server/createConnectServer';
+import { InMemoryConnectThreadStore } from '../core/inbox/threadStore';
+import { ConnectThreadCommandService } from '../core/inbox/threadService';
 
 let passed = 0;
 let total = 0;
@@ -204,6 +206,224 @@ await withServer(async (origin) => {
       JSON.stringify(payload).includes('runtime-test-token'),
       false,
       'storage readiness endpoint never exposes runtime access token',
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+{
+  const app = createConnectServer({
+    env: {
+      CONNECT_INBOX_DURABLE_ENABLED: 'false',
+    },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/core/inbox/threads/thread-1?organizationId=org-1`,
+      {
+        headers: { Authorization: 'Bearer user-token' },
+      },
+    );
+    const payload = await response.json() as any;
+    checkEqual(response.status, 404, 'durable Inbox route is dark by default');
+    checkEqual(
+      payload.code,
+      'INBOX_DURABLE_DISABLED',
+      'disabled durable Inbox has explicit code',
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+{
+  const store = new InMemoryConnectThreadStore();
+  const commands = new ConnectThreadCommandService(
+    store,
+    () => new Date('2026-09-19T00:00:00.000Z'),
+  );
+  await commands.open({
+    requestId: 'server-seed',
+    organizationId: 'org-1',
+    conversationId: 'thread-1',
+    evidenceRef: 'provider-conversation:server-seed',
+    channel: 'whatsapp',
+  });
+
+  const inboxContextProvider: CanonicalContextProvider = {
+    async resolve() {
+      return {
+        status: 'resolved',
+        context: {
+          actorUid: 'owner-1',
+          systemRole: null,
+          globalAccess: false,
+          organizationId: 'org-1',
+          organizationRole: 'owner',
+          permissions: [],
+          capabilities: [],
+          appAccess: { musicscale: false },
+        },
+      };
+    },
+  };
+
+  const app = createConnectServer({
+    env: {
+      CONNECT_INBOX_DURABLE_ENABLED: 'true',
+    },
+    inboxContextProvider,
+    inboxStore: store,
+    inboxStorageReadinessProbe: async () => ({
+      state: 'denied_or_missing',
+      permissions: {
+        read: false,
+        list: false,
+        create: false,
+        update: false,
+      },
+      source: 'runtime_metadata',
+    }),
+  });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/core/inbox/threads/thread-1?organizationId=org-1`,
+      {
+        headers: { Authorization: 'Bearer user-token' },
+      },
+    );
+    const payload = await response.json() as any;
+    checkEqual(
+      response.status,
+      503,
+      'durable Inbox fails closed while runtime IAM is missing',
+    );
+    checkEqual(
+      payload.code,
+      'INBOX_STORAGE_NOT_READY',
+      'missing runtime IAM has explicit storage gate code',
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+{
+  const store = new InMemoryConnectThreadStore();
+  const commands = new ConnectThreadCommandService(
+    store,
+    () => new Date('2026-09-19T00:00:00.000Z'),
+  );
+  await commands.open({
+    requestId: 'server-ready-seed',
+    organizationId: 'org-1',
+    conversationId: 'thread-ready',
+    evidenceRef: 'provider-conversation:server-ready-seed',
+    channel: 'whatsapp',
+  });
+
+  let readinessCalls = 0;
+  const inboxContextProvider: CanonicalContextProvider = {
+    async resolve({ requestedOrganizationId }) {
+      return {
+        status: 'resolved',
+        context: {
+          actorUid: 'owner-1',
+          systemRole: null,
+          globalAccess: false,
+          organizationId: requestedOrganizationId || 'org-1',
+          organizationRole: 'owner',
+          permissions: [],
+          capabilities: [],
+          appAccess: { musicscale: false },
+        },
+      };
+    },
+  };
+
+  const app = createConnectServer({
+    env: {
+      CONNECT_INBOX_DURABLE_ENABLED: 'true',
+    },
+    inboxContextProvider,
+    inboxStore: store,
+    inboxStorageReadinessProbe: async () => {
+      readinessCalls++;
+      return {
+        state: 'read_write_confirmed',
+        permissions: {
+          read: true,
+          list: true,
+          create: true,
+          update: true,
+        },
+        source: 'runtime_metadata',
+      };
+    },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
+    });
+    const address = server.address() as AddressInfo;
+    const origin = `http://127.0.0.1:${address.port}`;
+
+    const read = await fetch(
+      `${origin}/api/core/inbox/threads/thread-ready?organizationId=org-1`,
+      {
+        headers: { Authorization: 'Bearer user-token' },
+      },
+    );
+    const readPayload = await read.json() as any;
+    checkEqual(read.status, 200, 'ready durable Inbox read route is mounted');
+    checkEqual(
+      readPayload.thread.conversationId,
+      'thread-ready',
+      'mounted Inbox read stays tenant/thread scoped',
+    );
+
+    const resolve = await fetch(
+      `${origin}/api/core/inbox/threads/thread-ready/actions`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer user-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organizationId: 'org-1',
+          action: 'resolve',
+          requestId: 'server-resolve-1',
+          evidenceRef: 'connect-request:server-resolve-1',
+        }),
+      },
+    );
+    const resolvePayload = await resolve.json() as any;
+    checkEqual(resolve.status, 200, 'ready durable Inbox command route is mounted');
+    checkEqual(
+      resolvePayload.thread.status,
+      'resolved',
+      'mounted command persists canonical thread transition',
+    );
+    checkEqual(
+      readinessCalls,
+      1,
+      'readiness proof is cached across adjacent Inbox requests',
     );
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
