@@ -370,7 +370,7 @@ equal(
 equal(
   fake.calls.every(
     (call) =>
-      call.authorization === 'connect-runtime-service-token' ||
+      call.authorization === 'Bearer connect-runtime-service-token' ||
       call.authorization === '',
   ),
   true,
