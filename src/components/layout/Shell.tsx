@@ -213,6 +213,10 @@ export const Shell: React.FC<ShellProps> = ({
           onNavigate={onNavigate}
           currentLang={currentLang}
           onChangeLang={onChangeLang}
+          isLive={isLive}
+          experienceView={experienceView}
+          canPreviewExperience={canPreviewExperience}
+          onExperienceViewChange={onExperienceViewChange}
         />
 
         <div className="flex-1 min-h-0 flex">
@@ -222,25 +226,67 @@ export const Shell: React.FC<ShellProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto py-4">
-              <nav className="space-y-1 px-3">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeRoute === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => onNavigate(item.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                        isActive
-                          ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                          : 'text-gray-300 hover:bg-white/5'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{item.label}</span>
-                    </button>
+              <nav className="px-3">
+                {isLive ? liveSections.map((section) => {
+                  const items = liveNavItems.filter(
+                    (item) => item.section === section && visibleLiveRouteIds.has(item.id),
                   );
-                })}
+                  if (!items.length) return null;
+                  return (
+                    <div key={section} className="mb-4">
+                      <div className="px-3 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-600">
+                        {sectionLabels[section][currentLang]}
+                      </div>
+                      <div className="space-y-1">
+                        {items.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = activeRoute === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => onNavigate(item.id)}
+                              className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                                isActive
+                                  ? 'bg-indigo-500/14 text-indigo-200 ring-1 ring-indigo-400/20'
+                                  : 'text-slate-400 hover:bg-white/[0.045] hover:text-slate-100'
+                              }`}
+                            >
+                              <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-indigo-300' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                              {item.status !== 'ready' && (
+                                <span
+                                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.status === 'controlled' ? 'bg-amber-300/60' : 'bg-slate-600'}`}
+                                  title={item.status === 'controlled' ? 'Ativação controlada' : 'Próxima fase'}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="space-y-1">
+                    {navItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeRoute === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => onNavigate(item.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            isActive
+                              ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                              : 'text-gray-300 hover:bg-white/5'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </nav>
             </div>
 
@@ -333,14 +379,19 @@ export const Shell: React.FC<ShellProps> = ({
 
               <div className="flex items-center flex-1 max-w-md">
                 {isLive ? (
-                  <div
-                    className="w-full bg-[#1A2234] border border-white/10 text-gray-500 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 cursor-not-allowed"
-                    aria-disabled="true"
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('assist')}
+                    className="w-full bg-[#1A2234] hover:bg-[#222C42] border border-white/10 text-slate-400 px-3 py-1.5 rounded-lg text-xs flex items-center justify-between transition group"
+                    aria-label={liveSearchLabels[currentLang]}
                     title={liveSearchLabels[currentLang]}
                   >
-                    <Search className="w-3.5 h-3.5 text-gray-500" />
-                    <span>{liveSearchLabels[currentLang]}</span>
-                  </div>
+                    <span className="flex items-center gap-2 group-hover:text-slate-200">
+                      <Search className="w-3.5 h-3.5 text-slate-500" />
+                      <span>{liveSearchLabels[currentLang]}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-600">Assist</span>
+                  </button>
                 ) : (
                   <button
                     onClick={() => setIsCommandPaletteOpen(true)}
@@ -384,6 +435,24 @@ export const Shell: React.FC<ShellProps> = ({
                 >
                   <Bell className="w-4 h-4" />
                 </button>
+                {isLive && canPreviewExperience && onExperienceViewChange && (
+                  <label className="hidden xl:flex items-center gap-2 rounded-lg border border-white/10 bg-[#1A2234] px-2.5 py-1.5">
+                    <Eye className="h-3.5 w-3.5 text-indigo-300" />
+                    <span className="text-[10px] font-medium text-slate-500">{previewLabels[currentLang].label}</span>
+                    <select
+                      value={experienceView}
+                      onChange={(event) => onExperienceViewChange(event.target.value as ExperienceView)}
+                      className="max-w-[150px] bg-transparent text-[11px] font-semibold text-slate-200 outline-none"
+                      aria-label={previewLabels[currentLang].label}
+                    >
+                      {EXPERIENCE_PREVIEW_OPTIONS.map((view) => (
+                        <option key={view} value={view} className="bg-[#121824] text-slate-200">
+                          {profileLabels[view][currentLang]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <div className="flex items-center gap-2.5 pl-2 border-l border-white/10">
                   {context.user.avatarUrl ? (
                     <img
@@ -400,20 +469,55 @@ export const Shell: React.FC<ShellProps> = ({
                     <span className="text-xs font-semibold text-gray-200 leading-tight">
                       {context.user.name}
                     </span>
-                    <span className="text-[10px] text-indigo-400 font-mono">
-                      {context.user.systemRole || t.drawer.noSystemRole}
+                    <span className="text-[10px] text-indigo-400">
+                      {isLive ? profileLabels[experienceProfile][currentLang] : (context.user.systemRole || t.drawer.noSystemRole)}
                     </span>
                   </div>
                 </div>
               </div>
             </header>
 
-            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6">
+            {isLive && canPreviewExperience && experienceView !== 'real' && (
+              <div className="flex items-center justify-between gap-3 border-b border-indigo-400/10 bg-indigo-400/[0.045] px-4 py-2 text-[10px] text-indigo-100 lg:px-6">
+                <span className="flex min-w-0 items-center gap-2">
+                  <Eye className="h-3.5 w-3.5 shrink-0" />
+                  <strong className="truncate">{profileLabels[experienceView][currentLang]}</strong>
+                  <span className="hidden text-indigo-200/55 sm:inline">· {previewLabels[currentLang].safe}</span>
+                </span>
+                <button type="button" onClick={() => onExperienceViewChange?.('real')} className="shrink-0 rounded-lg px-2 py-1 text-indigo-200/80 hover:bg-white/5 hover:text-white">
+                  {profileLabels.real[currentLang]}
+                </button>
+              </div>
+            )}
+            <main className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden flex flex-col p-4 md:p-6 ${isLive ? 'pb-24 lg:pb-6' : ''}`}>
               {children}
             </main>
           </section>
         </div>
       </div>
+
+      {isLive && bottomNavItems.length > 0 && (
+        <nav className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md items-center gap-1 rounded-[20px] border border-white/10 bg-[#0d121d]/92 p-1.5 shadow-[0_20px_60px_rgba(0,0,0,.45)] backdrop-blur-2xl lg:hidden" aria-label="Navegação rápida">
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeRoute === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onNavigate(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[9px] font-medium transition ${
+                  isActive ? 'bg-white/[0.08] text-white' : 'text-slate-500'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-300' : ''}`} />
+                <span className="max-w-full truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {!isLive && (
         <CommandPalette
