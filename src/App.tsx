@@ -32,6 +32,7 @@ import {
 } from './features/commercial/CommercialWorkspacePages';
 import { LiveChannelsPage } from './features/channels/LiveChannelsPage';
 import { LiveAutomationsPage } from './features/automations/LiveAutomationsPage';
+import { LiveInboxPage } from './features/inbox/LiveInboxPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -157,7 +158,6 @@ type StagedLiveItem = { title: string; description: string; actionLabel?: string
 
 const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'pt-BR': {
-    inbox: { title: 'Inbox real', description: 'A base durável, autorização e persistência já existem. A interface permanece em ativação controlada até o gate de IAM ser liberado com segurança.' },
     agents: { title: 'Agentes', description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.' },
     knowledge: { title: 'Conhecimento', description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.' },
     audit: { title: 'Auditoria', description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.' },
@@ -166,7 +166,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
     fallback: { title: 'Integração em liberação controlada', description: 'Esta área ainda não está conectada a uma superfície de produção. O Connect mostra esse estado de forma explícita para não confundir fundação técnica com recurso disponível.' },
   },
   'en-US': {
-    inbox: { title: 'Real Inbox', description: 'Durable storage, authorization and persistence are already in place. The UI stays under controlled activation until the IAM gate is safely released.' },
     agents: { title: 'Agents', description: 'Autonomy will be progressive, with context, policies and risk-based confirmation. No agent is shown as active before the real connection exists.' },
     knowledge: { title: 'Knowledge', description: 'Contextual knowledge activates alongside real support and Assist flows instead of becoming a technical panel too early.' },
     audit: { title: 'Audit', description: 'Secure events are already recorded by Core. The consolidated administrative surface will ship without exposing unnecessary PII.' },
@@ -175,7 +174,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
     fallback: { title: 'Controlled integration rollout', description: 'This area is not connected to a production surface yet. Connect exposes that state explicitly so technical foundations are never confused with available features.' },
   },
   'es-ES': {
-    inbox: { title: 'Inbox real', description: 'La base duradera, la autorización y la persistencia ya existen. La interfaz permanece en activación controlada hasta que el gate de IAM sea liberado con seguridad.' },
     agents: { title: 'Agentes', description: 'La autonomía será progresiva, con contexto, políticas y confirmación según riesgo. Ningún agente aparecerá activo antes de la conexión real.' },
     knowledge: { title: 'Conocimiento', description: 'La capa contextual se activará junto a los flujos reales de soporte y Assist, sin crear un panel técnico antes de tiempo.' },
     audit: { title: 'Auditoría', description: 'Core ya registra eventos seguros. La superficie administrativa consolidada se liberará sin exponer PII innecesaria.' },
@@ -455,6 +453,9 @@ export default function App() {
     }
     if (activeRoute === 'assist') {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'inbox') {
+      return <LiveInboxPage session={liveSession} currentLang={currentLang} />;
     }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;

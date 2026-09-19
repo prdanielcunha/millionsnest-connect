@@ -22,6 +22,7 @@ import {
   createConnectInboxThreadCommandHttpHandler,
   createConnectInboxThreadReadHttpHandler,
 } from '../core/runtime/connectInboxThreadHttpHandler';
+import { createConnectInboxReadinessHttpHandler } from '../core/runtime/connectInboxReadinessHttpHandler';
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
 import type { ConnectThreadStore } from '../core/inbox/threadStore';
@@ -83,6 +84,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let personalIntelligenceRouter: ReturnType<typeof createPersonalIntelligenceRouter> | null = null;
   let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
+  let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
@@ -101,6 +103,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       if (!inboxContextProvider) {
         inboxContextProvider = personalContextProvider;
       }
+      inboxReadinessHandler = createConnectInboxReadinessHttpHandler({
+        contextProvider: personalContextProvider,
+        env,
+        storageReadinessProbe: options.inboxStorageReadinessProbe,
+      });
       outboundValidationHandler = createOutboundDeliveryHttpHandler({
         contextProvider: personalContextProvider,
         env,
@@ -246,6 +253,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       storageReadiness: readiness.state,
       source: readiness.source,
     });
+  });
+
+  app.get('/api/core/inbox/readiness', async (req, res) => {
+    if (!inboxReadinessHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({
+        success: false,
+        code: 'CORE_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxReadinessHandler(req, res);
   });
 
   app.get('/api/core/inbox/threads/:conversationId', async (req, res) => {
