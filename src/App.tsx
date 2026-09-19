@@ -23,6 +23,11 @@ import {
 import { buildHubConnectLaunchUrl, shouldRedirectToHubConnectLaunch } from './core/client/connectLaunchBridge';
 import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
 import { DeveloperPreviewPage } from './features/developer/DeveloperPreviewPage';
+import {
+  CommercialComposerPage,
+  CommercialOpportunitiesPage,
+  CommercialPlaybooksPage,
+} from './features/commercial/CommercialWorkspacePages';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -358,6 +363,15 @@ export default function App() {
     }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'opportunities' && showRadar) {
+      return <CommercialOpportunitiesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'playbooks' && showRadar) {
+      return <CommercialPlaybooksPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'composer' && showRadar) {
+      return <CommercialComposerPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
