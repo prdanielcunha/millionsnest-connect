@@ -45,7 +45,7 @@ const professionalCopy=buildComposerPlan({person:{displayName:'João'},signal,ob
 const consultativeCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'consultivo'}).options[0].text;
 assert(friendlyCopy!==professionalCopy && professionalCopy!==consultativeCopy && friendlyCopy!==consultativeCopy,'friendly, professional and consultative copy are not aliases');
 assert(professionalCopy.startsWith('Olá, João. Tudo bem?'),'professional style uses a polished neutral greeting');
-assert(/entender|gargalo|avaliar|Como vocês organizam/i.test(consultativeCopy),'consultative style uses diagnostic wording');
+assert(/entender|gargalo|avaliar|Como vocês organizam|não presumir|pessoa certa/i.test(consultativeCopy),'consultative style uses diagnostic wording');
 assert(friendlyCopy.startsWith('E aí, João!'),'friendly style opens naturally with E aí');
 const pastoralCopy=buildComposerPlan({person:{displayName:'João'},signal,objective:'descobrir_dor',style:'pastoral'}).options[0].text;
 assert(pastoralCopy.startsWith('Paz, João!'),'pastoral style opens naturally with Paz');
