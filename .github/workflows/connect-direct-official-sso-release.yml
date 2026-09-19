@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Commercial workspaces certified release trigger — 2026-09-19
+# Native entry + official channels certified release trigger — 2026-09-19
 
 on:
   push:
