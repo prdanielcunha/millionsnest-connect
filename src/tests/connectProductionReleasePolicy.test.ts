@@ -106,6 +106,11 @@ assert.match(
 );
 assert.match(
   release,
+  /CONNECT_INBOX_DURABLE_ENABLED=false/,
+  'Production release must keep durable Inbox dark until IAM and activation gates are complete',
+);
+assert.match(
+  release,
   /x\.releaseSha!==process\.env\.GITHUB_SHA/,
   'Local and production health smokes must verify the serving revision',
 );
