@@ -100,8 +100,8 @@ function createFakeFirestore() {
   ): Promise<Response> => {
     const url = String(input);
     const method = (init.method || 'GET').toUpperCase();
-    const headers = init.headers as Record<string, string> | undefined;
-    const authorization = headers?.Authorization || '';
+    const headers = new Headers(init.headers);
+    const authorization = headers.get('authorization') || '';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method, url, authorization, body });
 
