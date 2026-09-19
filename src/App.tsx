@@ -33,6 +33,7 @@ import {
 import { LiveChannelsPage } from './features/channels/LiveChannelsPage';
 import { LiveAutomationsPage } from './features/automations/LiveAutomationsPage';
 import { LiveInboxPage } from './features/inbox/LiveInboxPage';
+import { LiveOperationsPage } from './features/audit/LiveOperationsPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
@@ -160,7 +161,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'pt-BR': {
     agents: { title: 'Agentes', description: 'A autonomia será progressiva, com contexto, políticas e confirmação por risco. Nenhum agente será exibido como ativo antes da conexão real.' },
     knowledge: { title: 'Conhecimento', description: 'A camada contextual será ativada junto aos fluxos reais de suporte e Assist, sem criar um painel técnico antes da hora.' },
-    audit: { title: 'Auditoria', description: 'Os eventos seguros já são registrados no Core. A superfície administrativa consolidada será liberada sem expor PII desnecessária.' },
     settings: { title: 'Configurações', description: 'Configurações avançadas aparecem conforme capability e somente quando houver uma ação real e segura para administrar.' },
     preferences: { title: 'Preferências', description: 'Idioma, experiência e preferências pessoais serão centralizados aqui sem alterar permissões reais do Hub.' },
     fallback: { title: 'Integração em liberação controlada', description: 'Esta área ainda não está conectada a uma superfície de produção. O Connect mostra esse estado de forma explícita para não confundir fundação técnica com recurso disponível.' },
@@ -168,7 +168,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'en-US': {
     agents: { title: 'Agents', description: 'Autonomy will be progressive, with context, policies and risk-based confirmation. No agent is shown as active before the real connection exists.' },
     knowledge: { title: 'Knowledge', description: 'Contextual knowledge activates alongside real support and Assist flows instead of becoming a technical panel too early.' },
-    audit: { title: 'Audit', description: 'Secure events are already recorded by Core. The consolidated administrative surface will ship without exposing unnecessary PII.' },
     settings: { title: 'Settings', description: 'Advanced settings appear by capability only when there is a real, safe action to administer.' },
     preferences: { title: 'Preferences', description: 'Language, experience and personal preferences will live here without changing real Hub permissions.' },
     fallback: { title: 'Controlled integration rollout', description: 'This area is not connected to a production surface yet. Connect exposes that state explicitly so technical foundations are never confused with available features.' },
@@ -176,7 +175,6 @@ const stagedLiveCopy: Record<LanguageCode, Record<string, StagedLiveItem>> = {
   'es-ES': {
     agents: { title: 'Agentes', description: 'La autonomía será progresiva, con contexto, políticas y confirmación según riesgo. Ningún agente aparecerá activo antes de la conexión real.' },
     knowledge: { title: 'Conocimiento', description: 'La capa contextual se activará junto a los flujos reales de soporte y Assist, sin crear un panel técnico antes de tiempo.' },
-    audit: { title: 'Auditoría', description: 'Core ya registra eventos seguros. La superficie administrativa consolidada se liberará sin exponer PII innecesaria.' },
     settings: { title: 'Configuración', description: 'La configuración avanzada aparece por capability y solo cuando exista una acción real y segura para administrar.' },
     preferences: { title: 'Preferencias', description: 'Idioma, experiencia y preferencias personales se centralizarán aquí sin cambiar los permisos reales del Hub.' },
     fallback: { title: 'Integración en liberación controlada', description: 'Esta área todavía no está conectada a una superficie de producción. Connect muestra ese estado de forma explícita para no confundir base técnica con función disponible.' },
@@ -471,6 +469,9 @@ export default function App() {
     }
     if (activeRoute === 'channels') {
       return <LiveChannelsPage session={liveSession} currentLang={currentLang} />;
+    }
+    if (activeRoute === 'audit') {
+      return <LiveOperationsPage session={liveSession} currentLang={currentLang} />;
     }
     if (activeRoute === 'automations') {
       return <LiveAutomationsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
