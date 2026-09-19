@@ -70,8 +70,8 @@ function unknown(
  * server and asks Cloud Resource Manager projects.testIamPermissions for the
  * three datastore permissions the durable Connect-owned Inbox store requires.
  * Project IAM is the authority for these Firestore data permissions. The probe
- * never writes a document,
- * mutates IAM, logs the token, or returns the token to callers.
+ * never writes a document, mutates IAM, logs the token, or returns the token
+ * to callers.
  */
 export async function probeConnectRuntimeFirestoreReadiness(
   options: ProbeConnectRuntimeFirestoreOptions = {},
@@ -133,10 +133,16 @@ export async function probeConnectRuntimeFirestoreReadiness(
     const payload = await response.json() as {
       permissions?: unknown;
     };
-    if (!Array.isArray(payload.permissions)) return unknown('invalid_response');
+    if (payload.permissions !== undefined && !Array.isArray(payload.permissions)) {
+      return unknown('invalid_response');
+    }
 
+    // Google APIs commonly omit empty repeated fields from JSON responses.
+    // A successful {} response therefore means none of the requested
+    // permissions were granted, not that the response is malformed.
+    const permissions = Array.isArray(payload.permissions) ? payload.permissions : [];
     const granted = new Set(
-      payload.permissions.filter((value): value is string => typeof value === 'string'),
+      permissions.filter((value): value is string => typeof value === 'string'),
     );
     const read = granted.has(PERMISSION_READ);
     const create = granted.has(PERMISSION_CREATE);
