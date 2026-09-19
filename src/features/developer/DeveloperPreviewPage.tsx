@@ -48,6 +48,9 @@ const copy = {
     device: 'Dispositivo',
     account: 'Estado da conta',
     data: 'Dados',
+    capabilities: 'Capabilities aparentes',
+    capabilitiesReal: 'Usar capabilities reais',
+    capabilitiesHint: 'Essas opções simulam apenas a experiência. Nunca ampliam sua autorização real.',
     reset: 'Restaurar visão real',
     open: 'Abrir Home com esta lente',
     guard: 'Somente visualização',
@@ -69,6 +72,9 @@ const copy = {
     device: 'Device',
     account: 'Account state',
     data: 'Data',
+    capabilities: 'Visible capabilities',
+    capabilitiesReal: 'Use real capabilities',
+    capabilitiesHint: 'These options simulate presentation only. They never expand your real authorization.',
     reset: 'Restore real view',
     open: 'Open Home with this lens',
     guard: 'Preview only',
@@ -90,6 +96,9 @@ const copy = {
     device: 'Dispositivo',
     account: 'Estado de la cuenta',
     data: 'Datos',
+    capabilities: 'Capabilities visibles',
+    capabilitiesReal: 'Usar capabilities reales',
+    capabilitiesHint: 'Estas opciones solo simulan la experiencia. Nunca amplían tu autorización real.',
     reset: 'Restaurar vista real',
     open: 'Abrir Inicio con esta lente',
     guard: 'Solo visualización',
@@ -168,7 +177,8 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
     config.plan !== 'real' ||
     config.device !== 'auto' ||
     config.accountState !== 'active' ||
-    config.dataMode !== 'real_permitted';
+    config.dataMode !== 'real_permitted' ||
+    config.capabilities !== null;
 
   const reset = () => {
     onChange({
@@ -179,6 +189,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
       device: 'auto',
       accountState: 'active',
       dataMode: 'real_permitted',
+      capabilities: null,
     });
     onChangeLang('pt-BR');
   };
@@ -269,6 +280,40 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
             <option value="simulated">{currentLang === 'pt-BR' ? 'Cenário simulado' : currentLang === 'es-ES' ? 'Escenario simulado' : 'Simulated scenario'}</option>
           </select>
         </Field>
+      </section>
+
+      <section className="rounded-[24px] border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.capabilities}</div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.capabilitiesHint}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => update('capabilities', null)}
+            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${config.capabilities === null ? 'border-indigo-400/25 bg-indigo-400/[0.08] text-indigo-100' : 'border-white/10 text-slate-400 hover:text-white'}`}
+          >
+            {t.capabilitiesReal}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {['scales.read', 'inbox.read', 'people.read', 'radar.read', 'automations.read'].map((capability) => {
+            const selected = config.capabilities?.includes(capability) || false;
+            return (
+              <button
+                key={capability}
+                type="button"
+                onClick={() => {
+                  const current = config.capabilities || [];
+                  update('capabilities', selected ? current.filter((item) => item !== capability) : [...current, capability]);
+                }}
+                className={`rounded-xl border px-3 py-2.5 text-left font-mono text-[11px] transition ${selected ? 'border-indigo-400/25 bg-indigo-400/[0.08] text-indigo-100' : 'border-white/[0.08] bg-black/10 text-slate-500 hover:text-slate-300'}`}
+              >
+                {capability}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <section className="flex flex-col gap-3 rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
