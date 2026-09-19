@@ -231,7 +231,8 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleActions.map((action) => {
           const Icon = action.icon;
-          const ready = action.status === 'ready';
+          const effectiveStatus: ModuleStatus = action.id === 'people' && !showRadar ? 'controlled' : action.status;
+          const ready = effectiveStatus === 'ready';
           return (
             <button
               key={action.id}
@@ -246,11 +247,11 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
                 <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.11em] ${
                   ready
                     ? 'border-emerald-400/15 bg-emerald-400/[0.06] text-emerald-200'
-                    : action.status === 'controlled'
+                    : effectiveStatus === 'controlled'
                       ? 'border-amber-300/15 bg-amber-300/[0.06] text-amber-100'
                       : 'border-white/[0.08] bg-white/[0.03] text-slate-500'
                 }`}>
-                  {statusLabel(action.status)}
+                  {statusLabel(effectiveStatus)}
                 </span>
               </div>
               <h2 className="mt-5 text-base font-semibold text-white">{action.title[currentLang]}</h2>
