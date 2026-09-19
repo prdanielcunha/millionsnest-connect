@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# NestLocal outbound validation release trigger — 2026-09-18
+# Inbox runtime storage self-probe release trigger — 2026-09-18
 
 on:
   push:
