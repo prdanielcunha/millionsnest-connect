@@ -24,6 +24,7 @@ export type LiveConnectSession = {
   idToken: string;
   expectedOrganizationId: string;
   entrySource: 'handoff' | 'direct';
+  organizationSelectionRequired: boolean;
   context: EffectiveEcosystemContext;
   selectOrganization(organizationId: string): Promise<LiveConnectSession>;
   sendMessage(text: string, conversationId: string, locale: LanguageCode): Promise<LiveCoreResponse>;
@@ -256,22 +257,32 @@ function createLiveSession(params: {
   expectedUid: string;
   context: EffectiveEcosystemContext;
   entrySource: 'handoff' | 'direct';
+  organizationSelectionRequired?: boolean;
   fetchFn: typeof fetch;
 }): LiveConnectSession {
   const { idToken, expectedUid, context, entrySource, fetchFn } = params;
+  const organizationSelectionRequired = params.organizationSelectionRequired === true;
   const organizationId = context.activeOrganization.id;
 
   return {
     idToken,
     expectedOrganizationId: organizationId,
     entrySource,
+    organizationSelectionRequired,
     context,
     async selectOrganization(nextOrganizationId) {
       const allowed = context.availableOrganizations.some((organization) => organization.id === nextOrganizationId);
       if (!allowed) throw new Error('ORGANIZATION_ACCESS_DENIED');
       const nextContext = await requestCanonicalSession(idToken, expectedUid, fetchFn, nextOrganizationId);
       try { localStorage.setItem('mn_connect_last_org_id', nextOrganizationId); } catch {}
-      return createLiveSession({ idToken, expectedUid, context: nextContext, entrySource, fetchFn });
+      return createLiveSession({
+        idToken,
+        expectedUid,
+        context: nextContext,
+        entrySource,
+        organizationSelectionRequired: false,
+        fetchFn,
+      });
     },
     async sendMessage(text, conversationId, locale) {
       const response = await fetchFn('/api/core/message', {
@@ -343,11 +354,13 @@ export async function bootstrapLiveConnectSession(
   let context = await requestCanonicalSession(identity.idToken, identity.uid, deps.fetchFn);
   let remembered = '';
   try { remembered = safeString(localStorage.getItem('mn_connect_last_org_id')); } catch {}
-  if (
+
+  const rememberedIsEligible = Boolean(
     remembered &&
-    remembered !== context.activeOrganization.id &&
-    context.availableOrganizations.some((organization) => organization.id === remembered)
-  ) {
+    context.availableOrganizations.some((organization) => organization.id === remembered),
+  );
+
+  if (rememberedIsEligible && remembered !== context.activeOrganization.id) {
     context = await requestCanonicalSession(identity.idToken, identity.uid, deps.fetchFn, remembered);
   }
 
@@ -356,6 +369,7 @@ export async function bootstrapLiveConnectSession(
     expectedUid: identity.uid,
     context,
     entrySource: 'direct',
+    organizationSelectionRequired: context.availableOrganizations.length > 1 && !rememberedIsEligible,
     fetchFn: deps.fetchFn,
   });
 }
