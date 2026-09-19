@@ -167,7 +167,7 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'channels', icon: Radio, section: 'operations' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'agents', icon: BrainCircuit, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
     { id: 'knowledge', icon: BookOpen, section: 'operations' as LiveNavSection, status: 'next' as LiveNavStatus },
-    { id: 'audit', icon: ShieldCheck, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
+    { id: 'audit', icon: ShieldCheck, section: 'governance' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'settings', icon: Settings, section: 'governance' as LiveNavSection, status: 'controlled' as LiveNavStatus },
     { id: 'developer', icon: Code2, section: 'governance' as LiveNavSection, status: 'ready' as LiveNavStatus },
     { id: 'sources', icon: Database, section: 'personal' as LiveNavSection, status: 'ready' as LiveNavStatus },
