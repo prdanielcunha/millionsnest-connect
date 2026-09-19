@@ -51,16 +51,21 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
   equal(result.permissions.read, true, 'read permission is visible');
   equal(result.permissions.create, true, 'create permission is visible');
   equal(result.permissions.update, true, 'update permission is visible');
-  equal(calls.length, 2, 'probe performs exactly metadata + Firestore requests');
+  equal(calls.length, 2, 'probe performs exactly metadata + project IAM requests');
   equal(
     (calls[0].init?.headers as Record<string, string>)['Metadata-Flavor'],
     'Google',
     'metadata request requires Google metadata flavor header',
   );
   equal(
+    calls[1].url,
+    'https://cloudresourcemanager.googleapis.com/v1/projects/millionsnest:testIamPermissions',
+    'effective datastore permissions are tested against the project IAM policy',
+  );
+  equal(
     String((calls[1].init?.headers as Record<string, string>).Authorization),
     `Bearer ${secret}`,
-    'runtime token is used only for the Firestore permission probe',
+    'runtime token is used only for the project IAM permission probe',
   );
   equal(
     JSON.stringify(result).includes(secret),
@@ -111,11 +116,11 @@ console.log('--- Running Connect Runtime Firestore Readiness Tests ---');
       : response(403, {}),
   });
 
-  equal(result.state, 'unknown', 'Firestore probe failure stays unknown');
+  equal(result.state, 'unknown', 'project IAM probe failure stays unknown');
   equal(
     result.source,
-    'firestore_probe_unavailable',
-    'Firestore probe failure has a safe source code',
+    'project_iam_probe_unavailable',
+    'project IAM probe failure has a safe source code',
   );
 }
 
