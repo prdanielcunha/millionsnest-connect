@@ -3,16 +3,27 @@ import { X } from 'lucide-react';
 import { EffectiveEcosystemContext, LanguageCode } from '../../types';
 import { getUxText } from '../../i18n/mobileUx';
 import { BrandLogo } from '../common/BrandLogo';
+import { EXPERIENCE_PREVIEW_OPTIONS, ExperienceView } from '../../core/client/liveSurfacePolicy';
 
 interface MobileNavigationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   context: EffectiveEcosystemContext;
-  navItems: Array<{ id: string; label: string; icon: React.ElementType }>;
+  navItems: Array<{
+    id: string;
+    label: string;
+    icon: React.ElementType;
+    section?: string;
+    status?: 'ready' | 'controlled' | 'next';
+  }>;
   activeRoute: string;
   onNavigate: (route: string) => void;
   currentLang: LanguageCode;
   onChangeLang: (lang: LanguageCode) => void;
+  isLive?: boolean;
+  experienceView?: ExperienceView;
+  canPreviewExperience?: boolean;
+  onExperienceViewChange?: (view: ExperienceView) => void;
 }
 
 export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
@@ -24,11 +35,32 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
   onNavigate,
   currentLang,
   onChangeLang,
+  isLive = false,
+  experienceView = 'real',
+  canPreviewExperience = false,
+  onExperienceViewChange,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const t = getUxText(currentLang);
+  const sectionNames: Record<string, Record<LanguageCode, string>> = {
+    work: { 'pt-BR': 'Trabalho', 'en-US': 'Work', 'es-ES': 'Trabajo' },
+    relationship: { 'pt-BR': 'Relacionamento', 'en-US': 'Relationships', 'es-ES': 'Relaciones' },
+    operations: { 'pt-BR': 'Operação', 'en-US': 'Operations', 'es-ES': 'Operación' },
+    governance: { 'pt-BR': 'Governança', 'en-US': 'Governance', 'es-ES': 'Gobernanza' },
+    personal: { 'pt-BR': 'Meu espaço', 'en-US': 'My space', 'es-ES': 'Mi espacio' },
+  };
+  const previewNames: Record<ExperienceView, Record<LanguageCode, string>> = {
+    real: { 'pt-BR': 'Minha visão real', 'en-US': 'My real view', 'es-ES': 'Mi vista real' },
+    ceo: { 'pt-BR': 'CEO', 'en-US': 'CEO', 'es-ES': 'CEO' },
+    musician: { 'pt-BR': 'Músico', 'en-US': 'Musician', 'es-ES': 'Músico' },
+    worship_leader: { 'pt-BR': 'Líder de louvor', 'en-US': 'Worship leader', 'es-ES': 'Líder de alabanza' },
+    pastor_leader: { 'pt-BR': 'Pastor ou líder', 'en-US': 'Pastor or leader', 'es-ES': 'Pastor o líder' },
+    support: { 'pt-BR': 'Atendimento', 'en-US': 'Support', 'es-ES': 'Atención' },
+    commercial: { 'pt-BR': 'Comercial', 'en-US': 'Commercial', 'es-ES': 'Comercial' },
+    organization_admin: { 'pt-BR': 'Administrador', 'en-US': 'Administrator', 'es-ES': 'Administrador' },
+  };
 
   // Focus trap and escape key
   useEffect(() => {
@@ -145,33 +177,76 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
                   {t.drawer.demoMode}
                 </div>
               )}
+              {isLive && canPreviewExperience && onExperienceViewChange && (
+                <label className="block">
+                  <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    {currentLang === 'pt-BR' ? 'Visualizar experiência como' : currentLang === 'es-ES' ? 'Visualizar experiencia como' : 'Preview experience as'}
+                  </span>
+                  <select
+                    value={experienceView}
+                    onChange={(event) => onExperienceViewChange(event.target.value as ExperienceView)}
+                    className="min-h-11 w-full rounded-xl border border-white/10 bg-[#151c2a] px-3 text-xs font-medium text-slate-200 outline-none focus:border-indigo-400/40"
+                  >
+                    {EXPERIENCE_PREVIEW_OPTIONS.map((view) => (
+                      <option key={view} value={view}>{previewNames[view][currentLang]}</option>
+                    ))}
+                  </select>
+                  <span className="mt-2 block text-[10px] leading-4 text-slate-600">
+                    {currentLang === 'pt-BR'
+                      ? 'Somente visualização. Seu cargo e suas permissões reais não mudam.'
+                      : currentLang === 'es-ES'
+                        ? 'Solo visualización. Tu rol y permisos reales no cambian.'
+                        : 'Preview only. Your real role and permissions do not change.'}
+                  </span>
+                </label>
+              )}
             </div>
 
             {/* Navigation Links */}
-            <div className="p-2 space-y-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeRoute === item.id;
-                // Get localized label
-                const label = t.navigation[item.id as keyof typeof t.navigation] || item.label;
+            <div className="p-2">
+              {(isLive
+                ? Array.from(new Set(navItems.map((item) => item.section).filter(Boolean)))
+                : [undefined]
+              ).map((section) => {
+                const items = isLive ? navItems.filter((item) => item.section === section) : navItems;
+                if (!items.length) return null;
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      onNavigate(item.id);
-                      onClose();
-                    }}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`w-full flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                      isActive
-                        ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
-                        : 'text-gray-300 hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 text-indigo-400 shrink-0" />
-                    <span className="truncate">{label}</span>
-                  </button>
+                  <div key={section || 'demo'} className="mb-3">
+                    {isLive && section && (
+                      <div className="px-3 pb-1.5 pt-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+                        {sectionNames[section]?.[currentLang] || section}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeRoute === item.id;
+                        const label = isLive ? item.label : (t.navigation[item.id as keyof typeof t.navigation] || item.label);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              onNavigate(item.id);
+                              onClose();
+                            }}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={`w-full flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-xl text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                              isActive
+                                ? 'bg-indigo-500/14 text-indigo-200 ring-1 ring-indigo-400/20'
+                                : 'text-slate-300 hover:bg-white/5'
+                            }`}
+                          >
+                            <Icon className="w-5 h-5 text-indigo-300/80 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+                            {isLive && item.status !== 'ready' && (
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-600" aria-hidden="true" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -197,7 +272,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               ))}
             </div>
             <div className="text-[10px] text-center text-gray-500">
-              MillionsNest Connect • {t.drawer.demoVersion}
+              {isLive ? 'MillionsNest Connect' : `MillionsNest Connect • ${t.drawer.demoVersion}`}
             </div>
           </div>
         </div>
