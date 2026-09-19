@@ -11,14 +11,15 @@ interface MobileAppHeaderProps {
   setIsCommandPaletteOpen: (isOpen: boolean) => void;
   currentLang: LanguageCode;
   onSelectOrg: (orgId: string) => void;
+  onNavigate?: (route: string) => void;
   isLive?: boolean;
   className?: string;
 }
 
 const liveSearchLabels: Record<LanguageCode, string> = {
-  'pt-BR': 'Busca global em breve',
-  'en-US': 'Global search coming soon',
-  'es-ES': 'Búsqueda global próximamente',
+  'pt-BR': 'Perguntar ao Connect',
+  'en-US': 'Ask Connect',
+  'es-ES': 'Preguntar a Connect',
 };
 
 export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
@@ -28,6 +29,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   setIsCommandPaletteOpen,
   currentLang,
   onSelectOrg,
+  onNavigate,
   isLive = false,
   className = '',
 }) => {
@@ -103,19 +105,17 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (isLive) return;
               setIsMobileOrgMenuOpen(false);
               if (isMobileMenuOpen) {
                 setIsMobileMenuOpen(false);
               }
+              if (isLive) {
+                onNavigate?.('assist');
+                return;
+              }
               setIsCommandPaletteOpen(true);
             }}
-            disabled={isLive}
-            className={`w-11 h-11 flex items-center justify-center focus:outline-none rounded-lg ${
-              isLive
-                ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500'
-            }`}
+            className="w-11 h-11 flex items-center justify-center focus:outline-none rounded-lg text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500"
             aria-label={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
             title={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
           >
