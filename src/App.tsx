@@ -344,7 +344,6 @@ export default function App() {
           session={liveSession}
           currentLang={currentLang}
           config={previewConfig}
-          realProfile={realExperienceProfile}
           showRadar={showRadar}
           onChange={setPreviewConfig}
           onChangeLang={setCurrentLang}
