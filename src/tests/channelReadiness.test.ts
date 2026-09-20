@@ -60,6 +60,14 @@ console.log('--- Running Connect Channel Readiness Tests ---');
     CONNECT_WHATSAPP_PHONE_NUMBER_ID: 'phone',
     CONNECT_WHATSAPP_WEBHOOK_ENABLED: 'true',
     CONNECT_INBOX_DURABLE_ENABLED: 'true',
+    CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
+    CONNECT_WHATSAPP_INGESTION_ENABLED: 'true',
+    CONNECT_WHATSAPP_CONNECTIONS_JSON: JSON.stringify([{
+      organizationId: 'org-1',
+      phoneNumberId: 'phone',
+      connectionRef: 'wa-main',
+      enabled: true,
+    }]),
   }, 'read_write_confirmed');
   const whatsapp = result.channels.find((item) => item.id === 'whatsapp')!;
   equal(whatsapp.receiveReady, true, 'WhatsApp receive readiness requires every gate');
