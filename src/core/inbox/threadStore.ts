@@ -16,6 +16,10 @@ export type ConnectThreadAppendResult = {
 
 export interface ConnectThreadStore {
   load(scope: ConnectThreadScope): Promise<ConnectThreadProjection | null>;
+  listByOrganization(input: {
+    organizationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectThreadProjection[]>;
   readEvents(scope: ConnectThreadScope): Promise<readonly ConnectThreadEvent[]>;
   append(
     event: ConnectThreadEvent,
@@ -59,6 +63,25 @@ export class InMemoryConnectThreadStore implements ConnectThreadStore {
   async load(scope: ConnectThreadScope): Promise<ConnectThreadProjection | null> {
     const events = this.streams.get(keyOf(scope)) ?? [];
     return projectConnectThread(events);
+  }
+
+  async listByOrganization(input: {
+    organizationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectThreadProjection[]> {
+    const organizationId = input.organizationId.trim();
+    assertScope({ organizationId, conversationId: 'list-scope' });
+    const limit = Math.max(1, Math.min(input.limit ?? 50, 100));
+    const projections: ConnectThreadProjection[] = [];
+
+    for (const events of this.streams.values()) {
+      const projection = projectConnectThread(events);
+      if (projection?.organizationId === organizationId) projections.push(projection);
+    }
+
+    return projections
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.conversationId.localeCompare(b.conversationId))
+      .slice(0, limit);
   }
 
   async readEvents(scope: ConnectThreadScope): Promise<readonly ConnectThreadEvent[]> {

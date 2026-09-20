@@ -266,6 +266,46 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
     return this.get({ organizationId, conversationId, messageId });
   }
 
+  async listConversation(input: {
+    organizationId: string;
+    conversationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectMessageContentRecord[]> {
+    const organizationId = safeSegment(input.organizationId, 180);
+    const conversationId = safeSegment(input.conversationId, 180);
+    const limit = Math.max(1, Math.min(input.limit ?? 100, 200));
+    const token = await this.tokenProvider.getAccessToken();
+    const collection = [
+      'connectSensitiveOrganizations',
+      organizationId,
+      'inboxMessageContent',
+      conversationId,
+      'messages',
+    ];
+    const url = new URL(`${this.documentsBase}/${encodedPath(collection)}`);
+    url.searchParams.set('pageSize', String(limit));
+
+    const response = await this.fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) throw new Error(`MESSAGE_CONTENT_LIST_${response.status}`);
+
+    const payload = await response.json() as { documents?: FirestoreDocument[] };
+    return (payload.documents ?? [])
+      .map(parseRecord)
+      .filter((record) =>
+        record.organizationId === organizationId &&
+        record.conversationId === conversationId)
+      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.messageId.localeCompare(b.messageId))
+      .slice(-limit);
+  }
+
   async updateDeliveryStatus(input: {
     organizationId: string;
     conversationId: string;

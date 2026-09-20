@@ -331,6 +331,46 @@ export class FirestoreConnectThreadStore implements ConnectThreadStore {
     return (await this.loadSnapshotRecord(scope))?.projection ?? null;
   }
 
+  async listByOrganization(input: {
+    organizationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectThreadProjection[]> {
+    const organizationId = safeSegment(input.organizationId, 180);
+    const limit = Math.max(1, Math.min(input.limit ?? 50, 100));
+    const token = await this.tokenProvider.getAccessToken();
+    const collection = [
+      'connectOrganizations',
+      organizationId,
+      'inboxThreads',
+    ];
+    const url = new URL(`${this.documentsBase}/${encodedPath(collection)}`);
+    url.searchParams.set('pageSize', String(limit));
+
+    const response = await this.fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) throw new Error(`FIRESTORE_LIST_THREADS_${response.status}`);
+
+    const payload = await response.json() as { documents?: FirestoreDocument[] };
+    const projections: ConnectThreadProjection[] = [];
+
+    for (const document of payload.documents ?? []) {
+      const conversationId = readStringField(document, 'conversationId');
+      if (!conversationId) throw new Error('THREAD_SNAPSHOT_INVALID');
+      projections.push(parseProjection(document, { organizationId, conversationId }));
+    }
+
+    return projections
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.conversationId.localeCompare(b.conversationId))
+      .slice(0, limit);
+  }
+
   async readEvents(
     scope: ConnectThreadScope,
   ): Promise<readonly ConnectThreadEvent[]> {

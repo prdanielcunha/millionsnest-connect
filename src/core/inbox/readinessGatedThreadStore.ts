@@ -45,6 +45,14 @@ export class ReadinessGatedConnectThreadStore implements ConnectThreadStore {
     return this.inner.load(scope);
   }
 
+  async listByOrganization(input: {
+    organizationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectThreadProjection[]> {
+    await this.assertReady();
+    return this.inner.listByOrganization(input);
+  }
+
   async readEvents(
     scope: ConnectThreadScope,
   ): Promise<readonly ConnectThreadEvent[]> {

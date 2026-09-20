@@ -230,6 +230,14 @@ jobs:
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-auth.json','utf8'));if(x.success!==false||x.code!=='AUTH_REQUIRED')process.exit(1)"
           echo "CONNECT_INBOX_DURABLE_AUTHORITY_OK"
 
+          INBOX_LIST_STATUS="$(curl --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            -o /tmp/connect-inbox-list-auth.json -w '%{http_code}' \
+            "$BASE/api/core/inbox/conversations?organizationId=release-smoke")"
+          test "$INBOX_LIST_STATUS" = "401"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-list-auth.json','utf8'));if(x.success!==false||x.code!=='AUTH_REQUIRED')process.exit(1)"
+          echo "CONNECT_INBOX_QUERY_AUTHORITY_OK"
+
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             -o /tmp/connect-core-unauth.json -w '%{http_code}' \
