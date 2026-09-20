@@ -137,6 +137,21 @@ const blockerLabels: Record<string, Record<LanguageCode, string>> = {
     'en-US': 'Connect runtime does not yet have confirmed Firestore persistence',
     'es-ES': 'El runtime de Connect aún no tiene persistencia Firestore confirmada',
   },
+  message_content_store_not_mounted: {
+    'pt-BR': 'Store sensível de conteúdo da Inbox ainda não está ativada',
+    'en-US': 'Sensitive Inbox message-content store is not active yet',
+    'es-ES': 'La store sensible de contenido de Inbox aún no está activa',
+  },
+  provider_ingestion_not_mounted: {
+    'pt-BR': 'Bridge do webhook oficial para a Inbox ainda não está ativado',
+    'en-US': 'Official webhook-to-Inbox bridge is not active yet',
+    'es-ES': 'El bridge del webhook oficial hacia Inbox aún no está activo',
+  },
+  provider_connection_not_mapped: {
+    'pt-BR': 'Número oficial ainda não está vinculado a uma organização do MillionsNest',
+    'en-US': 'Official number is not mapped to a MillionsNest organization yet',
+    'es-ES': 'El número oficial aún no está vinculado a una organización de MillionsNest',
+  },
   provider_dispatch_not_implemented: {
     'pt-BR': 'Envio oficial continua validation-only; dispatch não foi ativado',
     'en-US': 'Official outbound is still validation-only; dispatch is not active',
