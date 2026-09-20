@@ -19,6 +19,32 @@ export type LiveInboxReadiness = {
   blockers: string[];
 };
 
+export type LiveInboxConversation = {
+  schemaVersion: 1;
+  organizationId: string;
+  conversationId: string;
+  status: 'new' | 'in_progress' | 'waiting_person' | 'waiting_team' | 'resolved' | 'archived';
+  mode: 'automatic' | 'approval' | 'human';
+  automationPaused: boolean;
+  assignedTo?: { type: 'user' | 'team'; ref: string };
+  openedAt: string;
+  updatedAt: string;
+  lastEventId: string;
+  sourceEventCount: number;
+  lastEvidenceRef: string;
+};
+
+export type LiveInboxMessage = {
+  messageId: string;
+  channel: string;
+  direction: 'inbound' | 'outbound';
+  messageType: string;
+  body: string | null;
+  occurredAt: string;
+  deliveryStatus: 'received' | 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+  deliveryUpdatedAt: string | null;
+};
+
 async function parse(response: Response): Promise<any> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.success === false) {
@@ -32,16 +58,46 @@ async function parse(response: Response): Promise<any> {
 export class LiveInboxClient {
   constructor(private readonly session: LiveConnectSession) {}
 
+  private headers(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.session.idToken}`,
+      'X-Organization-Id': this.session.expectedOrganizationId,
+      Accept: 'application/json',
+    };
+  }
+
+  async listConversations(limit = 50): Promise<LiveInboxConversation[]> {
+    const response = await fetch(
+      `/api/core/inbox/conversations?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 100))}`,
+      {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.conversations) ? body.conversations : [];
+  }
+
+  async listMessages(conversationId: string, limit = 100): Promise<LiveInboxMessage[]> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}`,
+      {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.messages) ? body.messages : [];
+  }
+
   async getReadiness(): Promise<LiveInboxReadiness> {
     const response = await fetch(
       `/api/core/inbox/readiness?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`,
       {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.session.idToken}`,
-          'X-Organization-Id': this.session.expectedOrganizationId,
-          Accept: 'application/json',
-        },
+        headers: this.headers(),
         cache: 'no-store',
       },
     );
