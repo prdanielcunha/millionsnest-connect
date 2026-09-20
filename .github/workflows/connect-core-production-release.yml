@@ -184,7 +184,7 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=false" \
+            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_INBOX_HUMAN_REPLY_ENABLED=false" \
             --quiet
 
       - name: Verify Cloud Run readiness
@@ -216,18 +216,19 @@ jobs:
           curl --fail --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             "$BASE/api/health/storage-readiness" -o /tmp/connect-storage-readiness.json
-          STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['read_write_confirmed','read_only','denied_or_missing','unknown']);if(x.success!==true||!allowed.has(x.storageReadiness))process.exit(1);process.stdout.write(x.storageReadiness)")"
+          STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));if(x.success!==true||x.storageReadiness!=='read_write_confirmed')process.exit(1);process.stdout.write(x.storageReadiness)")"
           STORAGE_SOURCE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['runtime_metadata','metadata_unavailable','project_iam_probe_unavailable','invalid_response']);if(!allowed.has(x.source))process.exit(1);process.stdout.write(x.source)")"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=$STORAGE_STATE"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=$STORAGE_SOURCE"
+          echo "CONNECT_INBOX_STORAGE_GATE_OK"
 
-          INBOX_DARK_STATUS="$(curl --silent --show-error --location \
+          INBOX_AUTH_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
-            -o /tmp/connect-inbox-dark.json -w '%{http_code}' \
+            -o /tmp/connect-inbox-auth.json -w '%{http_code}' \
             "$BASE/api/core/inbox/threads/release-smoke?organizationId=release-smoke")"
-          test "$INBOX_DARK_STATUS" = "404"
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-dark.json','utf8'));if(x.success!==false||x.code!=='INBOX_DURABLE_DISABLED')process.exit(1)"
-          echo "CONNECT_INBOX_DURABLE_DARK_OK"
+          test "$INBOX_AUTH_STATUS" = "401"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-auth.json','utf8'));if(x.success!==false||x.code!=='AUTH_REQUIRED')process.exit(1)"
+          echo "CONNECT_INBOX_DURABLE_AUTHORITY_OK"
 
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
