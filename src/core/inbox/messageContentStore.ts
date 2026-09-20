@@ -34,6 +34,10 @@ export interface ConnectMessageContentStore {
     conversationId: string;
     messageId: string;
   }): Promise<ConnectMessageContentRecord | null>;
+  getByProviderMessageId(input: {
+    channel: string;
+    providerMessageId: string;
+  }): Promise<ConnectMessageContentRecord | null>;
   updateDeliveryStatus(input: {
     organizationId: string;
     conversationId: string;
@@ -117,4 +121,16 @@ export function normalizeMessageContentRecord(
     throw new Error('INVALID_MESSAGE_DELIVERY_STATUS');
   }
   return record;
+}
+
+export function createProviderMessageIndexId(
+  channel: string,
+  providerMessageId: string,
+): string {
+  const safeChannel = cleanSegment(channel, 40).replace(/[^a-zA-Z0-9._:-]/g, '-');
+  const digest = createHash('sha256')
+    .update(providerMessageId.trim())
+    .digest('hex')
+    .slice(0, 48);
+  return `${safeChannel}:${digest}`;
 }
