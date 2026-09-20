@@ -19,6 +19,7 @@ export type ConnectMessageContentRecord = {
   occurredAt: string;
   recordedAt: string;
   deliveryStatus: ConnectMessageDeliveryStatus;
+  deliveryUpdatedAt?: string;
   evidenceRef: string;
 };
 
@@ -111,6 +112,9 @@ export function normalizeMessageContentRecord(
     occurredAt: new Date(input.occurredAt).toISOString(),
     recordedAt: new Date(input.recordedAt).toISOString(),
     deliveryStatus: input.deliveryStatus,
+    deliveryUpdatedAt: input.deliveryUpdatedAt
+      ? new Date(input.deliveryUpdatedAt).toISOString()
+      : undefined,
     evidenceRef: cleanSegment(input.evidenceRef, 300),
   };
 
