@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Durable Inbox + content foundation certified release trigger — 2026-09-20
+# Live Inbox conversation query certified release trigger — 2026-09-20
 
 on:
   push:
