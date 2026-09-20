@@ -106,18 +106,33 @@ assert.match(
 );
 assert.match(
   release,
-  /CONNECT_INBOX_DURABLE_ENABLED=false/,
-  'Production release must keep durable Inbox dark until IAM and activation gates are complete',
+  /CONNECT_INBOX_DURABLE_ENABLED=true/,
+  'Production release must keep the durable Inbox enabled after the runtime IAM gate is proven',
 );
 assert.match(
   release,
-  /INBOX_DURABLE_DISABLED/,
-  'Production smoke must prove the durable Inbox route remains dark before activation',
+  /CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true/,
+  'Production release must mount the separate message-content store after the storage gate is proven',
 );
 assert.match(
   release,
-  /CONNECT_INBOX_DURABLE_DARK_OK/,
-  'Production smoke must emit an explicit durable Inbox dark gate',
+  /CONNECT_WHATSAPP_INGESTION_ENABLED=false/,
+  'Production release must keep provider ingestion off until official provider bindings are configured',
+);
+assert.match(
+  release,
+  /x\.storageReadiness!=='read_write_confirmed'/,
+  'Production smoke must fail closed unless the deployed runtime confirms Firestore read/write',
+);
+assert.match(
+  release,
+  /test "\$INBOX_AUTH_STATUS" = "401"/,
+  'Production smoke must prove the durable Inbox route is live but protected by canonical authority',
+);
+assert.match(
+  release,
+  /CONNECT_INBOX_DURABLE_AUTHORITY_OK/,
+  'Production smoke must emit an explicit durable Inbox authority gate',
 );
 assert.match(
   release,
