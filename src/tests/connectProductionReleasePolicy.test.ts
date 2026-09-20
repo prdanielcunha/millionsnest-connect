@@ -136,6 +136,16 @@ assert.match(
 );
 assert.match(
   release,
+  /test "\$INBOX_LIST_STATUS" = "401"/,
+  'Production smoke must prove the real conversation-list endpoint requires canonical authority',
+);
+assert.match(
+  release,
+  /CONNECT_INBOX_QUERY_AUTHORITY_OK/,
+  'Production smoke must certify live Inbox query authority separately',
+);
+assert.match(
+  release,
   /x\.releaseSha!==process\.env\.GITHUB_SHA/,
   'Local and production health smokes must verify the serving revision',
 );
