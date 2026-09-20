@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# A9 operations observability certified release trigger — 2026-09-19
+# Durable Inbox + content foundation certified release trigger — 2026-09-20
 
 on:
   push:
