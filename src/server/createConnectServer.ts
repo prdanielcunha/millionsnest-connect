@@ -212,12 +212,15 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         store: gatedStore,
       });
 
-      if (messageContentEnabled && whatsappIngestionEnabled) {
-        const messageStore = options.inboxMessageContentStore
+      const messageStore = messageContentEnabled
+        ? options.inboxMessageContentStore
           ?? new FirestoreMessageContentStore({
             projectId,
             fetchImpl: options.fetchImpl,
-          });
+          })
+        : null;
+
+      if (messageStore && whatsappIngestionEnabled) {
         const registry = options.whatsappConnectionRegistry
           ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
 
