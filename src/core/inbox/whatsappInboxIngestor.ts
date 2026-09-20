@@ -110,7 +110,7 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
 
     if (!current) {
       await this.threadService.open({
-        requestId: requestKey('wa-open', event.providerMessageId),
+        requestId: requestKey('wa-00-open', event.providerMessageId),
         organizationId: binding.organizationId,
         conversationId,
         evidenceRef,
@@ -120,7 +120,7 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
     }
 
     await this.threadService.recordPersonReply({
-      requestId: requestKey('wa-in', event.providerMessageId),
+      requestId: requestKey('wa-10-in', event.providerMessageId),
       organizationId: binding.organizationId,
       conversationId,
       evidenceRef,
