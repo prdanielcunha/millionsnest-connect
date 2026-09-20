@@ -23,6 +23,10 @@ import {
   createConnectInboxThreadReadHttpHandler,
 } from '../core/runtime/connectInboxThreadHttpHandler';
 import { createConnectInboxReadinessHttpHandler } from '../core/runtime/connectInboxReadinessHttpHandler';
+import {
+  createConnectInboxConversationListHttpHandler,
+  createConnectInboxMessageListHttpHandler,
+} from '../core/runtime/connectInboxQueryHttpHandler';
 import { createConnectOperationalReadinessHttpHandler } from '../core/runtime/connectOperationalReadinessHttpHandler';
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
@@ -100,6 +104,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let personalIntelligenceRouter: ReturnType<typeof createPersonalIntelligenceRouter> | null = null;
   let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
+  let inboxConversationListHandler: ReturnType<typeof createConnectInboxConversationListHttpHandler> | null = null;
+  let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
@@ -220,6 +226,19 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           })
         : null;
 
+      if (messageStore) {
+        inboxConversationListHandler = createConnectInboxConversationListHttpHandler({
+          contextProvider: inboxContextProvider,
+          threadStore: gatedStore,
+          messageStore,
+        });
+        inboxMessageListHandler = createConnectInboxMessageListHttpHandler({
+          contextProvider: inboxContextProvider,
+          threadStore: gatedStore,
+          messageStore,
+        });
+      }
+
       if (messageStore && whatsappIngestionEnabled) {
         const registry = options.whatsappConnectionRegistry
           ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
@@ -325,6 +344,40 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxReadinessHandler(req, res);
+  });
+
+  app.get('/api/core/inbox/conversations', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!durableInboxEnabled || !messageContentEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'INBOX_QUERY_DISABLED',
+      });
+    }
+    if (!inboxConversationListHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'INBOX_RUNTIME_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxConversationListHandler(req, res);
+  });
+
+  app.get('/api/core/inbox/threads/:conversationId/messages', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!durableInboxEnabled || !messageContentEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'INBOX_QUERY_DISABLED',
+      });
+    }
+    if (!inboxMessageListHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'INBOX_RUNTIME_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxMessageListHandler(req, res);
   });
 
   app.get('/api/core/inbox/threads/:conversationId', async (req, res) => {
