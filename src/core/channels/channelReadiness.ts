@@ -1,4 +1,5 @@
 import { hasWhatsAppConnectionBindings } from './whatsappConnectionRegistry';
+import { isWhatsAppHumanReplyConfigured } from './metaWhatsAppProvider';
 import type { ConnectRuntimeFirestoreState } from '../runtime/firestoreRuntimeReadiness';
 
 export type ChannelOperationalStatus = 'active' | 'blocked' | 'planned';
@@ -45,6 +46,7 @@ export function evaluateConnectChannelReadiness(
   const messageContentEnabled = enabled(env, 'CONNECT_INBOX_MESSAGE_CONTENT_ENABLED');
   const ingestionEnabled = enabled(env, 'CONNECT_WHATSAPP_INGESTION_ENABLED');
   const connectionBindingReady = hasWhatsAppConnectionBindings(env);
+  const humanReplyConfigured = isWhatsAppHumanReplyConfigured(env);
   const storageReady = storageState === 'read_write_confirmed';
 
   const whatsappBlockers: string[] = [];
@@ -55,8 +57,15 @@ export function evaluateConnectChannelReadiness(
   if (!messageContentEnabled) whatsappBlockers.push('message_content_store_not_mounted');
   if (!ingestionEnabled) whatsappBlockers.push('provider_ingestion_not_mounted');
   if (!connectionBindingReady) whatsappBlockers.push('provider_connection_not_mapped');
-  // Provider dispatch intentionally remains separate from receive readiness.
-  whatsappBlockers.push('provider_dispatch_not_implemented');
+  if (!enabled(env, 'CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED')) {
+    whatsappBlockers.push('provider_dispatch_disabled');
+  }
+  if (env.CONNECT_WHATSAPP_REPLY_POLICY_ACK?.trim() !== 'CONNECT_WHATSAPP_REPLY_POLICY_READY') {
+    whatsappBlockers.push('provider_policy_ack_missing');
+  }
+  if (!enabled(env, 'CONNECT_INBOX_HUMAN_REPLY_ENABLED')) {
+    whatsappBlockers.push('human_reply_disabled');
+  }
 
   const receiveReady =
     whatsappSecretsConfigured &&
@@ -66,6 +75,13 @@ export function evaluateConnectChannelReadiness(
     messageContentEnabled &&
     ingestionEnabled &&
     connectionBindingReady;
+
+  const sendReady =
+    durableInboxEnabled &&
+    storageReady &&
+    messageContentEnabled &&
+    connectionBindingReady &&
+    humanReplyConfigured;
 
   return {
     storageState,
@@ -86,8 +102,7 @@ export function evaluateConnectChannelReadiness(
         status: receiveReady ? 'active' : 'blocked',
         configured: whatsappSecretsConfigured,
         receiveReady,
-        // The current outbound boundary is validation-only by design.
-        sendReady: false,
+        sendReady,
         blockers: whatsappBlockers,
         capabilities: [
           'official_webhook_contract',
@@ -95,7 +110,7 @@ export function evaluateConnectChannelReadiness(
           'channel_normalization',
           'tenant_pinned_ingestion',
           'durable_message_content',
-          'outbound_validation_only',
+          ...(sendReady ? ['official_human_reply'] : ['outbound_validation_only']),
         ],
       },
       {
