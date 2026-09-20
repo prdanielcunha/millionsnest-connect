@@ -93,6 +93,16 @@ console.log('--- Running Connect Inbox Readiness Tests ---');
       CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
       CONNECT_WHATSAPP_INGESTION_ENABLED: 'true',
       CONNECT_INBOX_HUMAN_REPLY_ENABLED: 'true',
+      CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED: 'true',
+      CONNECT_WHATSAPP_REPLY_POLICY_ACK: 'CONNECT_WHATSAPP_REPLY_POLICY_READY',
+      CONNECT_WHATSAPP_ACCESS_TOKEN: 'access',
+      CONNECT_WHATSAPP_GRAPH_API_VERSION: 'v99.0',
+      CONNECT_WHATSAPP_CONNECTIONS_JSON: JSON.stringify([{
+        organizationId: 'org-1',
+        phoneNumberId: 'phone',
+        connectionRef: 'wa-main',
+        enabled: true,
+      }]),
     },
     'read_write_confirmed',
   );

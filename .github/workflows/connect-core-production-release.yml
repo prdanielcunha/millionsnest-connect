@@ -184,7 +184,7 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_INBOX_HUMAN_REPLY_ENABLED=false" \
+            --set-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_INBOX_HUMAN_REPLY_ENABLED=false,CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=false" \
             --quiet
 
       - name: Verify Cloud Run readiness

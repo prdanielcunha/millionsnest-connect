@@ -48,7 +48,7 @@ console.log('--- Running Connect Channel Readiness Tests ---');
   equal(inapp.status, 'active', 'in-app is real when Core upstreams are configured');
   equal(whatsapp.status, 'blocked', 'WhatsApp stays blocked without provider setup');
   equal(whatsapp.sendReady, false, 'WhatsApp dispatch is never implied by readiness model');
-  equal(whatsapp.blockers.includes('provider_dispatch_not_implemented'), true, 'dispatch blocker remains explicit');
+  equal(whatsapp.blockers.includes('provider_dispatch_disabled'), true, 'dispatch gate remains explicit');
 }
 {
   const result = evaluateConnectChannelReadiness({
@@ -73,6 +73,35 @@ console.log('--- Running Connect Channel Readiness Tests ---');
   equal(whatsapp.receiveReady, true, 'WhatsApp receive readiness requires every gate');
   equal(whatsapp.status, 'active', 'receive-ready WhatsApp is operationally active');
   equal(whatsapp.sendReady, false, 'receive readiness does not fake outbound dispatch');
+  equal(whatsapp.blockers.includes('provider_policy_ack_missing'), true, 'Meta policy acknowledgement remains explicit');
+}
+{
+  const result = evaluateConnectChannelReadiness({
+    MILLIONSNEST_HUB_ORIGIN: 'https://www.millionsnest.com',
+    MUSICSCALE_ORIGIN: 'https://musicscale.millionsnest.com',
+    CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'verify',
+    CONNECT_WHATSAPP_APP_SECRET: 'secret',
+    CONNECT_WHATSAPP_ACCESS_TOKEN: 'access',
+    CONNECT_WHATSAPP_PHONE_NUMBER_ID: 'phone',
+    CONNECT_WHATSAPP_GRAPH_API_VERSION: 'v99.0',
+    CONNECT_WHATSAPP_WEBHOOK_ENABLED: 'true',
+    CONNECT_INBOX_DURABLE_ENABLED: 'true',
+    CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
+    CONNECT_WHATSAPP_INGESTION_ENABLED: 'true',
+    CONNECT_INBOX_HUMAN_REPLY_ENABLED: 'true',
+    CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED: 'true',
+    CONNECT_WHATSAPP_REPLY_POLICY_ACK: 'CONNECT_WHATSAPP_REPLY_POLICY_READY',
+    CONNECT_WHATSAPP_CONNECTIONS_JSON: JSON.stringify([{
+      organizationId: 'org-1',
+      phoneNumberId: 'phone',
+      connectionRef: 'wa-main',
+      enabled: true,
+    }]),
+  }, 'read_write_confirmed');
+  const whatsapp = result.channels.find((item) => item.id === 'whatsapp')!;
+  equal(whatsapp.receiveReady, true, 'fully configured WhatsApp remains receive ready');
+  equal(whatsapp.sendReady, true, 'official human reply is send-ready only after every explicit gate');
+  equal(whatsapp.capabilities.includes('official_human_reply'), true, 'send-ready channel exposes the real reply capability');
 }
 {
   const handler = createConnectChannelReadinessHttpHandler({

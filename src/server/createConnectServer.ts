@@ -27,6 +27,7 @@ import {
   createConnectInboxConversationListHttpHandler,
   createConnectInboxMessageListHttpHandler,
 } from '../core/runtime/connectInboxQueryHttpHandler';
+import { createConnectInboxHumanReplyHttpHandler } from '../core/runtime/connectInboxHumanReplyHttpHandler';
 import { createConnectOperationalReadinessHttpHandler } from '../core/runtime/connectOperationalReadinessHttpHandler';
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
@@ -36,6 +37,12 @@ import {
 } from '../core/inbox/firestoreMessageContentStore';
 import type { ConnectMessageContentStore } from '../core/inbox/messageContentStore';
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
+import { HumanReplyService } from '../core/inbox/humanReplyService';
+import { FirestoreHumanReplyDispatchStore } from '../core/inbox/firestoreHumanReplyDispatchStore';
+import {
+  createMetaWhatsAppProviderFromEnv,
+  isWhatsAppHumanReplyConfigured,
+} from '../core/channels/metaWhatsAppProvider';
 import {
   WhatsAppConnectionRegistry,
   parseWhatsAppConnectionBindings,
@@ -106,6 +113,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
   let inboxConversationListHandler: ReturnType<typeof createConnectInboxConversationListHttpHandler> | null = null;
   let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
+  let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
@@ -237,26 +245,50 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           threadStore: gatedStore,
           messageStore,
         });
-      }
 
-      if (messageStore && whatsappIngestionEnabled) {
-        const registry = options.whatsappConnectionRegistry
-          ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
+        let registry: WhatsAppConnectionRegistry | null = null;
+        if (whatsappIngestionEnabled || isWhatsAppHumanReplyConfigured(env)) {
+          registry = options.whatsappConnectionRegistry
+            ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
+        }
 
-        if (registry.size > 0) {
-          const ingestor = new WhatsAppInboxIngestor(
+        if (registry && whatsappIngestionEnabled) {
+          if (registry.size > 0) {
+            const ingestor = new WhatsAppInboxIngestor(
+              registry,
+              messageStore,
+              gatedStore,
+            );
+            whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({
+              env,
+              logger,
+              ingestor,
+            });
+          } else {
+            logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
+          }
+        }
+
+        let humanReplyService: HumanReplyService | undefined;
+        if (registry && registry.size > 0 && isWhatsAppHumanReplyConfigured(env)) {
+          humanReplyService = new HumanReplyService({
             registry,
             messageStore,
-            gatedStore,
-          );
-          whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({
-            env,
-            logger,
-            ingestor,
+            dispatchStore: new FirestoreHumanReplyDispatchStore({
+              projectId,
+              fetchImpl: options.fetchImpl,
+            }),
+            threadStore: gatedStore,
+            provider: createMetaWhatsAppProviderFromEnv(env, options.fetchImpl),
           });
-        } else {
-          logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
         }
+
+        inboxHumanReplyHandler = createConnectInboxHumanReplyHttpHandler({
+          contextProvider: inboxContextProvider,
+          service: humanReplyService,
+          env,
+          logger,
+        });
       }
     } catch (error) {
       logger.error?.('CONNECT_INBOX_CONFIGURATION_ERROR', {
@@ -361,6 +393,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxConversationListHandler(req, res);
+  });
+
+  app.post('/api/core/inbox/threads/:conversationId/reply', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!durableInboxEnabled || !messageContentEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'INBOX_QUERY_DISABLED',
+      });
+    }
+    if (!inboxHumanReplyHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'INBOX_RUNTIME_CONFIGURATION_MISSING',
+      });
+    }
+    return inboxHumanReplyHandler(req, res);
   });
 
   app.get('/api/core/inbox/threads/:conversationId/messages', async (req, res) => {

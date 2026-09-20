@@ -152,10 +152,20 @@ const blockerLabels: Record<string, Record<LanguageCode, string>> = {
     'en-US': 'Official number is not mapped to a MillionsNest organization yet',
     'es-ES': 'El número oficial aún no está vinculado a una organización de MillionsNest',
   },
-  provider_dispatch_not_implemented: {
-    'pt-BR': 'Envio oficial continua validation-only; dispatch não foi ativado',
-    'en-US': 'Official outbound is still validation-only; dispatch is not active',
-    'es-ES': 'El envío oficial sigue validation-only; dispatch no está activo',
+  provider_dispatch_disabled: {
+    'pt-BR': 'Dispatch oficial ainda está desligado por feature gate',
+    'en-US': 'Official dispatch is still disabled by its feature gate',
+    'es-ES': 'El dispatch oficial sigue desactivado por feature gate',
+  },
+  provider_policy_ack_missing: {
+    'pt-BR': 'Regras vigentes da Meta ainda não foram confirmadas para ativação',
+    'en-US': 'Current Meta rules have not yet been acknowledged for activation',
+    'es-ES': 'Las reglas vigentes de Meta aún no fueron confirmadas para activación',
+  },
+  human_reply_disabled: {
+    'pt-BR': 'Resposta humana oficial ainda está desligada',
+    'en-US': 'Official human reply is still disabled',
+    'es-ES': 'La respuesta humana oficial sigue desactivada',
   },
   core_context_not_configured: {
     'pt-BR': 'Contexto do Hub/MusicScale não está configurado',

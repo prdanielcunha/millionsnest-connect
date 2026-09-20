@@ -92,6 +92,34 @@ export class LiveInboxClient {
     return Array.isArray(body.messages) ? body.messages : [];
   }
 
+  async sendReply(input: {
+    conversationId: string;
+    requestId: string;
+    text: string;
+  }): Promise<{
+    kind: 'sent' | 'duplicate';
+    conversationId: string;
+    messageId: string;
+    deliveryStatus: 'sent';
+  }> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(input.conversationId)}/reply`,
+      {
+        method: 'POST',
+        headers: {
+          ...this.headers(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organizationId: this.session.expectedOrganizationId,
+          requestId: input.requestId,
+          text: input.text,
+        }),
+      },
+    );
+    return await parse(response);
+  }
+
   async getReadiness(): Promise<LiveInboxReadiness> {
     const response = await fetch(
       `/api/core/inbox/readiness?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`,
