@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   MessageSquareText,
   RefreshCw,
+  Send,
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
@@ -58,6 +59,11 @@ const copy = {
     outbound: 'Equipe',
     replyLocked: 'Resposta humana ainda protegida',
     replyLockedDesc: 'A leitura já pode ser real. O envio continuará indisponível até o provider oficial de saída passar pelo próprio gate.',
+    replyPlaceholder: 'Escreva uma resposta…',
+    replySend: 'Enviar',
+    replySending: 'Enviando…',
+    replySent: 'Resposta enviada pelo canal oficial.',
+    replyHint: 'Envio oficial · auditado · sem automação silenciosa',
     updated: 'Atualizada',
     events: 'eventos',
     storageStates: {
@@ -108,6 +114,11 @@ const copy = {
     outbound: 'Team',
     replyLocked: 'Human reply is still gated',
     replyLockedDesc: 'Reading can already be real. Sending remains unavailable until the official outbound provider passes its own gate.',
+    replyPlaceholder: 'Write a reply…',
+    replySend: 'Send',
+    replySending: 'Sending…',
+    replySent: 'Reply sent through the official channel.',
+    replyHint: 'Official delivery · audited · no silent automation',
     updated: 'Updated',
     events: 'events',
     storageStates: {
@@ -158,6 +169,11 @@ const copy = {
     outbound: 'Equipo',
     replyLocked: 'La respuesta humana sigue protegida',
     replyLockedDesc: 'La lectura ya puede ser real. El envío seguirá desactivado hasta que el provider oficial pase su propio gate.',
+    replyPlaceholder: 'Escribe una respuesta…',
+    replySend: 'Enviar',
+    replySending: 'Enviando…',
+    replySent: 'Respuesta enviada por el canal oficial.',
+    replyHint: 'Envío oficial · auditado · sin automatización silenciosa',
     updated: 'Actualizada',
     events: 'eventos',
     storageStates: {
@@ -218,6 +234,9 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -274,6 +293,35 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
     (item) => item.id === 'message_content_store' && item.status === 'ready',
   ) ?? false;
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
+  const humanReplyReady = data?.foundations.some(
+    (item) => item.id === 'human_reply' && item.status === 'ready',
+  ) ?? false;
+
+  const sendReply = async () => {
+    if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
+    setReplySending(true);
+    setError('');
+    setNotice('');
+    try {
+      await client.sendReply({
+        conversationId: selected.conversationId,
+        requestId: globalThis.crypto?.randomUUID?.() || `reply-${Date.now()}`,
+        text: replyText.trim(),
+      });
+      setReplyText('');
+      setNotice(t.replySent);
+      const [nextMessages, nextConversations] = await Promise.all([
+        client.listMessages(selected.conversationId),
+        client.listConversations(),
+      ]);
+      setMessages(nextMessages);
+      setConversations(nextConversations);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'HUMAN_REPLY_UNAVAILABLE');
+    } finally {
+      setReplySending(false);
+    }
+  };
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
@@ -294,6 +342,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
       </section>
 
       {error && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-100">{t.error} <span className="text-rose-100/55">{error}</span></div>}
+      {notice && <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-3 text-sm text-emerald-100">{notice}</div>}
 
       <section className="grid gap-3 sm:grid-cols-3">
         <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
@@ -385,10 +434,34 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
             )}
 
             <div className="border-t border-white/[0.07] bg-black/10 px-4 py-3 sm:px-6">
-              <div className="flex items-start gap-2 text-xs text-slate-500">
-                <LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-200" />
-                <span><strong className="font-semibold text-slate-300">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
-              </div>
+              {humanReplyReady && selected ? (
+                <div className="space-y-2.5">
+                  <textarea
+                    value={replyText}
+                    onChange={(event) => setReplyText(event.target.value.slice(0, 4096))}
+                    placeholder={t.replyPlaceholder}
+                    rows={3}
+                    className="w-full resize-none rounded-2xl border border-white/[0.09] bg-black/20 px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-700 focus:border-indigo-400/30 focus:ring-2 focus:ring-indigo-400/10"
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-[10px] text-slate-600">{t.replyHint}</div>
+                    <button
+                      type="button"
+                      onClick={() => void sendReply()}
+                      disabled={!replyText.trim() || replySending}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      {replySending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                      {replySending ? t.replySending : t.replySend}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 text-xs text-slate-500">
+                  <LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-200" />
+                  <span><strong className="font-semibold text-slate-300">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                </div>
+              )}
             </div>
           </div>
         </section>
