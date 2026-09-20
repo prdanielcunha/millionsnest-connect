@@ -9,7 +9,7 @@ import { isWhatsAppHumanReplyConfigured } from '../channels/metaWhatsAppProvider
 
 export interface ConnectInboxHumanReplyHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
-  service: HumanReplyService;
+  service?: HumanReplyService;
   env?: NodeJS.ProcessEnv;
   logger?: {
     info(message: string, meta?: Record<string, unknown>): void;
@@ -152,6 +152,13 @@ export function createConnectInboxHumanReplyHttpHandler(
       return res.status(409).json({
         success: false,
         code: 'HUMAN_REPLY_NOT_READY',
+      });
+    }
+
+    if (!options.service) {
+      return res.status(503).json({
+        success: false,
+        code: 'HUMAN_REPLY_CONFIGURATION_MISSING',
       });
     }
 
