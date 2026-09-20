@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Live Inbox conversation query certified release trigger — 2026-09-20
+# Human reply boundary certified release trigger — 2026-09-20
 
 on:
   push:
