@@ -71,6 +71,12 @@ export class ConnectThreadCommandService {
     return this.execute('MESSAGE_REPLIED', command);
   }
 
+  async recordHumanReplySent(
+    command: ConnectThreadCommandBase,
+  ): Promise<ConnectThreadCommandResult> {
+    return this.execute('HUMAN_REPLY_SENT', command);
+  }
+
   async assign(
     command: AssignConnectThreadCommand,
   ): Promise<ConnectThreadCommandResult> {
