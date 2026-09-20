@@ -1,3 +1,4 @@
+import { hasWhatsAppConnectionBindings } from './whatsappConnectionRegistry';
 import type { ConnectRuntimeFirestoreState } from '../runtime/firestoreRuntimeReadiness';
 
 export type ChannelOperationalStatus = 'active' | 'blocked' | 'planned';
@@ -41,6 +42,9 @@ export function evaluateConnectChannelReadiness(
 
   const whatsappWebhookEnabled = enabled(env, 'CONNECT_WHATSAPP_WEBHOOK_ENABLED');
   const durableInboxEnabled = enabled(env, 'CONNECT_INBOX_DURABLE_ENABLED');
+  const messageContentEnabled = enabled(env, 'CONNECT_INBOX_MESSAGE_CONTENT_ENABLED');
+  const ingestionEnabled = enabled(env, 'CONNECT_WHATSAPP_INGESTION_ENABLED');
+  const connectionBindingReady = hasWhatsAppConnectionBindings(env);
   const storageReady = storageState === 'read_write_confirmed';
 
   const whatsappBlockers: string[] = [];
@@ -48,6 +52,9 @@ export function evaluateConnectChannelReadiness(
   if (!whatsappWebhookEnabled) whatsappBlockers.push('webhook_disabled');
   if (!durableInboxEnabled) whatsappBlockers.push('durable_inbox_disabled');
   if (!storageReady) whatsappBlockers.push('durable_storage_not_ready');
+  if (!messageContentEnabled) whatsappBlockers.push('message_content_store_not_mounted');
+  if (!ingestionEnabled) whatsappBlockers.push('provider_ingestion_not_mounted');
+  if (!connectionBindingReady) whatsappBlockers.push('provider_connection_not_mapped');
   // Provider dispatch intentionally remains separate from receive readiness.
   whatsappBlockers.push('provider_dispatch_not_implemented');
 
@@ -55,7 +62,10 @@ export function evaluateConnectChannelReadiness(
     whatsappSecretsConfigured &&
     whatsappWebhookEnabled &&
     durableInboxEnabled &&
-    storageReady;
+    storageReady &&
+    messageContentEnabled &&
+    ingestionEnabled &&
+    connectionBindingReady;
 
   return {
     storageState,
@@ -83,6 +93,8 @@ export function evaluateConnectChannelReadiness(
           'official_webhook_contract',
           'signature_validation',
           'channel_normalization',
+          'tenant_pinned_ingestion',
+          'durable_message_content',
           'outbound_validation_only',
         ],
       },

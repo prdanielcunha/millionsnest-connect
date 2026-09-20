@@ -27,6 +27,15 @@ import { createConnectOperationalReadinessHttpHandler } from '../core/runtime/co
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
 import type { ConnectThreadStore } from '../core/inbox/threadStore';
+import {
+  FirestoreMessageContentStore,
+} from '../core/inbox/firestoreMessageContentStore';
+import type { ConnectMessageContentStore } from '../core/inbox/messageContentStore';
+import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
+import {
+  WhatsAppConnectionRegistry,
+  parseWhatsAppConnectionBindings,
+} from '../core/channels/whatsappConnectionRegistry';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -43,6 +52,8 @@ export interface CreateConnectServerOptions {
   fetchImpl?: typeof fetch;
   inboxContextProvider?: CanonicalContextProvider;
   inboxStore?: ConnectThreadStore;
+  inboxMessageContentStore?: ConnectMessageContentStore;
+  whatsappConnectionRegistry?: WhatsAppConnectionRegistry;
   inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
     info(message: string, meta?: Record<string, unknown>): void;
@@ -68,6 +79,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     env.CONNECT_STORAGE_READINESS_PROBE_ENABLED?.trim().toLowerCase() === 'true';
   const durableInboxEnabled =
     env.CONNECT_INBOX_DURABLE_ENABLED?.trim().toLowerCase() === 'true';
+  const messageContentEnabled =
+    env.CONNECT_INBOX_MESSAGE_CONTENT_ENABLED?.trim().toLowerCase() === 'true';
+  const whatsappIngestionEnabled =
+    env.CONNECT_WHATSAPP_INGESTION_ENABLED?.trim().toLowerCase() === 'true';
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -78,7 +93,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let journeyFollowupHandler: ReturnType<typeof createNestJourneyFollowupContextHttpHandler> | null = null;
   let channelReadinessHandler: ReturnType<typeof createConnectChannelReadinessHttpHandler> | null = null;
   const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
-  const whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
+  let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
@@ -196,6 +211,34 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         contextProvider: inboxContextProvider,
         store: gatedStore,
       });
+
+      const messageStore = messageContentEnabled
+        ? options.inboxMessageContentStore
+          ?? new FirestoreMessageContentStore({
+            projectId,
+            fetchImpl: options.fetchImpl,
+          })
+        : null;
+
+      if (messageStore && whatsappIngestionEnabled) {
+        const registry = options.whatsappConnectionRegistry
+          ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
+
+        if (registry.size > 0) {
+          const ingestor = new WhatsAppInboxIngestor(
+            registry,
+            messageStore,
+            gatedStore,
+          );
+          whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({
+            env,
+            logger,
+            ingestor,
+          });
+        } else {
+          logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
+        }
+      }
     } catch (error) {
       logger.error?.('CONNECT_INBOX_CONFIGURATION_ERROR', {
         error: error instanceof Error ? error.message : 'unknown_error',

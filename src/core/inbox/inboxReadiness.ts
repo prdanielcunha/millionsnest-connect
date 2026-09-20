@@ -36,26 +36,38 @@ export function evaluateConnectInboxReadiness(
   storageState: ConnectRuntimeFirestoreState,
 ): ConnectInboxReadiness {
   const durableInboxEnabled = enabled(env, 'CONNECT_INBOX_DURABLE_ENABLED');
+  const messageContentEnabled = enabled(env, 'CONNECT_INBOX_MESSAGE_CONTENT_ENABLED');
+  const providerIngestionEnabled = enabled(env, 'CONNECT_WHATSAPP_INGESTION_ENABLED');
+  const humanReplyEnabled = enabled(env, 'CONNECT_INBOX_HUMAN_REPLY_ENABLED');
   const storageReady = storageState === 'read_write_confirmed';
+
+  const durableReady = storageReady && durableInboxEnabled;
+  const messageContentReady = durableReady && messageContentEnabled;
+  const providerIngestionReady = messageContentReady && providerIngestionEnabled;
+  const humanReplyReady = providerIngestionReady && humanReplyEnabled;
 
   const blockers: string[] = [];
   if (!storageReady) blockers.push('durable_storage_not_ready');
   if (!durableInboxEnabled) blockers.push('durable_inbox_disabled');
-  blockers.push('message_content_store_not_mounted');
-  blockers.push('provider_ingestion_not_mounted');
-  blockers.push('human_reply_not_mounted');
+  if (!messageContentReady) blockers.push('message_content_store_not_mounted');
+  if (!providerIngestionReady) blockers.push('provider_ingestion_not_mounted');
+  if (!humanReplyReady) blockers.push('human_reply_not_mounted');
 
   return {
-    state: storageReady && durableInboxEnabled ? 'controlled' : 'blocked',
+    state: humanReplyReady
+      ? 'available'
+      : durableReady
+        ? 'controlled'
+        : 'blocked',
     durableInboxEnabled,
     storageState,
     foundations: [
       { id: 'thread_state_machine', status: 'ready' },
-      { id: 'durable_event_store', status: storageReady && durableInboxEnabled ? 'ready' : 'gated' },
+      { id: 'durable_event_store', status: durableReady ? 'ready' : 'gated' },
       { id: 'authority', status: 'ready' },
-      { id: 'message_content_store', status: 'next' },
-      { id: 'provider_ingestion', status: 'next' },
-      { id: 'human_reply', status: 'next' },
+      { id: 'message_content_store', status: messageContentReady ? 'ready' : durableReady ? 'gated' : 'next' },
+      { id: 'provider_ingestion', status: providerIngestionReady ? 'ready' : messageContentReady ? 'gated' : 'next' },
+      { id: 'human_reply', status: humanReplyReady ? 'ready' : providerIngestionReady ? 'gated' : 'next' },
     ],
     blockers,
   };

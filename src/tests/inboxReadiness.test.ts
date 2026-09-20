@@ -87,6 +87,25 @@ console.log('--- Running Connect Inbox Readiness Tests ---');
 }
 
 {
+  const result = evaluateConnectInboxReadiness(
+    {
+      CONNECT_INBOX_DURABLE_ENABLED: 'true',
+      CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
+      CONNECT_WHATSAPP_INGESTION_ENABLED: 'true',
+      CONNECT_INBOX_HUMAN_REPLY_ENABLED: 'true',
+    },
+    'read_write_confirmed',
+  );
+  equal(result.state, 'available', 'Inbox becomes available only when every real boundary is mounted');
+  equal(
+    result.foundations.every((item) => item.status === 'ready'),
+    true,
+    'all Inbox foundations must be ready before availability',
+  );
+  equal(result.blockers.length, 0, 'fully mounted Inbox has no readiness blockers');
+}
+
+{
   const handler = createConnectInboxReadinessHttpHandler({
     contextProvider: contextProvider('admin'),
     env: { CONNECT_INBOX_DURABLE_ENABLED: 'false' },
