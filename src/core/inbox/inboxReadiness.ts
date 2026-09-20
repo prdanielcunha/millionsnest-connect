@@ -1,3 +1,5 @@
+import { hasWhatsAppConnectionBindings } from '../channels/whatsappConnectionRegistry';
+import { isWhatsAppHumanReplyConfigured } from '../channels/metaWhatsAppProvider';
 import type { ConnectRuntimeFirestoreState } from '../runtime/firestoreRuntimeReadiness';
 
 export type InboxActivationState = 'available' | 'controlled' | 'blocked';
@@ -38,13 +40,20 @@ export function evaluateConnectInboxReadiness(
   const durableInboxEnabled = enabled(env, 'CONNECT_INBOX_DURABLE_ENABLED');
   const messageContentEnabled = enabled(env, 'CONNECT_INBOX_MESSAGE_CONTENT_ENABLED');
   const providerIngestionEnabled = enabled(env, 'CONNECT_WHATSAPP_INGESTION_ENABLED');
-  const humanReplyEnabled = enabled(env, 'CONNECT_INBOX_HUMAN_REPLY_ENABLED');
+  const providerBindingReady = hasWhatsAppConnectionBindings(env);
+  const humanReplyConfigured = isWhatsAppHumanReplyConfigured(env);
   const storageReady = storageState === 'read_write_confirmed';
 
   const durableReady = storageReady && durableInboxEnabled;
   const messageContentReady = durableReady && messageContentEnabled;
-  const providerIngestionReady = messageContentReady && providerIngestionEnabled;
-  const humanReplyReady = providerIngestionReady && humanReplyEnabled;
+  const providerIngestionReady =
+    messageContentReady &&
+    providerIngestionEnabled &&
+    providerBindingReady;
+  const humanReplyReady =
+    messageContentReady &&
+    providerBindingReady &&
+    humanReplyConfigured;
 
   const blockers: string[] = [];
   if (!storageReady) blockers.push('durable_storage_not_ready');
