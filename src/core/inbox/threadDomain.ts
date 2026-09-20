@@ -11,6 +11,7 @@ export type ConnectThreadMode = 'automatic' | 'approval' | 'human';
 export type ConnectThreadEventType =
   | 'CONVERSATION_OPENED'
   | 'MESSAGE_REPLIED'
+  | 'HUMAN_REPLY_SENT'
   | 'THREAD_ASSIGNED'
   | 'HANDOFF_CREATED'
   | 'THREAD_WAITING_PERSON'
@@ -92,6 +93,7 @@ function resultingStatus(eventType: ConnectThreadEventType): ConnectThreadStatus
       return 'in_progress';
     case 'HANDOFF_CREATED':
       return 'waiting_team';
+    case 'HUMAN_REPLY_SENT':
     case 'THREAD_WAITING_PERSON':
       return 'waiting_person';
     case 'THREAD_RESOLVED':
@@ -263,6 +265,10 @@ export function projectConnectThread(
         // An inbound person reply must never silently continue automation.
         next.automationPaused = true;
         next.mode = state.mode === 'automatic' ? 'approval' : state.mode;
+        break;
+      case 'HUMAN_REPLY_SENT':
+        next.automationPaused = true;
+        next.mode = 'human';
         break;
       case 'THREAD_REOPENED':
         next.automationPaused = true;
