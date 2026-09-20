@@ -121,6 +121,16 @@ assert.match(
 );
 assert.match(
   release,
+  /CONNECT_INBOX_HUMAN_REPLY_ENABLED=false/,
+  'Production release must keep human reply off until official provider policy is acknowledged',
+);
+assert.match(
+  release,
+  /CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=false/,
+  'Production release must keep provider dispatch explicitly disabled until credentials and policy gates are complete',
+);
+assert.match(
+  release,
   /x\.storageReadiness!=='read_write_confirmed'/,
   'Production smoke must fail closed unless the deployed runtime confirms Firestore read/write',
 );
