@@ -281,7 +281,7 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
     const next = normalizeMessageContentRecord({
       ...existing,
       deliveryStatus: input.deliveryStatus,
-      occurredAt: new Date(input.occurredAt).toISOString(),
+      deliveryUpdatedAt: new Date(input.occurredAt).toISOString(),
       recordedAt: new Date().toISOString(),
     });
 
