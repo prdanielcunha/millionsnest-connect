@@ -63,6 +63,15 @@ class MemoryMessageContentStore implements ConnectMessageContentStore {
     return key ? this.records.get(key) ?? null : null;
   }
 
+  async listConversation(input: { organizationId: string; conversationId: string; limit?: number }) {
+    return [...this.records.values()]
+      .filter((record) =>
+        record.organizationId === input.organizationId &&
+        record.conversationId === input.conversationId)
+      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
+      .slice(-(input.limit ?? 100));
+  }
+
   async updateDeliveryStatus(input: {
     organizationId: string;
     conversationId: string;
