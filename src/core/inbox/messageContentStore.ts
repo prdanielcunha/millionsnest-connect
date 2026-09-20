@@ -39,6 +39,11 @@ export interface ConnectMessageContentStore {
     channel: string;
     providerMessageId: string;
   }): Promise<ConnectMessageContentRecord | null>;
+  listConversation(input: {
+    organizationId: string;
+    conversationId: string;
+    limit?: number;
+  }): Promise<readonly ConnectMessageContentRecord[]>;
   updateDeliveryStatus(input: {
     organizationId: string;
     conversationId: string;
