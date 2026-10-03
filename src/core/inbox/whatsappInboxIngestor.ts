@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type {
+  WhatsAppInboundMessage,
   WhatsAppNormalizedEvent,
 } from '../channels/whatsappOfficial';
 import type { WhatsAppConnectionRegistry } from '../channels/whatsappConnectionRegistry';
@@ -54,6 +55,7 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
     private readonly contentStore: ConnectMessageContentStore,
     threadStore: ConnectThreadStore,
     private readonly now: () => Date = () => new Date(),
+    private readonly afterMessage?: (event: WhatsAppInboundMessage) => Promise<void>,
   ) {
     this.threadService = new ConnectThreadCommandService(threadStore, now);
   }
@@ -126,6 +128,12 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
       evidenceRef,
       occurredAt: new Date(occurredAt),
     });
+
+    // Run Assist only after the inbound content + canonical thread event are
+    // durably committed. If downstream processing fails, the webhook returns
+    // an error and Meta may retry; every preceding write and outbound dispatch
+    // is idempotent, so the retry converges without duplicating messages.
+    await this.afterMessage?.(event);
   }
 
   private async ingestStatus(
