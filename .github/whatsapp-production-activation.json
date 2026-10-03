@@ -1,0 +1,5 @@
+{
+  "activation": "CONNECT_WHATSAPP_PRODUCTION_READY",
+  "requestedAt": "2026-10-03",
+  "purpose": "Activate the official Meta WhatsApp Business Platform adapter after all required GitHub variables and secrets pass preflight. Fail closed without changing the current serving revision when configuration is incomplete."
+}
