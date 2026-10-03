@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 const release = fs.readFileSync('.github/workflows/connect-core-production-release.yml', 'utf8');
 const hosting = fs.readFileSync('.github/workflows/firebase-hosting-deploy.yml', 'utf8');
+const whatsappActivation = fs.readFileSync('.github/workflows/connect-whatsapp-production-activation.yml', 'utf8');
+const whatsappActivationMarker = fs.readFileSync('.github/whatsapp-production-activation.json', 'utf8');
 
 assert.match(release, /on:\s*\n\s*workflow_dispatch:/, 'Core production release must be manual-only');
 assert.doesNotMatch(release, /\n\s*push:/, 'Core production release must not auto-deploy on push');
@@ -211,5 +213,92 @@ assert.match(
   'Hosting deploy must fail closed until connect-api exists',
 );
 assert.match(hosting, /FIREBASE_HOSTING_SMOKE_OK=Connect\+Core/);
+
+
+assert.match(
+  whatsappActivation,
+  /push:\s*\n\s*branches:\s*\[ production \]/,
+  'WhatsApp activation must only auto-run from the production branch',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_PRODUCTION_READY/,
+  'WhatsApp production activation must require an explicit activation marker or acknowledgement',
+);
+assert.match(
+  whatsappActivationMarker,
+  /CONNECT_WHATSAPP_PRODUCTION_READY/,
+  'The production marker must explicitly request WhatsApp activation',
+);
+for (const requiredConfig of [
+  'CONNECT_WHATSAPP_PHONE_NUMBER_ID',
+  'CONNECT_WHATSAPP_WABA_ID',
+  'CONNECT_WHATSAPP_GRAPH_API_VERSION',
+  'CONNECT_WHATSAPP_ORGANIZATION_ID',
+  'CONNECT_WHATSAPP_APP_SECRET',
+  'CONNECT_WHATSAPP_ACCESS_TOKEN',
+  'CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+]) {
+  assert.match(
+    whatsappActivation,
+    new RegExp(requiredConfig),
+    `WhatsApp activation must require ${requiredConfig}`,
+  );
+}
+assert.match(
+  whatsappActivation,
+  /connect-api/,
+  'WhatsApp activation must target the canonical Connect Core service',
+);
+assert.match(
+  whatsappActivation,
+  /mn-web-deployer@millionsnest\.iam\.gserviceaccount\.com/,
+  'WhatsApp activation must use the existing production deploy identity',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_WEBHOOK_ENABLED=true/,
+  'WhatsApp activation must enable the official webhook only after preflight',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_INGESTION_ENABLED=true/,
+  'WhatsApp activation must mount provider ingestion',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_INBOX_HUMAN_REPLY_ENABLED=true/,
+  'WhatsApp activation must enable human replies only after provider configuration passes',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true/,
+  'WhatsApp activation must enable official provider dispatch',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_REPLY_POLICY_READY/,
+  'WhatsApp activation must acknowledge the provider policy gate explicitly',
+);
+assert.match(
+  whatsappActivation,
+  /subscribed_apps/,
+  'WhatsApp activation must subscribe the Meta app to the configured WABA',
+);
+assert.match(
+  whatsappActivation,
+  /X-Hub-Signature-256/,
+  'WhatsApp activation must prove signed webhook ingress after deployment',
+);
+assert.match(
+  whatsappActivation,
+  /update-traffic/,
+  'WhatsApp activation must roll traffic back to the prior revision if verification fails',
+);
+assert.match(
+  whatsappActivation,
+  /read_write_confirmed/,
+  'WhatsApp activation must preserve the durable Firestore readiness gate',
+);
 
 console.log('Connect production release policy: OK');
