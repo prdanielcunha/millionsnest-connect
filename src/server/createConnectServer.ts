@@ -29,6 +29,9 @@ import {
 } from '../core/runtime/connectInboxQueryHttpHandler';
 import { createConnectInboxHumanReplyHttpHandler } from '../core/runtime/connectInboxHumanReplyHttpHandler';
 import { createConnectOperationalReadinessHttpHandler } from '../core/runtime/connectOperationalReadinessHttpHandler';
+import { createConnectWhatsAppLinkHttpHandler } from '../core/runtime/connectWhatsAppLinkHttpHandler';
+import { HubDelegatedFirebaseTokenProvider } from '../core/runtime/channelDelegationTokenProvider';
+import { WhatsAppAssistOrchestrator } from '../core/runtime/whatsappAssistOrchestrator';
 import { FirestoreConnectThreadStore } from '../core/inbox/firestoreThreadStore';
 import { ReadinessGatedConnectThreadStore } from '../core/inbox/readinessGatedThreadStore';
 import type { ConnectThreadStore } from '../core/inbox/threadStore';
@@ -39,6 +42,7 @@ import type { ConnectMessageContentStore } from '../core/inbox/messageContentSto
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
 import { HumanReplyService } from '../core/inbox/humanReplyService';
 import { FirestoreHumanReplyDispatchStore } from '../core/inbox/firestoreHumanReplyDispatchStore';
+import { WhatsAppSystemReplyService } from '../core/inbox/whatsappSystemReplyService';
 import {
   createMetaWhatsAppProviderFromEnv,
   isWhatsAppHumanReplyConfigured,
@@ -47,6 +51,7 @@ import {
   WhatsAppConnectionRegistry,
   parseWhatsAppConnectionBindings,
 } from '../core/channels/whatsappConnectionRegistry';
+import { FirestoreWhatsAppChannelIdentityStore } from '../core/channels/whatsappChannelIdentityStore';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -94,6 +99,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     env.CONNECT_INBOX_MESSAGE_CONTENT_ENABLED?.trim().toLowerCase() === 'true';
   const whatsappIngestionEnabled =
     env.CONNECT_WHATSAPP_INGESTION_ENABLED?.trim().toLowerCase() === 'true';
+  const whatsappAssistEnabled =
+    env.CONNECT_WHATSAPP_ASSIST_ENABLED?.trim().toLowerCase() === 'true';
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -116,6 +123,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
+  let whatsappLinkHandler: ReturnType<typeof createConnectWhatsAppLinkHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
   const hubOrigin = env.MILLIONSNEST_HUB_ORIGIN?.trim();
   if (hubOrigin) {
