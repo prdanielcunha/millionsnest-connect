@@ -55,7 +55,7 @@ const directCopy=buildComposerPlan({person:{displayName:'João'},signal,objectiv
 assert(directCopy.startsWith('João,'),'objective style starts directly with the person');
 assert(/Paz/.test(pastoralCopy) && !/Paz/.test(friendlyCopy),'pastoral greeting is reserved for pastoral tone');
 
-const continued=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'whatsapp_opened',lastCommercialAt:'2026-09-12T12:00:00Z'},signal,style:'amigavel'});
+const continued=buildComposerPlan({person:{displayName:'João',lastCommercialAction:'whatsapp_opened',lastCommercialAt:new Date(Date.now()-2*86_400_000).toISOString()},signal,style:'amigavel'});
 assert(continued.options.every(option=>!/^E aí|^Oi[,!]|^Olá[,!]|^Fala[,!]|^Paz[,!]/i.test(option.text)),'later contacts do not restart with a first-contact greeting');
 assert(continued.options.some(option=>/Voltando|Fiquei pensando|nossa conversa/i.test(option.text)),'later contacts explicitly continue prior context');
 assert(continued.recommendation.includes('Continue do ponto anterior'),'continuation guidance tells Composer not to restart the conversation');
