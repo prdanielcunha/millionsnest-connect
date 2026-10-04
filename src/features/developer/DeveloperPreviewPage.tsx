@@ -10,6 +10,8 @@ import {
   Languages,
   Building2,
   BadgeCheck,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
 import {
@@ -42,6 +44,9 @@ const copy = {
     subtitle: 'Esta área altera somente a experiência aparente. Sessão, RBAC, organização efetiva e autoridade do backend continuam sendo as suas.',
     role: 'Papel',
     organization: 'Organização de referência',
+    organizationId: 'ID efetivo da organização',
+    copyOrganizationId: 'Copiar ID',
+    copiedOrganizationId: 'ID copiado',
     product: 'Produto habilitado',
     plan: 'Plano',
     language: 'Idioma',
@@ -66,6 +71,9 @@ const copy = {
     subtitle: 'This area changes presentation only. Session, RBAC, effective organization and backend authority remain yours.',
     role: 'Role',
     organization: 'Reference organization',
+    organizationId: 'Effective organization ID',
+    copyOrganizationId: 'Copy ID',
+    copiedOrganizationId: 'ID copied',
     product: 'Enabled product',
     plan: 'Plan',
     language: 'Language',
@@ -90,6 +98,9 @@ const copy = {
     subtitle: 'Esta área cambia solo la presentación. La sesión, RBAC, organización efectiva y autoridad del backend siguen siendo tuyas.',
     role: 'Rol',
     organization: 'Organización de referencia',
+    organizationId: 'ID efectivo de la organización',
+    copyOrganizationId: 'Copiar ID',
+    copiedOrganizationId: 'ID copiado',
     product: 'Producto habilitado',
     plan: 'Plan',
     language: 'Idioma',
@@ -219,11 +230,28 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
         </Field>
 
         <Field label={t.organization}>
-          <div className="flex items-center gap-2">
-            <Building2 size={14} className="shrink-0 text-indigo-300" />
-            <select value={config.organizationId} onChange={(e) => update('organizationId', e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
-              {session.context.availableOrganizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
-            </select>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Building2 size={14} className="shrink-0 text-indigo-300" />
+              <select value={config.organizationId} onChange={(e) => update('organizationId', e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
+                {session.context.availableOrganizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
+              </select>
+            </div>
+            <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-2.5 py-2">
+              <div className="min-w-0">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-600">{t.organizationId}</div>
+                <code className="mt-1 block truncate text-[10px] text-slate-400">{realOrgId}</code>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyRealOrganizationId()}
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-semibold text-slate-300 transition hover:bg-white/[0.07]"
+                title={organizationIdCopied ? t.copiedOrganizationId : t.copyOrganizationId}
+              >
+                {organizationIdCopied ? <Check size={12} /> : <Copy size={12} />}
+                {organizationIdCopied ? t.copiedOrganizationId : t.copyOrganizationId}
+              </button>
+            </div>
           </div>
         </Field>
 
