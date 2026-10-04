@@ -51,7 +51,7 @@ const copy = {
     foundation: 'Capacidades preparadas',
     error: 'Não foi possível consultar o estado dos canais.',
     empty: 'Nenhum canal retornado pelo Core.',
-    waNote: 'O WhatsApp só será marcado como ativo quando webhook oficial, credenciais, Inbox durável e armazenamento estiverem prontos. O envio real permanece separado até a boundary de provider ser implementada.',
+    waNote: 'O WhatsApp só será marcado como ativo quando webhook oficial, credenciais Meta, vínculo WABA/número/organização, Inbox durável e armazenamento passarem pelos gates de produção. A boundary de provider e resposta humana já existe; o dispatch real permanece desligado até a ativação externa ser validada.',
     inappNote: 'O canal in-app usa o Connect Core e o Tool Gateway já publicados para consultas reais ao MusicScale.',
   },
   'en-US': {
@@ -81,7 +81,7 @@ const copy = {
     foundation: 'Prepared capabilities',
     error: 'Could not load channel readiness.',
     empty: 'Core returned no channels.',
-    waNote: 'WhatsApp is marked active only when the official webhook, credentials, durable Inbox and storage are ready. Real sending stays separate until the provider boundary is implemented.',
+    waNote: 'WhatsApp is marked active only after the official webhook, Meta credentials, WABA/phone/organization binding, durable Inbox and storage pass production gates. The provider and human-reply boundary already exists; real dispatch stays disabled until external activation is validated.',
     inappNote: 'The in-app channel uses the published Connect Core and Tool Gateway for real MusicScale queries.',
   },
   'es-ES': {
@@ -111,7 +111,7 @@ const copy = {
     foundation: 'Capacidades preparadas',
     error: 'No fue posible consultar el estado de los canales.',
     empty: 'Core no devolvió canales.',
-    waNote: 'WhatsApp solo se marcará activo cuando webhook oficial, credenciales, Inbox duradera y almacenamiento estén listos. El envío real permanece separado hasta implementar la boundary del provider.',
+    waNote: 'WhatsApp solo se marcará activo cuando webhook oficial, credenciales Meta, vínculo WABA/número/organización, Inbox duradera y almacenamiento pasen los gates de producción. La boundary del provider y de respuesta humana ya existe; el dispatch real sigue desactivado hasta validar la activación externa.',
     inappNote: 'El canal in-app usa Connect Core y Tool Gateway ya publicados para consultas reales a MusicScale.',
   },
 } satisfies Record<LanguageCode, any>;
