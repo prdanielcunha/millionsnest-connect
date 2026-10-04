@@ -71,16 +71,7 @@ Só avance quando aparecer `CONNECT_WHATSAPP_PRODUCTION_PREFLIGHT_OK`.
 
 Esse preflight valida presença/formato, WIF, storage real, token Meta, WABA e se o Phone Number ID realmente pertence ao WABA. Ele **não** inscreve o app, não muda Cloud Run e não liga dispatch.
 
-## Webhook Meta
-
-No app Meta, configure o webhook do WhatsApp com:
-
-- Callback URL: `https://connect.millionsnest.com/api/channels/whatsapp/webhook`
-- Verify Token: exatamente o mesmo valor salvo em `CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
-
-A ativação do Connect também executa o challenge real e valida webhook assinado. O workflow faz `subscribed_apps` do WABA durante a ativação; não é necessário executar esse POST manualmente.
-
-## Ativação
+## Ativação do runtime
 
 1. GitHub → **Actions**.
 2. Abra **Connect WhatsApp Production Activation**.
@@ -90,7 +81,18 @@ A ativação do Connect também executa o challenge real e valida webhook assina
    `CONNECT_WHATSAPP_PRODUCTION_READY`
 6. Execute.
 
-O workflow só altera o runtime depois de passar pelos gates. Após a alteração, valida webhook e storage; se falhar, retorna o tráfego para a revisão anterior.
+O workflow valida WABA/número, faz `subscribed_apps`, instala as credenciais no runtime, habilita a boundary oficial e executa smoke do challenge/assinatura/storage. Se qualquer verificação falhar depois da alteração, retorna o tráfego para a revisão anterior.
+
+**Importante:** o endpoint de verificação do webhook fica deliberadamente indisponível antes desta etapa. Portanto, não tente clicar em “Verify and save” na Meta antes de o workflow terminar verde.
+
+## Webhook Meta — depois do workflow verde
+
+No app Meta, configure o webhook do WhatsApp com:
+
+- Callback URL: `https://connect.millionsnest.com/api/channels/whatsapp/webhook`
+- Verify Token: exatamente o mesmo valor salvo em `CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+
+Clique para verificar/salvar. Depois, na assinatura de campos do webhook do WhatsApp, habilite pelo menos o campo de **messages** para a primeira vertical de produção. O `subscribed_apps` do WABA já é executado pelo workflow do Connect; não faça chamadas manuais à Graph API para repetir essa etapa.
 
 ## Prova end-to-end obrigatória
 
