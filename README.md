@@ -1,9 +1,12 @@
 # MillionsNest Connect
 
 ## Visão Geral
-O **MillionsNest Connect** é a camada omnichannel de atendimento, relacionamento, agentes de IA e execução segura de ações nos aplicativos do ecossistema MillionsNest. A interface React/Vite ainda opera predominantemente em **DEMO_MODE**, validando conceitos de segurança, políticas e experiência com mocks locais. Em paralelo, esta base agora contém a primeira runtime server-side real e isolada do Connect Core, preparada para a vertical read-only **“Qual é minha próxima escala?”** sem transformar o frontend em autoridade.
+O **MillionsNest Connect** é a camada inteligente de comunicação, atendimento, relacionamento e orquestração segura dos aplicativos do ecossistema MillionsNest. Em **LIVE_MODE**, o produto já possui superfícies reais e tenant-safe para Connect Core/Assist, experiência adaptativa por papel, Radar/Cofre/Pessoas, workspaces comerciais, Canais, Automações, Operações/Auditoria e Inbox durável com lista/timeline reais. O caminho legado de **DEMO_MODE** continua existindo apenas para demonstração e desenvolvimento isolado; ele não é a fonte de verdade da operação ao vivo.
 
-A runtime real ainda está em fase de integração/validação e **não substitui o DEMO_MODE nem implica deploy em produção por si só**.
+A runtime server-side real está publicada em produção e preserva Hub/RBAC/multi-tenant/Tool Gateway como autoridades. O WhatsApp Business oficial já possui adapter, webhook, ingestão, outbox e boundary de resposta humana implementados, porém a **ativação do provider em produção permanece fail-closed até a configuração externa da Meta/GitHub Actions ser concluída**.
+
+## Estado atual
+Consulte `docs/CURRENT_STATUS.md` para o estado certificado, módulos ativos, gates restantes e a continuidade operacional.
 
 ## Stack
 * **Frontend:** React 19, Vite 6
@@ -122,9 +125,9 @@ Nesta V1, o Connect:
 * não encerra a Care Promise;
 * devolve o usuário ao NestJourney para registrar o outcome humano observado.
 
-A execução real de provider/WhatsApp API continua fora desta fatia. Abrir um draft não é evidência de entrega nem resolução.
+O provider oficial do WhatsApp já possui boundary server-side implementada. Enquanto a ativação externa da Meta não estiver concluída, abrir um draft manual continua não sendo evidência de entrega nem resolução; envio oficial só pode ser registrado após confirmação real do provider.
 
-Esses endpoints existem no código da runtime, mas o Firebase Hosting atual continua estático até que uma integração Cloud Run/rewrite seja explicitamente validada e promovida.
+Os endpoints live do Connect Core já são servidos pela arquitetura de produção com Cloud Run/rewrite e gates de release. Novos providers e ações permanecem desativados por padrão até passarem pelos respectivos preflights, smoke tests e políticas de rollback.
 
 ## Documentação Adicional
 Consulte:
