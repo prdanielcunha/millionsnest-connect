@@ -1,0 +1,112 @@
+name: Connect WhatsApp Production Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-whatsapp-production-preflight
+  cancel-in-progress: true
+
+env:
+  PUBLIC_ORIGIN: ${{ vars.CONNECT_WHATSAPP_PUBLIC_ORIGIN || 'https://connect.millionsnest.com' }}
+  META_PHONE_NUMBER_ID: ${{ vars.CONNECT_WHATSAPP_PHONE_NUMBER_ID }}
+  META_WABA_ID: ${{ vars.CONNECT_WHATSAPP_WABA_ID }}
+  META_GRAPH_VERSION: ${{ vars.CONNECT_WHATSAPP_GRAPH_API_VERSION }}
+  CONNECT_ORGANIZATION_ID: ${{ vars.CONNECT_WHATSAPP_ORGANIZATION_ID }}
+  CONNECT_CONNECTION_REF: ${{ vars.CONNECT_WHATSAPP_CONNECTION_REF || 'primary' }}
+  META_APP_SECRET: ${{ secrets.CONNECT_WHATSAPP_APP_SECRET }}
+  META_ACCESS_TOKEN: ${{ secrets.CONNECT_WHATSAPP_ACCESS_TOKEN }}
+  META_VERIFY_TOKEN: ${{ secrets.CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN }}
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in META_PHONE_NUMBER_ID META_WABA_ID META_GRAPH_VERSION CONNECT_ORGANIZATION_ID META_APP_SECRET META_ACCESS_TOKEN META_VERIFY_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required WhatsApp production configuration: $name"
+              missing=1
+            fi
+          done
+          test "$missing" = "0"
+
+          [[ "$META_PHONE_NUMBER_ID" =~ ^[0-9]{5,30}$ ]]
+          [[ "$META_WABA_ID" =~ ^[0-9]{5,30}$ ]]
+          [[ "$META_GRAPH_VERSION" =~ ^v[0-9]{1,3}\.[0-9]{1,3}$ ]]
+          test -n "$CONNECT_CONNECTION_REF"
+          test "${#CONNECT_ORGANIZATION_ID}" -le 180
+          test "${#CONNECT_CONNECTION_REF}" -le 180
+
+          for name in META_APP_SECRET META_ACCESS_TOKEN META_VERIFY_TOKEN CONNECT_ORGANIZATION_ID CONNECT_CONNECTION_REF; do
+            if [[ "${!name}" == *"@"* ]]; then
+              echo "::error::$name contains reserved activation delimiter @"
+              exit 1
+            fi
+          done
+
+          echo "CONNECT_WHATSAPP_PREFLIGHT_CONFIG_OK"
+
+      - name: Authenticate with MillionsNest production WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+
+      - name: Prove current Connect storage readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${PUBLIC_ORIGIN%/}"
+          curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 2 --retry-all-errors \
+            "$BASE/api/health/storage-readiness" -o /tmp/connect-storage.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/connect-storage.json', 'utf8'));
+          if (x.success !== true || x.storageReadiness !== 'read_write_confirmed') {
+            throw new Error('CONNECT_STORAGE_NOT_READY');
+          }
+          console.log('CONNECT_WHATSAPP_PREFLIGHT_STORAGE_OK');
+          NODE
+
+      - name: Validate Meta token, WABA and phone binding without activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          META_BASE="https://graph.facebook.com/$META_GRAPH_VERSION"
+
+          STATUS="$(curl --silent --show-error \
+            -o /tmp/meta-phone-numbers.json -w '%{http_code}' \
+            -H "Authorization: Bearer $META_ACCESS_TOKEN" \
+            "$META_BASE/$META_WABA_ID/phone_numbers?fields=id,display_phone_number,verified_name&limit=100")"
+          test "$STATUS" = "200"
+
+          META_PHONE_NUMBER_ID="$META_PHONE_NUMBER_ID" node - <<'NODE'
+          const fs = require('fs');
+          const expected = process.env.META_PHONE_NUMBER_ID;
+          const body = JSON.parse(fs.readFileSync('/tmp/meta-phone-numbers.json', 'utf8'));
+          const rows = Array.isArray(body.data) ? body.data : [];
+          const match = rows.find((x) => String(x?.id || '') === expected);
+          if (!match) throw new Error('META_PHONE_NUMBER_NOT_IN_WABA');
+          console.log('CONNECT_WHATSAPP_PREFLIGHT_META_BINDING_OK');
+          console.log('Verified phone: ' + String(match.display_phone_number || '[hidden by Meta]'));
+          NODE
+
+      - name: Report activation readiness
+        shell: bash
+        run: |
+          echo "CONNECT_WHATSAPP_PRODUCTION_PREFLIGHT_OK"
+          echo "No Meta subscription, Cloud Run flag or provider dispatch was changed by this workflow."
