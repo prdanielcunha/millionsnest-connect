@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Human reply boundary certified release trigger — 2026-09-20
+# Status truth + Channels copy certified release trigger — 2026-10-04
 
 on:
   push:
