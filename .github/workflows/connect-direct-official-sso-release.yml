@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Status truth + Channels copy certified release trigger — 2026-10-04
+# WhatsApp activation runbook + preflight certified release trigger — 2026-10-04
 
 on:
   push:
