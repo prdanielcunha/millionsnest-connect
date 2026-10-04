@@ -175,11 +175,23 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
   onOpenHome,
 }) => {
   const t = copy[currentLang];
+  const [organizationIdCopied, setOrganizationIdCopied] = React.useState(false);
   const update = <K extends keyof ExperiencePreviewConfig,>(key: K, value: ExperiencePreviewConfig[K]) => {
     onChange({ ...config, [key]: value });
   };
 
   const realOrgId = session.context.activeOrganization.id;
+
+  const copyRealOrganizationId = async () => {
+    try {
+      await navigator.clipboard.writeText(realOrgId);
+      setOrganizationIdCopied(true);
+      window.setTimeout(() => setOrganizationIdCopied(false), 1800);
+    } catch {
+      setOrganizationIdCopied(false);
+    }
+  };
+
   const realPlan = session.context.activeOrganization.plan || 'real';
   const isSynthetic =
     config.view !== 'real' ||
