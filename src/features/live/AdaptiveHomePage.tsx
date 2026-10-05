@@ -22,6 +22,7 @@ import { LiveConnectSession } from '../../core/client/liveConnectSession';
 import { ExperiencePreviewConfig, ExperienceProfile } from '../../core/client/liveSurfacePolicy';
 import { LiveInboxClient, type LiveInboxConversation } from '../../core/client/liveInboxClient';
 import { PersonalRadarClient, type RadarClientPerson } from '../../core/client/personalRadarClient';
+import { LiveOperationsClient, type OperationalReadiness } from '../../core/client/liveOperationsClient';
 import { LanguageCode } from '../../types';
 
 interface AdaptiveHomePageProps {
@@ -320,8 +321,10 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
   const t = copy[currentLang];
   const inboxClient = useMemo(() => new LiveInboxClient(session), [session]);
   const radarClient = useMemo(() => new PersonalRadarClient(session), [session]);
+  const operationsClient = useMemo(() => new LiveOperationsClient(session), [session]);
   const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
   const [radarPeople, setRadarPeople] = useState<RadarClientPerson[]>([]);
+  const [operationalReadiness, setOperationalReadiness] = useState<OperationalReadiness | null>(null);
   const [homeLoading, setHomeLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'support' | 'followups'>('all');
   const [selectedId, setSelectedId] = useState('');
@@ -352,13 +355,19 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
             .catch(() => { if (!cancelled) setRadarPeople([]); })
         : Promise.resolve();
 
-      await Promise.all([inboxPromise, radarPromise]);
+      const operationsPromise = ['ceo', 'organization_admin'].includes(profile)
+        ? operationsClient.getReadiness()
+            .then((result) => { if (!cancelled) setOperationalReadiness(result); })
+            .catch(() => { if (!cancelled) setOperationalReadiness(null); })
+        : Promise.resolve();
+
+      await Promise.all([inboxPromise, radarPromise, operationsPromise]);
       if (!cancelled) setHomeLoading(false);
     };
 
     void load();
     return () => { cancelled = true; };
-  }, [inboxClient, radarClient, showRadar]);
+  }, [inboxClient, radarClient, operationsClient, profile, showRadar]);
 
   const attentionItems = useMemo<AttentionItem[]>(() => {
     const items: AttentionItem[] = [];
@@ -427,6 +436,24 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
       });
     }
 
+    if (operationalReadiness && operationalReadiness.overall !== 'ready') {
+      const blockedGate = operationalReadiness.gates.find((gate) => gate.status === 'blocked')
+        || operationalReadiness.gates.find((gate) => gate.status === 'controlled');
+      items.push({
+        id: 'operation:readiness',
+        kind: 'operation',
+        title: t.operationsAttention,
+        meta: blockedGate?.id || operationalReadiness.overall,
+        badge: t.operation,
+        route: 'audit',
+        actionLabel: t.open,
+        reason: blockedGate?.detail || t.operationsReason,
+        nextStep: t.operationsNext,
+        timestamp: operationalReadiness.generatedAt,
+        accent: operationalReadiness.overall === 'blocked' ? 'amber' : 'slate',
+      });
+    }
+
     if (items.length === 0 && ['musician', 'worship_leader', 'pastor_leader'].includes(profile)) {
       items.push({
         id: 'assist:musicscale',
@@ -443,7 +470,7 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
     }
 
     return items;
-  }, [conversations, radarPeople, profile, showRadar, t]);
+  }, [conversations, radarPeople, operationalReadiness, profile, showRadar, t]);
 
   const filteredItems = attentionItems.filter((item) => {
     if (filter === 'support') return item.kind === 'conversation';
