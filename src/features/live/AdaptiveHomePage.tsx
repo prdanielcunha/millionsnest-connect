@@ -1,16 +1,27 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  Bot,
+  BellRing,
+  Briefcase,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  CreditCard,
   Inbox,
   MessageSquareText,
-  Radar,
+  Music2,
+  Radio,
+  Search,
+  ShieldCheck,
   Sparkles,
   Users,
   Workflow,
 } from 'lucide-react';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
 import { ExperiencePreviewConfig, ExperienceProfile } from '../../core/client/liveSurfacePolicy';
+import { LiveInboxClient, type LiveInboxConversation } from '../../core/client/liveInboxClient';
+import { PersonalRadarClient, type RadarClientPerson } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
 
 interface AdaptiveHomePageProps {
@@ -23,176 +34,278 @@ interface AdaptiveHomePageProps {
   previewOrganizationName?: string;
 }
 
-type ModuleStatus = 'ready' | 'controlled' | 'next';
+type AttentionKind = 'conversation' | 'commercial' | 'operation' | 'assist';
 
-type HomeAction = {
+type AttentionItem = {
   id: string;
+  kind: AttentionKind;
+  title: string;
+  meta: string;
+  badge: string;
   route: string;
-  icon: React.ElementType;
-  status: ModuleStatus;
-  title: Record<LanguageCode, string>;
-  description: Record<LanguageCode, string>;
+  actionLabel: string;
+  reason: string;
+  nextStep: string;
+  timestamp?: string;
+  accent: 'cyan' | 'amber' | 'violet' | 'slate';
 };
 
-const profileCopy: Record<ExperienceProfile, Record<LanguageCode, { eyebrow: string; title: string; subtitle: string }>> = {
-  ceo: {
-    'pt-BR': { eyebrow: 'COMMAND CENTER', title: 'O que exige sua decisão agora?', subtitle: 'Uma visão executiva do Connect: comunicação, relacionamento e operação sem transformar infraestrutura em ruído.' },
-    'en-US': { eyebrow: 'COMMAND CENTER', title: 'What needs your decision now?', subtitle: 'An executive view of Connect: communication, relationships and operations without turning infrastructure into noise.' },
-    'es-ES': { eyebrow: 'COMMAND CENTER', title: '¿Qué necesita tu decisión ahora?', subtitle: 'Una vista ejecutiva de Connect: comunicación, relaciones y operación sin convertir la infraestructura en ruido.' },
-  },
-  musician: {
-    'pt-BR': { eyebrow: 'MINHA ROTINA', title: 'O que preciso saber da minha próxima escala?', subtitle: 'Consulte escala, repertório, presença e cifras sem procurar informação espalhada.' },
-    'en-US': { eyebrow: 'MY WORK', title: 'What do I need to know about my next schedule?', subtitle: 'Check schedules, repertoire, attendance and charts without hunting for scattered information.' },
-    'es-ES': { eyebrow: 'MI RUTINA', title: '¿Qué necesito saber de mi próxima escala?', subtitle: 'Consulta escala, repertorio, asistencia y cifras sin buscar información dispersa.' },
-  },
-  worship_leader: {
-    'pt-BR': { eyebrow: 'LIDERANÇA DE LOUVOR', title: 'O que falta resolver na minha equipe?', subtitle: 'Centralize respostas, pessoas e consultas rápidas para cuidar da escala com menos atrito.' },
-    'en-US': { eyebrow: 'WORSHIP LEADERSHIP', title: 'What still needs attention in my team?', subtitle: 'Bring responses, people and quick queries together so schedules are easier to manage.' },
-    'es-ES': { eyebrow: 'LIDERAZGO DE ALABANZA', title: '¿Qué falta resolver en mi equipo?', subtitle: 'Centraliza respuestas, personas y consultas rápidas para organizar la escala con menos fricción.' },
-  },
-  pastor_leader: {
-    'pt-BR': { eyebrow: 'LIDERANÇA', title: 'O que precisa da minha atenção?', subtitle: 'Veja conversas e pendências relevantes sem transformar o Connect em mais um painel para administrar.' },
-    'en-US': { eyebrow: 'LEADERSHIP', title: 'What needs my attention?', subtitle: 'See relevant conversations and pending work without turning Connect into another dashboard to manage.' },
-    'es-ES': { eyebrow: 'LIDERAZGO', title: '¿Qué necesita mi atención?', subtitle: 'Mira conversaciones y pendientes relevantes sin convertir Connect en otro panel para administrar.' },
-  },
-  support: {
-    'pt-BR': { eyebrow: 'ATENDIMENTO', title: 'Quem está esperando resposta?', subtitle: 'Contexto, pessoas e Assist organizados para resolver primeiro o que realmente está pendente.' },
-    'en-US': { eyebrow: 'SUPPORT', title: 'Who is waiting for a reply?', subtitle: 'Context, people and Assist organized around what actually needs to be resolved first.' },
-    'es-ES': { eyebrow: 'ATENCIÓN', title: '¿Quién está esperando respuesta?', subtitle: 'Contexto, personas y Assist organizados para resolver primero lo que realmente está pendiente.' },
-  },
-  commercial: {
-    'pt-BR': { eyebrow: 'RELACIONAMENTO', title: 'Quem precisa de acompanhamento hoje?', subtitle: 'Radar, pessoas e próximos passos com contexto — sem lead score opaco e sem abordagem automática.' },
-    'en-US': { eyebrow: 'RELATIONSHIPS', title: 'Who needs follow-up today?', subtitle: 'Radar, people and next steps with context — no opaque lead score and no automatic outreach.' },
-    'es-ES': { eyebrow: 'RELACIONES', title: '¿Quién necesita seguimiento hoy?', subtitle: 'Radar, personas y próximos pasos con contexto — sin puntuación opaca ni contacto automático.' },
-  },
-  organization_admin: {
-    'pt-BR': { eyebrow: 'OPERAÇÃO', title: 'O que precisa estar saudável para o time trabalhar?', subtitle: 'Canais, automações e governança organizados por capacidade, com recursos incompletos claramente sinalizados.' },
-    'en-US': { eyebrow: 'OPERATIONS', title: 'What needs to stay healthy for the team to work?', subtitle: 'Channels, automations and governance organized by capability, with incomplete features clearly labeled.' },
-    'es-ES': { eyebrow: 'OPERACIÓN', title: '¿Qué debe estar saludable para que el equipo trabaje?', subtitle: 'Canales, automatizaciones y gobernanza organizados por capacidad, con funciones incompletas claramente señaladas.' },
-  },
-};
-
-const uiCopy = {
+const copy = {
   'pt-BR': {
-    today: 'Hoje no Connect',
-    available: 'Disponível',
-    controlled: 'Ativação controlada',
-    next: 'Próxima fase',
+    dayEyebrow: 'VISÃO DO ECOSSISTEMA',
+    helloMorning: 'Bom dia',
+    helloAfternoon: 'Boa tarde',
+    helloEvening: 'Boa noite',
+    subtitle: 'Conversas, contexto e próximos passos.',
+    attention: 'Precisa da sua atenção',
+    all: 'Tudo',
+    support: 'Atendimento',
+    approvals: 'Aprovações',
+    followups: 'Follow-ups',
+    empty: 'Nenhuma pendência neste filtro',
+    emptyDesc: 'Quando houver algo real para resolver, ele aparece aqui — sem contadores inventados.',
     open: 'Abrir',
-    ecosystem: 'Seu ecossistema, sem trocar de contexto',
-    ecosystemDesc: 'O Connect consulta os aplicativos pela camada segura e leva a resposta para o canal certo. O app de domínio continua sendo a fonte da verdade.',
-    ask: 'Perguntar ao Connect',
-    askDesc: 'Próxima escala, repertório, presença e cifras do MusicScale já usam dados reais e permissões validadas.',
-    relationship: 'Relacionamento inteligente',
-    relationshipDesc: 'Radar e Composer aparecem apenas para quem tem essa função. Eles usam o Connect; não definem o produto inteiro.',
-    inbox: 'Caixa de entrada',
-    inboxDesc: 'A fundação durável já existe, mas a ativação em produção continua protegida por gate de IAM.',
-    people: 'Pessoas',
-    peopleDesc: 'Contexto e identidades em uma visão única, respeitando separação entre dados pessoais e organizacionais.',
-    operations: 'Operação omnichannel',
-    operationsDesc: 'Canais, agentes e automações entram progressivamente sem fingir integrações que ainda não estão ativas.',
-    synthetic: 'Cenário de pré-visualização',
-    syntheticDesc: 'Ações reais ficam bloqueadas quando organização, plano, produto, estado da conta ou dados são simulados.',
-    simulated: 'simulado',
+    context: 'Contexto da seleção',
+    noSelection: 'Selecione um item para ver o contexto.',
+    organization: 'Organização',
+    source: 'Origem',
+    owner: 'Responsável',
+    next: 'Próximo passo',
+    evidence: 'Evidências',
+    activity: 'Atividade',
+    apps: 'Conversar com seus aplicativos',
+    askPlaceholder: 'O que você precisa consultar ou resolver?',
+    accessHint: 'Acesso conforme suas permissões.',
+    operation: 'Operação',
+    operationHint: 'Acesso rápido à operação do ecossistema.',
+    channels: 'Canais',
+    agents: 'Agentes',
+    automations: 'Automações',
+    state: 'Consultar estado',
+    realData: 'Dados reais',
+    controlled: 'Ativação controlada',
+    simulated: 'Cenário de pré-visualização',
+    simulatedDesc: 'A prévia altera apenas a apresentação. Ações reais ficam bloqueadas em cenários simulados.',
+    whatsapp: 'WhatsApp',
+    radar: 'Radar',
+    musicScale: 'MusicScale',
+    musicScaleDesc: 'Escalas e repertório',
+    nestJourney: 'NestJourney',
+    nestJourneyDesc: 'Acolhimento e acompanhamento',
+    nestFinance: 'NestFinance',
+    nestFinanceDesc: 'Contagem e pendências',
+    appUnavailable: 'Aplicativo não disponível nesta organização',
+    conversationNew: 'Responder conversa',
+    conversationProgress: 'Continuar atendimento',
+    conversationWaitingTeam: 'Equipe precisa agir',
+    conversationReason: 'Conversa real persistida na Inbox do Connect.',
+    conversationNext: 'Abra a conversa, confira o histórico e responda ou encaminhe com segurança.',
+    commercialFollowup: 'Retomar uma conversa',
+    commercialReason: 'Follow-up comercial registrado e pronto para acompanhamento.',
+    commercialNext: 'Revise o contexto e prepare a próxima mensagem antes de abrir o WhatsApp.',
+    commercialSignal: 'Revisar oportunidade',
+    commercialSignalReason: 'Sinal explicável do Radar com contexto disponível.',
+    commercialSignalNext: 'Confira a evidência, valide a relevância e escolha a próxima ação.',
+    operationsAttention: 'Revisar operação',
+    operationsReason: 'Há uma área operacional disponível para conferência.',
+    operationsNext: 'Abra a área correspondente para consultar o estado real.',
+    assistTitle: 'Consultar seus aplicativos',
+    assistReason: 'Use o Assist para consultar informações autorizadas sem navegar por cada aplicativo.',
+    assistNext: 'Faça uma pergunta. O app de domínio continua validando dados e permissões.',
+    profile: {
+      ceo: 'Visão CEO',
+      musician: 'Músico',
+      worship_leader: 'Líder de louvor',
+      pastor_leader: 'Pastor ou líder',
+      support: 'Atendimento',
+      commercial: 'Comercial',
+      organization_admin: 'Administrador',
+    },
   },
   'en-US': {
-    today: 'Today in Connect', available: 'Available', controlled: 'Controlled activation', next: 'Next phase', open: 'Open',
-    ecosystem: 'Your ecosystem, without switching context', ecosystemDesc: 'Connect queries apps through the secure layer and brings the answer to the right channel. Domain apps remain the source of truth.',
-    ask: 'Ask Connect', askDesc: 'MusicScale next schedule, repertoire, attendance and charts already use real data and validated permissions.',
-    relationship: 'Relationship intelligence', relationshipDesc: 'Radar and Composer appear only for the right roles. They use Connect; they do not define the whole product.',
-    inbox: 'Inbox', inboxDesc: 'The durable foundation exists, while production activation remains protected by the IAM gate.',
-    people: 'People', peopleDesc: 'Context and identities in one view while keeping personal and organizational data separated.',
-    operations: 'Omnichannel operations', operationsDesc: 'Channels, agents and automations roll out progressively without pretending unfinished integrations are live.',
-    synthetic: 'Preview scenario', syntheticDesc: 'Real actions stay locked when organization, plan, product, account state or data are simulated.', simulated: 'simulated',
+    dayEyebrow: 'ECOSYSTEM VIEW',
+    helloMorning: 'Good morning',
+    helloAfternoon: 'Good afternoon',
+    helloEvening: 'Good evening',
+    subtitle: 'Conversations, context and next steps.',
+    attention: 'Needs your attention',
+    all: 'All',
+    support: 'Support',
+    approvals: 'Approvals',
+    followups: 'Follow-ups',
+    empty: 'Nothing pending in this filter',
+    emptyDesc: 'When something real needs action, it appears here — without invented counters.',
+    open: 'Open',
+    context: 'Selection context',
+    noSelection: 'Select an item to inspect its context.',
+    organization: 'Organization',
+    source: 'Source',
+    owner: 'Owner',
+    next: 'Next step',
+    evidence: 'Evidence',
+    activity: 'Activity',
+    apps: 'Talk to your apps',
+    askPlaceholder: 'What do you need to check or resolve?',
+    accessHint: 'Access follows your permissions.',
+    operation: 'Operations',
+    operationHint: 'Quick access to ecosystem operations.',
+    channels: 'Channels',
+    agents: 'Agents',
+    automations: 'Automations',
+    state: 'Check status',
+    realData: 'Real data',
+    controlled: 'Controlled activation',
+    simulated: 'Preview scenario',
+    simulatedDesc: 'Preview changes presentation only. Real actions stay locked in simulated scenarios.',
+    whatsapp: 'WhatsApp',
+    radar: 'Radar',
+    musicScale: 'MusicScale',
+    musicScaleDesc: 'Schedules and repertoire',
+    nestJourney: 'NestJourney',
+    nestJourneyDesc: 'Welcome and follow-up',
+    nestFinance: 'NestFinance',
+    nestFinanceDesc: 'Count and pending work',
+    appUnavailable: 'App unavailable for this organization',
+    conversationNew: 'Reply to conversation',
+    conversationProgress: 'Continue support',
+    conversationWaitingTeam: 'Team action required',
+    conversationReason: 'Real conversation persisted in Connect Inbox.',
+    conversationNext: 'Open the conversation, review history and reply or hand off safely.',
+    commercialFollowup: 'Resume a conversation',
+    commercialReason: 'A recorded commercial follow-up is ready for attention.',
+    commercialNext: 'Review context and prepare the next message before opening WhatsApp.',
+    commercialSignal: 'Review opportunity',
+    commercialSignalReason: 'Explainable Radar signal with context available.',
+    commercialSignalNext: 'Inspect the evidence, validate relevance and choose the next action.',
+    operationsAttention: 'Review operations',
+    operationsReason: 'An operational area is available for review.',
+    operationsNext: 'Open the relevant area to inspect its real state.',
+    assistTitle: 'Ask your apps',
+    assistReason: 'Use Assist to query authorized information without navigating every app.',
+    assistNext: 'Ask a question. The domain app still validates data and permissions.',
+    profile: {
+      ceo: 'CEO view',
+      musician: 'Musician',
+      worship_leader: 'Worship leader',
+      pastor_leader: 'Pastor or leader',
+      support: 'Support',
+      commercial: 'Commercial',
+      organization_admin: 'Administrator',
+    },
   },
   'es-ES': {
-    today: 'Hoy en Connect', available: 'Disponible', controlled: 'Activación controlada', next: 'Próxima fase', open: 'Abrir',
-    ecosystem: 'Tu ecosistema, sin cambiar de contexto', ecosystemDesc: 'Connect consulta las aplicaciones mediante la capa segura y lleva la respuesta al canal correcto. La app de dominio sigue siendo la fuente de verdad.',
-    ask: 'Preguntar a Connect', askDesc: 'Próxima escala, repertorio, asistencia y cifras de MusicScale ya usan datos reales y permisos validados.',
-    relationship: 'Inteligencia de relaciones', relationshipDesc: 'Radar y Composer aparecen solo para los perfiles adecuados. Usan Connect; no definen todo el producto.',
-    inbox: 'Bandeja de entrada', inboxDesc: 'La base duradera ya existe, mientras la activación en producción sigue protegida por el gate de IAM.',
-    people: 'Personas', peopleDesc: 'Contexto e identidades en una sola vista, manteniendo separados los datos personales y organizacionales.',
-    operations: 'Operación omnicanal', operationsDesc: 'Canales, agentes y automatizaciones llegan progresivamente sin fingir integraciones que todavía no están activas.',
-    synthetic: 'Escenario de vista previa', syntheticDesc: 'Las acciones reales quedan bloqueadas cuando organización, plan, producto, estado o datos son simulados.', simulated: 'simulado',
+    dayEyebrow: 'VISTA DEL ECOSISTEMA',
+    helloMorning: 'Buenos días',
+    helloAfternoon: 'Buenas tardes',
+    helloEvening: 'Buenas noches',
+    subtitle: 'Conversaciones, contexto y próximos pasos.',
+    attention: 'Necesita tu atención',
+    all: 'Todo',
+    support: 'Atención',
+    approvals: 'Aprobaciones',
+    followups: 'Follow-ups',
+    empty: 'No hay pendientes en este filtro',
+    emptyDesc: 'Cuando exista algo real para resolver, aparecerá aquí — sin contadores inventados.',
+    open: 'Abrir',
+    context: 'Contexto de la selección',
+    noSelection: 'Selecciona un elemento para ver su contexto.',
+    organization: 'Organización',
+    source: 'Origen',
+    owner: 'Responsable',
+    next: 'Próximo paso',
+    evidence: 'Evidencias',
+    activity: 'Actividad',
+    apps: 'Hablar con tus aplicaciones',
+    askPlaceholder: '¿Qué necesitas consultar o resolver?',
+    accessHint: 'Acceso según tus permisos.',
+    operation: 'Operación',
+    operationHint: 'Acceso rápido a la operación del ecosistema.',
+    channels: 'Canales',
+    agents: 'Agentes',
+    automations: 'Automatizaciones',
+    state: 'Consultar estado',
+    realData: 'Datos reales',
+    controlled: 'Activación controlada',
+    simulated: 'Escenario de vista previa',
+    simulatedDesc: 'La vista previa cambia solo la presentación. Las acciones reales quedan bloqueadas en escenarios simulados.',
+    whatsapp: 'WhatsApp',
+    radar: 'Radar',
+    musicScale: 'MusicScale',
+    musicScaleDesc: 'Escalas y repertorio',
+    nestJourney: 'NestJourney',
+    nestJourneyDesc: 'Acogida y seguimiento',
+    nestFinance: 'NestFinance',
+    nestFinanceDesc: 'Conteo y pendientes',
+    appUnavailable: 'Aplicación no disponible en esta organización',
+    conversationNew: 'Responder conversación',
+    conversationProgress: 'Continuar atención',
+    conversationWaitingTeam: 'El equipo debe actuar',
+    conversationReason: 'Conversación real persistida en la Inbox de Connect.',
+    conversationNext: 'Abre la conversación, revisa el historial y responde o deriva con seguridad.',
+    commercialFollowup: 'Retomar una conversación',
+    commercialReason: 'Un follow-up comercial registrado está listo para seguimiento.',
+    commercialNext: 'Revisa el contexto y prepara el próximo mensaje antes de abrir WhatsApp.',
+    commercialSignal: 'Revisar oportunidad',
+    commercialSignalReason: 'Señal explicable del Radar con contexto disponible.',
+    commercialSignalNext: 'Revisa la evidencia, valida relevancia y elige la próxima acción.',
+    operationsAttention: 'Revisar operación',
+    operationsReason: 'Hay un área operativa disponible para revisión.',
+    operationsNext: 'Abre el área correspondiente para consultar su estado real.',
+    assistTitle: 'Consultar tus aplicaciones',
+    assistReason: 'Usa Assist para consultar información autorizada sin navegar por cada aplicación.',
+    assistNext: 'Haz una pregunta. La aplicación de dominio sigue validando datos y permisos.',
+    profile: {
+      ceo: 'Vista CEO',
+      musician: 'Músico',
+      worship_leader: 'Líder de alabanza',
+      pastor_leader: 'Pastor o líder',
+      support: 'Atención',
+      commercial: 'Comercial',
+      organization_admin: 'Administrador',
+    },
   },
-} satisfies Record<LanguageCode, Record<string, string>>;
+} satisfies Record<LanguageCode, any>;
 
-const actions: HomeAction[] = [
-  {
-    id: 'assist',
-    route: 'assist',
-    icon: MessageSquareText,
-    status: 'ready',
-    title: { 'pt-BR': 'Assist', 'en-US': 'Assist', 'es-ES': 'Assist' },
-    description: {
-      'pt-BR': 'Converse com o MusicScale usando o contexto real da organização.',
-      'en-US': 'Talk to MusicScale using the organization’s real context.',
-      'es-ES': 'Habla con MusicScale usando el contexto real de la organización.',
-    },
-  },
-  {
-    id: 'people',
-    route: 'contacts',
-    icon: Users,
-    status: 'ready',
-    title: { 'pt-BR': 'Pessoas', 'en-US': 'People', 'es-ES': 'Personas' },
-    description: {
-      'pt-BR': 'Identidades e contexto reunidos com limites claros de escopo.',
-      'en-US': 'Identity and context together with clear scope boundaries.',
-      'es-ES': 'Identidad y contexto juntos con límites claros de alcance.',
-    },
-  },
-  {
-    id: 'radar',
-    route: 'radar',
-    icon: Radar,
-    status: 'ready',
-    title: { 'pt-BR': 'Radar', 'en-US': 'Radar', 'es-ES': 'Radar' },
-    description: {
-      'pt-BR': 'Sinais explicáveis, próxima ação e abordagem assistida.',
-      'en-US': 'Explainable signals, next action and assisted outreach.',
-      'es-ES': 'Señales explicables, próxima acción y contacto asistido.',
-    },
-  },
-  {
-    id: 'inbox',
-    route: 'inbox',
-    icon: Inbox,
-    status: 'controlled',
-    title: { 'pt-BR': 'Inbox', 'en-US': 'Inbox', 'es-ES': 'Inbox' },
-    description: {
-      'pt-BR': 'Atendimento real preparado para ativação segura.',
-      'en-US': 'Real support foundation prepared for safe activation.',
-      'es-ES': 'Base de atención real preparada para activación segura.',
-    },
-  },
-  {
-    id: 'operations',
-    route: 'automations',
-    icon: Workflow,
-    status: 'next',
-    title: { 'pt-BR': 'Automações', 'en-US': 'Automations', 'es-ES': 'Automatizaciones' },
-    description: {
-      'pt-BR': 'Eventos do ecossistema virando comunicação auditada.',
-      'en-US': 'Ecosystem events becoming audited communication.',
-      'es-ES': 'Eventos del ecosistema convertidos en comunicación auditada.',
-    },
-  },
-];
+function greeting(language: LanguageCode, hour: number, firstName: string, t: typeof copy['pt-BR']) {
+  const prefix = hour < 12 ? t.helloMorning : hour < 18 ? t.helloAfternoon : t.helloEvening;
+  return `${prefix}, ${firstName}.`;
+}
 
-function visibleActionIds(profile: ExperienceProfile, showRadar: boolean): Set<string> {
-  const base = profile === 'musician'
-    ? ['assist']
-    : profile === 'worship_leader' || profile === 'pastor_leader'
-      ? ['assist', 'people', 'inbox']
-      : profile === 'support'
-        ? ['inbox', 'people', 'assist']
-        : profile === 'commercial'
-          ? ['radar', 'people', 'assist']
-          : profile === 'organization_admin'
-            ? ['inbox', 'people', 'assist', 'operations']
-            : ['assist', 'inbox', 'people', 'radar', 'operations'];
-  return new Set(base.filter(id => id !== 'radar' || showRadar));
+function compactConversationId(value: string) {
+  return value.length > 16 ? `…${value.slice(-10)}` : value;
+}
+
+function formatDate(language: LanguageCode, date = new Date()) {
+  return new Intl.DateTimeFormat(language, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(date);
+}
+
+function formatTime(language: LanguageCode, value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(language, { hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function conversationTitle(conversation: LiveInboxConversation, t: typeof copy['pt-BR']) {
+  if (conversation.status === 'new') return t.conversationNew;
+  if (conversation.status === 'waiting_team') return t.conversationWaitingTeam;
+  return t.conversationProgress;
+}
+
+function isConversationActionable(conversation: LiveInboxConversation) {
+  return ['new', 'in_progress', 'waiting_team'].includes(conversation.status);
+}
+
+function realApps(session: LiveConnectSession) {
+  return new Set(
+    session.context.appAccess
+      .filter((item) => item.access)
+      .map((item) => item.appId.toLocaleLowerCase('en-US')),
+  );
 }
 
 export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
@@ -204,10 +317,16 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
   previewConfig,
   previewOrganizationName,
 }) => {
-  const hero = profileCopy[profile][currentLang];
-  const t = uiCopy[currentLang];
-  const allowed = visibleActionIds(profile, showRadar);
-  const visibleActions = actions.filter(action => allowed.has(action.id));
+  const t = copy[currentLang];
+  const inboxClient = useMemo(() => new LiveInboxClient(session), [session]);
+  const radarClient = useMemo(() => new PersonalRadarClient(session), [session]);
+  const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
+  const [radarPeople, setRadarPeople] = useState<RadarClientPerson[]>([]);
+  const [homeLoading, setHomeLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'support' | 'followups'>('all');
+  const [selectedId, setSelectedId] = useState('');
+  const [homeNotice, setHomeNotice] = useState('');
+
   const syntheticPreview = Boolean(previewConfig && (
     previewConfig.organizationId !== session.context.activeOrganization.id ||
     previewConfig.product !== 'auto' ||
@@ -216,136 +335,431 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
     previewConfig.dataMode !== 'real_permitted' ||
     previewConfig.capabilities !== null
   ));
-  const previewWidth = previewConfig?.device === 'mobile'
-    ? 'max-w-[430px]'
-    : previewConfig?.device === 'tablet'
-      ? 'max-w-3xl'
-      : 'max-w-7xl';
-  const previewProduct = previewConfig?.product === 'auto' ? null : previewConfig?.product;
-  const previewPlan = previewConfig?.plan === 'real' ? session.context.activeOrganization.plan : previewConfig?.plan;
-  const previewAccount = previewConfig?.accountState && previewConfig.accountState !== 'active' ? previewConfig.accountState : null;
-  const previewCapabilities = previewConfig?.capabilities;
-  const capabilityForAction: Record<string, string> = {
-    assist: 'scales.read',
-    inbox: 'inbox.read',
-    people: 'people.read',
-    radar: 'radar.read',
-    operations: 'automations.read',
+
+  useEffect(() => {
+    let cancelled = false;
+    setHomeLoading(true);
+    setHomeNotice('');
+
+    const load = async () => {
+      const inboxPromise = inboxClient.listConversations(20)
+        .then((items) => { if (!cancelled) setConversations(items); })
+        .catch(() => { if (!cancelled) setConversations([]); });
+
+      const radarPromise = showRadar
+        ? radarClient.getRadar()
+            .then((result) => { if (!cancelled) setRadarPeople(result.people); })
+            .catch(() => { if (!cancelled) setRadarPeople([]); })
+        : Promise.resolve();
+
+      await Promise.all([inboxPromise, radarPromise]);
+      if (!cancelled) setHomeLoading(false);
+    };
+
+    void load();
+    return () => { cancelled = true; };
+  }, [inboxClient, radarClient, showRadar]);
+
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = [];
+
+    conversations
+      .filter(isConversationActionable)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 4)
+      .forEach((conversation) => {
+        items.push({
+          id: `conversation:${conversation.conversationId}`,
+          kind: 'conversation',
+          title: conversationTitle(conversation, t),
+          meta: `${t.whatsapp} · ${compactConversationId(conversation.conversationId)}`,
+          badge: t.support,
+          route: 'inbox',
+          actionLabel: t.open,
+          reason: t.conversationReason,
+          nextStep: t.conversationNext,
+          timestamp: conversation.updatedAt,
+          accent: conversation.status === 'waiting_team' ? 'amber' : 'cyan',
+        });
+      });
+
+    if (showRadar) {
+      const due = radarPeople
+        .filter((person) => person.followUpAt && new Date(person.followUpAt).getTime() <= Date.now())
+        .sort((a, b) => new Date(a.followUpAt || 0).getTime() - new Date(b.followUpAt || 0).getTime())
+        .slice(0, 2);
+
+      due.forEach((person) => {
+        items.push({
+          id: `followup:${person.id}`,
+          kind: 'commercial',
+          title: t.commercialFollowup,
+          meta: person.probableName || person.displayName,
+          badge: t.followups,
+          route: 'opportunities',
+          actionLabel: t.open,
+          reason: t.commercialReason,
+          nextStep: t.commercialNext,
+          timestamp: person.followUpAt || undefined,
+          accent: 'violet',
+        });
+      });
+
+      const signaled = radarPeople
+        .filter((person) => person.signals?.length && !due.some((item) => item.id === person.id))
+        .slice(0, 2);
+
+      signaled.forEach((person) => {
+        const signal = person.signals[0];
+        items.push({
+          id: `radar:${person.id}`,
+          kind: 'commercial',
+          title: t.commercialSignal,
+          meta: person.probableName || person.displayName,
+          badge: t.radar,
+          route: 'radar',
+          actionLabel: t.open,
+          reason: signal?.reason || t.commercialSignalReason,
+          nextStep: signal?.nextAction || t.commercialSignalNext,
+          timestamp: person.lastDateKey || undefined,
+          accent: 'violet',
+        });
+      });
+    }
+
+    if (items.length === 0 && ['musician', 'worship_leader', 'pastor_leader'].includes(profile)) {
+      items.push({
+        id: 'assist:musicscale',
+        kind: 'assist',
+        title: t.assistTitle,
+        meta: t.musicScale,
+        badge: 'Assist',
+        route: 'assist',
+        actionLabel: t.open,
+        reason: t.assistReason,
+        nextStep: t.assistNext,
+        accent: 'cyan',
+      });
+    }
+
+    return items;
+  }, [conversations, radarPeople, profile, showRadar, t]);
+
+  const filteredItems = attentionItems.filter((item) => {
+    if (filter === 'support') return item.kind === 'conversation';
+    if (filter === 'followups') return item.kind === 'commercial';
+    return true;
+  });
+
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setSelectedId('');
+      return;
+    }
+    if (!filteredItems.some((item) => item.id === selectedId)) {
+      setSelectedId(filteredItems[0].id);
+    }
+  }, [filteredItems, selectedId]);
+
+  const selected = attentionItems.find((item) => item.id === selectedId) || null;
+  const apps = realApps(session);
+  const firstName = session.context.user.name.trim().split(/\s+/)[0] || session.context.user.name;
+  const now = new Date();
+  const pageGreeting = greeting(currentLang, now.getHours(), firstName, t);
+  const organizationName = previewOrganizationName || session.context.activeOrganization.name;
+
+  const appCards = [
+    { id: 'musicscale', label: t.musicScale, description: t.musicScaleDesc, icon: Music2 },
+    { id: 'nestjourney', label: t.nestJourney, description: t.nestJourneyDesc, icon: Users },
+    { id: 'nestfinance', label: t.nestFinance, description: t.nestFinanceDesc, icon: CreditCard },
+  ];
+
+  const activeApps = appCards.filter((app) => apps.has(app.id));
+  const shownApps = activeApps.length ? activeApps : appCards.slice(0, 1);
+
+  const performNavigate = (route: string) => {
+    if (syntheticPreview) {
+      setHomeNotice(t.simulatedDesc);
+      return;
+    }
+    onNavigate(route);
   };
 
-  const statusLabel = (status: ModuleStatus) => (
-    status === 'ready' ? t.available : status === 'controlled' ? t.controlled : t.next
-  );
+  const accentClasses: Record<AttentionItem['accent'], string> = {
+    cyan: 'text-[#66D9EF] bg-[#66D9EF]/10 border-[#66D9EF]/18',
+    amber: 'text-[#F1C77A] bg-[#F1C77A]/10 border-[#F1C77A]/18',
+    violet: 'text-[#B6A8FF] bg-[#A998FF]/10 border-[#A998FF]/18',
+    slate: 'text-[#AAB8C9] bg-white/[0.04] border-white/[0.08]',
+  };
 
   return (
-    <main className={`mx-auto w-full ${previewWidth} space-y-5 pb-28 transition-[max-width] duration-300 lg:pb-10`}>
-      <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_15%_0%,rgba(99,102,241,.15),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(34,211,238,.07),transparent_30%),linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.018))] p-5 shadow-[0_30px_90px_rgba(0,0,0,.22)] sm:p-7 lg:p-9">
-        <div className="relative max-w-4xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-black/15 px-3 py-1.5 text-[10px] font-semibold tracking-[0.18em] text-indigo-200">
-            <Sparkles size={13} /> {hero.eyebrow}
-          </div>
-          <h1 className="mt-5 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
-            {hero.title}
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-            {hero.subtitle}
-          </p>
-          <div className="mt-6 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">
-              {previewOrganizationName || session.context.activeOrganization.name}
-            </span>
-            {previewProduct && <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">{previewProduct}</span>}
-            {previewPlan && <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">{previewPlan}</span>}
-            {previewAccount && <span className="rounded-full border border-amber-300/15 bg-amber-300/[0.05] px-3 py-1.5 text-amber-100">{previewAccount}</span>}
-            <span className="rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5">
-              {t.today}
-            </span>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <header className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="connect-eyebrow">{t.dayEyebrow}</div>
+          <h1 className="connect-page-title mt-2">{pageGreeting}</h1>
+          <p className="connect-page-subtitle mt-1.5">{t.subtitle}</p>
+        </div>
+        <div className="text-left sm:text-right">
+          <div className="text-xs font-medium capitalize text-[#B7C5D3]">{formatDate(currentLang, now)}</div>
+          <div className="mt-1 text-[9px] font-semibold uppercase tracking-[.14em] text-[#61758A]">
+            {t.profile[profile]} · {organizationName}
           </div>
         </div>
-      </section>
+      </header>
 
       {syntheticPreview && (
-        <section className="flex items-start gap-3 rounded-[22px] border border-indigo-400/15 bg-indigo-400/[0.05] p-4 text-indigo-100">
-          <Sparkles size={16} className="mt-0.5 shrink-0" />
+        <section className="flex items-start gap-3 rounded-xl border border-[#66D9EF]/15 bg-[#163442]/35 px-4 py-3">
+          <Sparkles size={15} className="mt-0.5 shrink-0 text-[#66D9EF]" />
           <div>
-            <div className="text-xs font-semibold">{t.synthetic}</div>
-            <p className="mt-1 text-xs leading-5 text-indigo-100/55">{t.syntheticDesc}</p>
+            <div className="text-xs font-semibold text-[#DFFAFF]">{t.simulated}</div>
+            <p className="mt-1 text-[11px] leading-5 text-[#8CAAB6]">{t.simulatedDesc}</p>
           </div>
         </section>
       )}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {visibleActions.map((action) => {
-          const Icon = action.icon;
-          const capability = capabilityForAction[action.id];
-          const capabilityMissing = Array.isArray(previewCapabilities) && capability
-            ? !previewCapabilities.includes(capability)
-            : false;
-          const effectiveStatus: ModuleStatus = previewConfig?.accountState === 'missing_permission' || capabilityMissing
-            ? 'controlled'
-            : action.id === 'people' && !showRadar
-              ? 'controlled'
-              : action.status;
-          const ready = effectiveStatus === 'ready';
-          return (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => { if (!syntheticPreview) onNavigate(action.route); }}
-              aria-disabled={syntheticPreview || undefined}
-              className={`group min-h-44 rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-5 text-left transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${syntheticPreview ? 'cursor-default opacity-80' : 'hover:-translate-y-0.5 hover:border-white/[0.14] hover:bg-white/[0.04]'}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-200">
-                  <Icon size={18} />
-                </span>
-                <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.11em] ${
-                  ready
-                    ? 'border-emerald-400/15 bg-emerald-400/[0.06] text-emerald-200'
-                    : effectiveStatus === 'controlled'
-                      ? 'border-amber-300/15 bg-amber-300/[0.06] text-amber-100'
-                      : 'border-white/[0.08] bg-white/[0.03] text-slate-500'
-                }`}>
-                  {statusLabel(effectiveStatus)}
-                </span>
-              </div>
-              <h2 className="mt-5 text-base font-semibold text-white">{action.title[currentLang]}</h2>
-              <p className="mt-2 text-xs leading-5 text-slate-500">{action.description[currentLang]}</p>
-              <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-slate-300 transition group-hover:text-white">
-                {t.open} <ArrowRight size={13} />
-              </span>
-            </button>
-          );
-        })}
-      </section>
+      {homeNotice && (
+        <div className="rounded-xl border border-[#F1C77A]/20 bg-[#F1C77A]/[0.06] px-4 py-3 text-xs text-[#F6DDA9]">
+          {homeNotice}
+        </div>
+      )}
 
-      <section className="grid gap-3 lg:grid-cols-2">
-        <article className="rounded-[24px] border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Bot size={16} className="text-indigo-300" /> {t.ecosystem}</div>
-          <p className="mt-3 text-sm leading-6 text-slate-500">{t.ecosystemDesc}</p>
-          <button type="button" onClick={() => { if (!syntheticPreview) onNavigate('assist'); }} aria-disabled={syntheticPreview || undefined} className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-400/[0.07] px-3.5 text-xs font-semibold text-indigo-100 transition ${syntheticPreview ? 'cursor-default opacity-60' : 'hover:bg-indigo-400/[0.11]'}`}>
-            {t.ask} <ArrowRight size={13} />
-          </button>
-        </article>
-
-        <article className="rounded-[24px] border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6">
-          <div className="text-sm font-semibold text-white">
-            {profile === 'commercial' || profile === 'ceo' ? t.relationship : profile === 'organization_admin' ? t.operations : t.people}
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.95fr)_minmax(310px,.92fr)]">
+        <article className="connect-surface overflow-hidden rounded-[14px]">
+          <div className="flex flex-col gap-3 border-b connect-divider px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2.5">
+              <BellRing size={17} className="text-[#66D9EF]" />
+              <h2 className="text-sm font-semibold text-[#F2F5FA]">{t.attention}</h2>
+              {!homeLoading && (
+                <span className="rounded-md border border-[#2B3A4D] bg-[#0D151F] px-2 py-0.5 text-[9px] font-semibold text-[#73869A]">
+                  {attentionItems.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {([
+                ['all', t.all],
+                ['support', t.support],
+                ['followups', t.followups],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setFilter(id)}
+                  className={`connect-focus min-h-8 whitespace-nowrap rounded-lg border px-3 text-[10px] font-semibold transition ${filter === id
+                    ? 'border-[#66D9EF]/25 bg-[#163442]/70 text-[#B9F3FB]'
+                    : 'border-[#263648] bg-transparent text-[#76899E] hover:text-[#AAB9C8]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-500">
-            {profile === 'commercial' || profile === 'ceo'
-              ? t.relationshipDesc
-              : profile === 'organization_admin'
-                ? t.operationsDesc
-                : t.peopleDesc}
-          </p>
-          {(profile === 'commercial' || profile === 'ceo') && showRadar && (
-            <button type="button" onClick={() => { if (!syntheticPreview) onNavigate('radar'); }} aria-disabled={syntheticPreview || undefined} className={`mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[0.09] px-3.5 text-xs font-semibold text-slate-200 transition ${syntheticPreview ? 'cursor-default opacity-60' : 'hover:bg-white/[0.05]'}`}>
-              {t.relationship} <ArrowRight size={13} />
-            </button>
-          )}
+
+          <div className="min-h-[310px]">
+            {homeLoading ? (
+              <div className="space-y-0 divide-y divide-[#263648]/55">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="flex animate-pulse items-center gap-3 px-4 py-4 sm:px-5">
+                    <div className="h-9 w-9 rounded-xl bg-white/[0.04]" />
+                    <div className="flex-1">
+                      <div className="h-3 w-40 rounded bg-white/[0.05]" />
+                      <div className="mt-2 h-2.5 w-60 max-w-[70%] rounded bg-white/[0.03]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="grid min-h-[310px] place-items-center px-6 py-12 text-center">
+                <div className="max-w-md">
+                  <CheckCircle2 size={24} className="mx-auto text-[#5D7388]" />
+                  <div className="mt-3 text-sm font-semibold text-[#DCE5ED]">{t.empty}</div>
+                  <p className="mt-2 text-xs leading-5 text-[#708398]">{t.emptyDesc}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#263648]/65">
+                {filteredItems.map((item) => {
+                  const isSelected = selectedId === item.id;
+                  const Icon = item.kind === 'conversation'
+                    ? MessageSquareText
+                    : item.kind === 'commercial'
+                      ? Briefcase
+                      : item.kind === 'operation'
+                        ? Workflow
+                        : Sparkles;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedId(item.id)}
+                      onDoubleClick={() => performNavigate(item.route)}
+                      className={`connect-row connect-focus flex w-full items-center gap-3 px-4 py-4 text-left sm:px-5 ${isSelected ? 'connect-row-selected' : ''}`}
+                    >
+                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${accentClasses[item.accent]}`}>
+                        <Icon size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-[13px] font-semibold text-[#EEF4F8]">{item.title}</span>
+                          <span className="rounded-md border border-[#324659] bg-[#111B28] px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[.08em] text-[#7F94A8]">
+                            {item.badge}
+                          </span>
+                        </span>
+                        <span className="mt-1 block truncate text-[11px] text-[#75889C]">{item.meta}</span>
+                      </span>
+                      {item.timestamp && <span className="hidden shrink-0 text-[9px] text-[#5E7185] sm:block">{formatTime(currentLang, item.timestamp)}</span>}
+                      <span className="hidden items-center gap-1 text-[10px] font-semibold text-[#9EEBF6] md:flex">
+                        {item.actionLabel} <ChevronRight size={13} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </article>
+
+        <aside className="connect-surface flex min-h-[390px] flex-col rounded-[14px]">
+          <div className="border-b connect-divider px-4 py-4 sm:px-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#F2F5FA]">
+              <CircleAlert size={16} className="text-[#91A8BC]" />
+              {t.context}
+            </div>
+          </div>
+
+          {!selected ? (
+            <div className="grid flex-1 place-items-center px-6 py-10 text-center">
+              <p className="max-w-xs text-xs leading-5 text-[#708398]">{t.noSelection}</p>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col">
+              <div className="px-4 py-5 sm:px-5">
+                <div className="flex items-start gap-3">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${accentClasses[selected.accent]}`}>
+                    {selected.kind === 'conversation' ? <MessageSquareText size={18} /> : selected.kind === 'commercial' ? <Briefcase size={18} /> : <Sparkles size={18} />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-semibold leading-5 text-[#F2F5FA]">{selected.title}</div>
+                    <div className="mt-1 text-[11px] text-[#7E91A6]">{selected.meta}</div>
+                  </div>
+                </div>
+
+                <dl className="mt-5 divide-y divide-[#263648]/65 border-y border-[#263648]/65 text-[11px]">
+                  <div className="flex items-center justify-between gap-3 py-2.5">
+                    <dt className="text-[#667A90]">{t.organization}</dt>
+                    <dd className="truncate font-medium text-[#C9D4DE]">{organizationName}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-2.5">
+                    <dt className="text-[#667A90]">{t.source}</dt>
+                    <dd className="font-medium text-[#C9D4DE]">{selected.kind === 'conversation' ? t.whatsapp : selected.kind === 'commercial' ? t.radar : 'Connect'}</dd>
+                  </div>
+                </dl>
+
+                <div className="mt-5">
+                  <div className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#71859A]">{t.evidence}</div>
+                  <p className="mt-2 text-xs leading-5 text-[#A4B3C1]">{selected.reason}</p>
+                </div>
+
+                <div className="mt-5">
+                  <div className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#71859A]">{t.next}</div>
+                  <p className="mt-2 text-xs leading-5 text-[#A4B3C1]">{selected.nextStep}</p>
+                </div>
+              </div>
+
+              <div className="mt-auto border-t connect-divider p-4 sm:p-5">
+                <button
+                  type="button"
+                  onClick={() => performNavigate(selected.route)}
+                  className="connect-accent-button connect-focus flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] px-4 text-xs font-bold"
+                >
+                  {selected.actionLabel} <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
       </section>
+
+      <section className="connect-surface rounded-[14px] p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-[#F2F5FA]">{t.apps}</h2>
+          <span className="text-[9px] uppercase tracking-[.12em] text-[#61758A]">{t.realData}</span>
+        </div>
+
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          {shownApps.map((app) => {
+            const Icon = app.icon;
+            const isAvailable = apps.has(app.id);
+            return (
+              <button
+                key={app.id}
+                type="button"
+                disabled={!isAvailable && app.id !== 'musicscale'}
+                onClick={() => performNavigate('assist')}
+                title={!isAvailable ? t.appUnavailable : undefined}
+                className="connect-focus flex min-h-[62px] items-center gap-3 rounded-[10px] border border-[#2B3A4D] bg-[#0D151F]/55 px-3.5 text-left transition hover:border-[#3D566D] hover:bg-[#111C2A] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[#66D9EF]/18 bg-[#163442] text-[#66D9EF]">
+                  <Icon size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold text-[#E7EEF4]">{app.label}</span>
+                  <span className="mt-0.5 block truncate text-[10px] text-[#6F8297]">{app.description}</span>
+                </span>
+                <ChevronRight size={14} className="shrink-0 text-[#62768A]" />
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => performNavigate('assist')}
+          className="connect-focus mt-3 flex min-h-11 w-full items-center gap-3 rounded-[10px] border border-[#2B3A4D] bg-[#0A121C] px-3.5 text-left text-xs text-[#708398] transition hover:border-[#3C5369] hover:text-[#AAB9C8]"
+        >
+          <Sparkles size={15} className="shrink-0 text-[#66D9EF]" />
+          <span className="flex-1">{t.askPlaceholder}</span>
+          <ArrowRight size={14} />
+        </button>
+        <div className="mt-2 px-1 text-[9px] text-[#536679]">{t.accessHint}</div>
+      </section>
+
+      {['ceo', 'organization_admin'].includes(profile) && (
+        <section className="connect-surface rounded-[14px] px-4 py-3.5 sm:px-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="flex min-w-[180px] items-center gap-2">
+              <ShieldCheck size={16} className="text-[#8FA6BB]" />
+              <div>
+                <div className="text-xs font-semibold text-[#E7EEF4]">{t.operation}</div>
+                <div className="mt-0.5 text-[9px] text-[#627589]">{t.operationHint}</div>
+              </div>
+            </div>
+            <div className="grid flex-1 gap-2 sm:grid-cols-3">
+              {[
+                { route: 'channels', label: t.channels, icon: Radio },
+                { route: 'agents', label: t.agents, icon: Users },
+                { route: 'automations', label: t.automations, icon: Workflow },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.route}
+                    type="button"
+                    onClick={() => performNavigate(item.route)}
+                    className="connect-focus flex min-h-10 items-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#0D151F]/55 px-3 text-left transition hover:bg-[#13202E]"
+                  >
+                    <Icon size={14} className="text-[#85A0B7]" />
+                    <span className="flex-1 text-[11px] font-medium text-[#C6D1DB]">{item.label}</span>
+                    <span className="text-[9px] text-[#607489]">{t.state}</span>
+                    <ChevronRight size={12} className="text-[#5B6E82]" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 };
