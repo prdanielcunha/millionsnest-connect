@@ -35,6 +35,7 @@ import { LiveAutomationsPage } from './features/automations/LiveAutomationsPage'
 import { LiveInboxPage } from './features/inbox/LiveInboxPage';
 import { LiveOperationsPage } from './features/audit/LiveOperationsPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
+import { OperationAgentsStagedPage } from './features/live/OperationAgentsStagedPage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
 import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
@@ -475,6 +476,9 @@ export default function App() {
     }
     if (activeRoute === 'automations') {
       return <LiveAutomationsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'agents') {
+      return <OperationAgentsStagedPage currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
