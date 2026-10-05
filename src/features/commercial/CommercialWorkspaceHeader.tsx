@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Briefcase,
-  ChevronDown,
   MessageSquareText,
   Music2,
   Radar,
@@ -78,9 +77,8 @@ export const CommercialWorkspaceHeader: React.FC<Props> = ({
           <p className="connect-page-subtitle mt-1.5">{t.subtitle}</p>
         </div>
 
-        <button
-          type="button"
-          className="connect-focus flex min-h-10 min-w-[190px] items-center gap-2.5 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3 text-left"
+        <div
+          className="flex min-h-10 min-w-[190px] items-center gap-2.5 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3 text-left"
           title={t.productHint}
           aria-label={`${t.product}: MusicScale`}
         >
@@ -91,8 +89,7 @@ export const CommercialWorkspaceHeader: React.FC<Props> = ({
             <span className="block text-[8px] font-semibold uppercase tracking-[.11em] text-[#62768A]">{t.product}</span>
             <span className="mt-0.5 block text-[11px] font-semibold text-[#E9F1F6]">MusicScale</span>
           </span>
-          <ChevronDown size={13} className="text-[#5E7287]" />
-        </button>
+        </div>
       </div>
 
       <nav className="flex overflow-x-auto border-b border-[#27394B]" aria-label={t.title}>
