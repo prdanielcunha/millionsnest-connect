@@ -468,7 +468,7 @@ export default function App() {
       return <CommercialComposerPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'channels') {
-      return <LiveChannelsPage session={liveSession} currentLang={currentLang} />;
+      return <LiveChannelsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'audit') {
       return <LiveOperationsPage session={liveSession} currentLang={currentLang} />;
