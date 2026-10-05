@@ -151,6 +151,7 @@ export function getExperienceNavigationRouteIds(
         'assist',
         'radar',
         'opportunities',
+        'followups',
         'playbooks',
         'composer',
         'intelligence',
