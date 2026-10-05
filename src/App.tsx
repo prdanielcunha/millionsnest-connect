@@ -479,6 +479,9 @@ export default function App() {
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
+    if (activeRoute === 'followups' && showRadar) {
+      return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} initialTab="followups" commercialMode onNavigate={setActiveRoute} />;
+    }
     if (activeRoute === 'intelligence' && showRadar) {
       return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} />;
     }
