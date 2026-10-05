@@ -475,7 +475,7 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
   ];
 
   const activeApps = appCards.filter((app) => apps.has(app.id));
-  const shownApps = activeApps.length ? activeApps : appCards.slice(0, 1);
+  const shownApps = activeApps;
 
   const performNavigate = (route: string) => {
     if (syntheticPreview) {
@@ -687,7 +687,8 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
           <span className="text-[9px] uppercase tracking-[.12em] text-[#61758A]">{t.realData}</span>
         </div>
 
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {shownApps.length > 0 ? (
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
           {shownApps.map((app) => {
             const Icon = app.icon;
             const isAvailable = apps.has(app.id);
@@ -695,7 +696,7 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
               <button
                 key={app.id}
                 type="button"
-                disabled={!isAvailable && app.id !== 'musicscale'}
+                disabled={!isAvailable}
                 onClick={() => performNavigate('assist')}
                 title={!isAvailable ? t.appUnavailable : undefined}
                 className="connect-focus flex min-h-[62px] items-center gap-3 rounded-[10px] border border-[#2B3A4D] bg-[#0D151F]/55 px-3.5 text-left transition hover:border-[#3D566D] hover:bg-[#111C2A] disabled:cursor-not-allowed disabled:opacity-45"
@@ -711,7 +712,12 @@ export const AdaptiveHomePage: React.FC<AdaptiveHomePageProps> = ({
               </button>
             );
           })}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-[10px] border border-dashed border-[#2B3A4D] px-4 py-6 text-center text-[11px] text-[#667A90]">
+            {t.appUnavailable}
+          </div>
+        )}
 
         <button
           type="button"
