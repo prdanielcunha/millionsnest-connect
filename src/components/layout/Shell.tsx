@@ -218,7 +218,7 @@ export const Shell: React.FC<ShellProps> = ({
       icon: Briefcase,
       section: 'relationship',
       status: 'ready',
-      childRoutes: ['playbooks', 'composer'],
+      childRoutes: ['followups', 'playbooks', 'composer'],
     },
     { id: 'channels', label: routeLabels.channels[currentLang], icon: Radio, section: 'operations', status: 'ready' },
     { id: 'agents', label: routeLabels.agents[currentLang], icon: BrainCircuit, section: 'operations', status: 'next' },
