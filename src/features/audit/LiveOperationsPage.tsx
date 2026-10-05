@@ -130,43 +130,41 @@ export const LiveOperationsPage: React.FC<Props> = ({ session, currentLang }) =>
     status === 'ready' ? t.ready : status === 'controlled' ? t.controlled : t.blocked;
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,.17),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(34,211,238,.07),transparent_30%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-4xl">
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300"><Activity size={14} /> {t.eyebrow}</div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-          </div>
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold text-slate-200 hover:bg-white/[0.07] disabled:opacity-50">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {t.refresh}
-          </button>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <header className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2 connect-eyebrow"><Activity size={13} /> {t.eyebrow}</div>
+          <h1 className="connect-page-title mt-2">{t.title}</h1>
+          <p className="connect-page-subtitle mt-1.5">{t.subtitle}</p>
         </div>
-      </section>
+        <button type="button" onClick={() => void load()} disabled={loading} className="connect-focus inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3.5 text-xs font-semibold text-[#C8D4DE] hover:bg-[#172332] disabled:opacity-50">
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {t.refresh}
+        </button>
+      </header>
 
       {error && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-100">{t.error} <span className="text-rose-100/55">{error}</span></div>}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4">
           <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.release}</div>
           <div className="mt-2 truncate font-mono text-xs font-semibold text-white">{data?.releaseSha || '—'}</div>
         </article>
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4">
           <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.storage}</div>
           <div className="mt-2 text-sm font-semibold text-white">{data ? storageLabels[data.storageState]?.[currentLang] || data.storageState : '—'}</div>
         </article>
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4">
           <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.overall}</div>
           <div className="mt-2 text-sm font-semibold text-white">{data ? statusLabel(data.overall) : '—'}</div>
         </article>
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4">
           <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.generated}</div>
           <div className="mt-2 text-xs font-semibold text-white">{data?.generatedAt ? new Date(data.generatedAt).toLocaleString(currentLang) : '—'}</div>
         </article>
       </section>
 
-      <section className="rounded-[28px] border border-white/[0.08] bg-white/[0.02] p-4 sm:p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white"><CloudCog size={16} className="text-indigo-300" /> {t.gates}</div>
+      <section className="rounded-[14px] border border-white/[0.08] bg-white/[0.02] p-4 sm:p-6">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white"><CloudCog size={16} className="text-cyan-300" /> {t.gates}</div>
         <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {(data?.gates || []).map((gate) => (
             <article key={gate.id} className="rounded-2xl border border-white/[0.07] bg-black/10 p-3.5">
@@ -184,15 +182,15 @@ export const LiveOperationsPage: React.FC<Props> = ({ session, currentLang }) =>
       </section>
 
       <section className="grid gap-3 lg:grid-cols-3">
-        <article className="rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[14px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck size={16} className="text-emerald-300" /> {t.audit}</div>
           <p className="mt-2 text-xs leading-5 text-slate-500">{t.auditDesc}</p>
         </article>
-        <article className="rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[14px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><RotateCcw size={16} className="text-cyan-300" /> {t.rollback}</div>
           <p className="mt-2 text-xs leading-5 text-slate-500">{t.rollbackDesc}</p>
         </article>
-        <article className="rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[14px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
           <div className="text-sm font-semibold text-white">{t.flags}</div>
           <div className="mt-3 space-y-2 font-mono text-[10px] text-slate-500">
             <div className="flex justify-between gap-3"><span>durableInbox</span><span className={data?.flags.durableInbox ? 'text-emerald-200' : 'text-slate-600'}>{data?.flags.durableInbox ? t.on : t.off}</span></div>
