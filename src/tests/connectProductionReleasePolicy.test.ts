@@ -210,6 +210,22 @@ assert.match(
 
 assert.match(
   release,
+  /CORE_MATCHED=false/,
+  'Canonical production smoke must converge on the exact Core release instead of failing on a stale healthy revision',
+);
+assert.match(
+  release,
+  /CONNECT_CANONICAL_RELEASE_SHA_OK/,
+  'Production smoke must emit an explicit exact-SHA convergence marker',
+);
+assert.match(
+  release,
+  /Cache-Control: no-cache, no-store/,
+  'Canonical release proof must bypass intermediary cache while traffic converges',
+);
+
+assert.match(
+  release,
   /\/api\/health\/storage-readiness/,
   'Production smoke must query Firestore readiness from inside the deployed Connect runtime',
 );
@@ -335,6 +351,11 @@ assert.match(
   whatsappActivation,
   /CURRENT_SHA.*EXPECTED_SHA/s,
   'WhatsApp activation must prove the serving Core SHA matches the production commit before changing provider gates',
+);
+assert.match(
+  whatsappActivation,
+  /activationRun=\$GITHUB_RUN_ID/,
+  'WhatsApp activation must cache-bust the matching-Core health probe',
 );
 assert.match(
   whatsappActivation,

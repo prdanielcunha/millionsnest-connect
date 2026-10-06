@@ -264,15 +264,44 @@ jobs:
             "$BASE/" -o /tmp/connect-index.html
           grep -Eiq '<!doctype html|<html' /tmp/connect-index.html
 
-          curl --fail --silent --show-error --location \
-            --retry 12 --retry-delay 3 --retry-all-errors \
-            "$BASE/api/health" -o /tmp/connect-health.json
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core'||x.releaseSha!==process.env.GITHUB_SHA)process.exit(1)"
+          # Cloud Run/Firebase traffic propagation can briefly keep the previous
+          # healthy revision visible after update-traffic returns. Converge on
+          # the exact release SHA instead of failing on the first stale 200.
+          CORE_MATCHED=false
+          for attempt in {1..60}; do
+            HEALTH_URL="$BASE/api/health?release=$GITHUB_SHA&run=$GITHUB_RUN_ID&attempt=$attempt"
+            if curl --fail --silent --show-error --location --max-time 10 \
+              -H 'Cache-Control: no-cache, no-store' \
+              -H 'Pragma: no-cache' \
+              "$HEALTH_URL" -o /tmp/connect-health.json; then
+              CURRENT_SHA="$(node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));process.stdout.write(String(x.releaseSha||''))}catch{}")"
+              CURRENT_SERVICE="$(node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));process.stdout.write(String(x.service||''))}catch{}")"
+              if [ "$CURRENT_SERVICE" = "millionsnest-connect-core" ] && [ "$CURRENT_SHA" = "$GITHUB_SHA" ]; then
+                CORE_MATCHED=true
+                echo "CONNECT_CANONICAL_RELEASE_SHA_OK=$CURRENT_SHA"
+                break
+              fi
+              echo "CONNECT_CANONICAL_RELEASE_WAIT attempt=$attempt currentSha=${CURRENT_SHA:-missing}"
+            fi
+            sleep 3
+          done
+          test "$CORE_MATCHED" = "true"
 
-          curl --fail --silent --show-error --location \
-            --retry 12 --retry-delay 3 --retry-all-errors \
-            "$BASE/api/health/storage-readiness" -o /tmp/connect-storage-readiness.json
-          STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));if(x.success!==true||x.storageReadiness!=='read_write_confirmed')process.exit(1);process.stdout.write(x.storageReadiness)")"
+          STORAGE_READY=false
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error --location --max-time 10 \
+              -H 'Cache-Control: no-cache, no-store' \
+              "$BASE/api/health/storage-readiness?release=$GITHUB_SHA&attempt=$attempt" \
+              -o /tmp/connect-storage-readiness.json; then
+              if node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));if(x.success!==true||x.storageReadiness!=='read_write_confirmed')process.exit(1)"; then
+                STORAGE_READY=true
+                break
+              fi
+            fi
+            sleep 3
+          done
+          test "$STORAGE_READY" = "true"
+          STORAGE_STATE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));process.stdout.write(x.storageReadiness)")"
           STORAGE_SOURCE="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-storage-readiness.json','utf8'));const allowed=new Set(['runtime_metadata','metadata_unavailable','project_iam_probe_unavailable','invalid_response']);if(!allowed.has(x.source))process.exit(1);process.stdout.write(x.source)")"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_STATE=$STORAGE_STATE"
           echo "CONNECT_RUNTIME_FIRESTORE_SELF_PROBE_SOURCE=$STORAGE_SOURCE"

@@ -165,7 +165,11 @@ jobs:
           BASE="${PUBLIC_ORIGIN%/}"
           EXPECTED_SHA="$GITHUB_SHA"
           for attempt in {1..60}; do
-            CURRENT_SHA="$(curl --fail --silent --show-error --location --max-time 10 "$BASE/api/health" | node -e "let b='';process.stdin.on('data',d=>b+=d);process.stdin.on('end',()=>{try{const x=JSON.parse(b);process.stdout.write(x.releaseSha||'')}catch{}})")" || true
+            CURRENT_SHA="$(curl --fail --silent --show-error --location --max-time 10 \
+              -H 'Cache-Control: no-cache, no-store' \
+              -H 'Pragma: no-cache' \
+              "$BASE/api/health?release=$EXPECTED_SHA&activationRun=$GITHUB_RUN_ID&attempt=$attempt" \
+              | node -e "let b='';process.stdin.on('data',d=>b+=d);process.stdin.on('end',()=>{try{const x=JSON.parse(b);process.stdout.write(x.releaseSha||'')}catch{}})")" || true
             if [ "$CURRENT_SHA" = "$EXPECTED_SHA" ]; then
               echo "CONNECT_WHATSAPP_MATCHING_CORE_RELEASE_OK=$EXPECTED_SHA"
               break
