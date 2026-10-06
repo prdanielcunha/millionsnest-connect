@@ -155,8 +155,8 @@ function documentPath(channelOrganizationId: string, channelIdentityRef: string)
  * Connect-owned credential binding for an already verified channel possession.
  *
  * The provider user id/phone is never stored here. Hub grant secrets are
- * encrypted at rest with an AES-GCM key derived server-side from the existing
- * WhatsApp verification secret and are never returned to the browser.
+ * encrypted at rest with an AES-GCM key derived server-side from the provider app secret with purpose separation and
+ * are never returned to the browser.
  */
 export class FirestoreWhatsAppChannelIdentityBindingStore implements WhatsAppChannelIdentityBindingStore {
   private readonly projectId: string;
