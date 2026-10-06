@@ -1,5 +1,8 @@
 # MillionsNest Connect
 
+**Produção canônica:** `https://connect.millionsnest.com`  
+**Firebase Hosting técnico:** `https://mn-connect-555464791734.web.app` — fallback/smoke, não é a URL pública canônica.
+
 ## Visão Geral
 O **MillionsNest Connect** é a camada inteligente de comunicação, atendimento, relacionamento e orquestração segura dos aplicativos do ecossistema MillionsNest. Em **LIVE_MODE**, o produto já possui superfícies reais e tenant-safe para Connect Core/Assist, experiência adaptativa por papel, Radar/Cofre/Pessoas, workspaces comerciais, Canais, Automações, Operações/Auditoria e Inbox durável com lista/timeline reais. O caminho legado de **DEMO_MODE** continua existindo apenas para demonstração e desenvolvimento isolado; ele não é a fonte de verdade da operação ao vivo.
 
