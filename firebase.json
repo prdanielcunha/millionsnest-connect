@@ -41,8 +41,7 @@
         "source": "/api/**",
         "run": {
           "serviceId": "connect-api",
-          "region": "us-central1",
-          "pinTag": true
+          "region": "us-central1"
         }
       },
       {
