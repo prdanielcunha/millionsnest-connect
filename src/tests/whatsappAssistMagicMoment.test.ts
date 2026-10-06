@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {
   createWhatsAppChannelLinkToken,
@@ -28,6 +29,20 @@ const providerMessageId = 'wamid.magic-moment-1';
 const nowMs = 1_800_000_000_000;
 
 console.log('--- Running WhatsApp Assist Magic Moment Tests ---');
+
+{
+  const serverSource = fs.readFileSync('src/server/createConnectServer.ts', 'utf8');
+  assert.match(
+    serverSource,
+    /const linkRootSecret = env\.CONNECT_WHATSAPP_APP_SECRET\?\.trim\(\)/,
+    'WhatsApp channel cryptography must use the high-entropy app secret root',
+  );
+  assert.doesNotMatch(
+    serverSource,
+    /const linkRootSecret = env\.CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN/,
+    'Operator webhook verify token must never be reused as the channel encryption/signing root',
+  );
+}
 
 {
   const first = deriveWhatsAppChannelIdentityRef({ providerUserId: sender, phoneNumberId, rootSecret });
