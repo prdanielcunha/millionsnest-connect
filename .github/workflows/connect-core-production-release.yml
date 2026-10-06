@@ -188,14 +188,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REVISION_SUFFIX="r${GITHUB_SHA:0:7}-${GITHUB_RUN_ID}"
-          EXPECTED_RELEASE_REVISION="${SERVICE}-${REVISION_SUFFIX}"
-          echo "EXPECTED_RELEASE_REVISION=$EXPECTED_RELEASE_REVISION" >> "$GITHUB_ENV"
+          # Cloud Run owns revision naming. Authority for this release is the
+          # immutable image + CONNECT_RELEASE_SHA, not a predicted revision name.
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
-            --revision-suffix "$REVISION_SUFFIX" \
             --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
@@ -217,7 +215,7 @@ jobs:
             --region "$REGION" \
             --format='value(status.latestReadyRevisionName)')"
           test -n "$RELEASE_REVISION"
-          test "$RELEASE_REVISION" = "$EXPECTED_RELEASE_REVISION"
+          test "$RELEASE_REVISION" != "$PREVIOUS_TRAFFIC_REVISION"
           gcloud run services update-traffic "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
