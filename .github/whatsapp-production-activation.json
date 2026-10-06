@@ -1,5 +1,5 @@
 {
   "activation": "CONNECT_WHATSAPP_PRODUCTION_READY",
-  "requestedAt": "2026-10-03",
-  "purpose": "Activate the official Meta WhatsApp Business Platform adapter after all required GitHub variables and secrets pass preflight. Fail closed without changing the current serving revision when configuration is incomplete."
+  "requestedAt": "2026-10-05",
+  "purpose": "Activate official WhatsApp plus the secure Connect Assist -> MusicScale bridge after Hub channel grants and the certified Core release are serving in production."
 }
