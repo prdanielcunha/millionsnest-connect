@@ -1,15 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   CheckCircle2,
-  CircleDashed,
+  ChevronRight,
+  CircleAlert,
   Inbox,
   Loader2,
   LockKeyhole,
   MessageSquareText,
+  PanelRightOpen,
   RefreshCw,
+  Search,
   Send,
   ShieldCheck,
-  UsersRound,
+  UserRound,
+  X,
 } from 'lucide-react';
 import type { LiveConnectSession } from '../../core/client/liveConnectSession';
 import {
@@ -23,246 +28,311 @@ import type { LanguageCode } from '../../types';
 interface Props {
   session: LiveConnectSession;
   currentLang: LanguageCode;
+  onNavigate?: (route: string) => void;
 }
+
+type ConversationFilter = 'all' | 'open' | 'resolved';
 
 const copy = {
   'pt-BR': {
-    eyebrow: 'TRABALHO · CAIXA DE ENTRADA',
-    title: 'Atendimento real, sem conversas de mentira.',
-    subtitle: 'A Inbox mostra somente conversas persistidas pelo Connect. Nenhum contato, mensagem ou contador é inventado para preencher a tela.',
+    eyebrow: 'TRABALHO',
+    title: 'Atendimento',
+    subtitle: 'Converse, entenda e resolva com contexto — sem transformar a Inbox em painel técnico.',
     refresh: 'Atualizar',
-    blocked: 'Bloqueada',
-    controlled: 'Ativação controlada',
-    available: 'Disponível',
-    storage: 'Persistência',
-    durable: 'Inbox durável',
-    auth: 'Autoridade',
-    yes: 'Ligada',
-    no: 'Desligada',
-    ready: 'Pronto',
-    gated: 'Protegido por gate',
-    next: 'Próxima etapa',
-    foundations: 'Fundações da Inbox',
-    blockers: 'O que ainda impede o fluxo completo',
-    noFake: 'Sem fallback para dados demo',
-    noFakeDesc: 'Se nenhuma conversa real chegou, a Inbox fica vazia. Isso é intencional.',
-    privacy: 'PII separada do estado da conversa',
-    privacyDesc: 'Corpo de mensagem fica em storage sensível. Metadados canônicos de thread continuam sem telefone, nome ou texto.',
+    all: 'Todas',
+    open: 'Abertas',
+    resolved: 'Resolvidas',
+    search: 'Buscar conversas…',
+    conversation: 'Conversa',
     conversations: 'Conversas',
-    timeline: 'Mensagens',
-    empty: 'Nenhuma conversa real ainda',
-    emptyDesc: 'A estrutura está pronta para leitura. A primeira conversa aparecerá quando uma ingestão oficial habilitada persistir dados reais.',
+    noConversation: 'Nenhuma conversa neste filtro',
+    noConversationDesc: 'A Inbox só mostra registros reais e autorizados. Revise o filtro ou aguarde a entrada de uma conversa.',
     select: 'Selecione uma conversa',
-    selectDesc: 'Escolha uma conversa ao lado para abrir a linha do tempo.',
-    noMessages: 'Nenhuma mensagem persistida para esta conversa.',
+    selectDesc: 'Escolha uma conversa para abrir o histórico e o contexto.',
+    noMessages: 'Nenhuma mensagem persistida nesta conversa.',
     inbound: 'Pessoa',
     outbound: 'Equipe',
-    replyLocked: 'Resposta humana ainda protegida',
-    replyLockedDesc: 'A leitura já pode ser real. O envio continuará indisponível até o provider oficial de saída passar pelo próprio gate.',
+    today: 'Hoje',
     replyPlaceholder: 'Escreva uma resposta…',
-    replySend: 'Enviar',
-    replySending: 'Enviando…',
-    replySent: 'Resposta enviada pelo canal oficial.',
+    send: 'Enviar',
+    sending: 'Enviando…',
+    sent: 'Resposta enviada pelo canal oficial.',
     replyHint: 'Envio oficial · auditado · sem automação silenciosa',
-    updated: 'Atualizada',
-    events: 'eventos',
-    storageStates: {
-      read_write_confirmed: 'Leitura e gravação confirmadas',
-      read_only: 'Somente leitura',
-      denied_or_missing: 'Permissões ausentes',
-      unknown: 'Não confirmado',
+    replyLocked: 'Resposta indisponível',
+    replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
+    context: 'Contexto da conversa',
+    close: 'Fechar',
+    organization: 'Organização',
+    channel: 'Canal',
+    responsible: 'Responsável',
+    unassigned: 'Não atribuído',
+    state: 'Estado',
+    mode: 'Modo',
+    next: 'Próximo passo',
+    nextNew: 'Assuma ou responda a conversa.',
+    nextInProgress: 'Continue o atendimento e registre o desfecho.',
+    nextWaitingPerson: 'Acompanhe a resposta da pessoa sem duplicar contato.',
+    nextWaitingTeam: 'A equipe precisa agir antes de devolver a conversa.',
+    nextResolved: 'Reabra somente se houver novo trabalho.',
+    nextArchived: 'Conversa arquivada. Reabra no fluxo autorizado se necessário.',
+    assist: 'Consultar no Assist',
+    assistDesc: 'Use uma ferramenta autorizada do ecossistema sem transformar a consulta em mensagem enviada.',
+    availability: 'Disponibilidade',
+    available: 'Disponível',
+    controlled: 'Ativação controlada',
+    blocked: 'Indisponível',
+    unavailableTitle: 'Atendimento ainda não está disponível',
+    unavailableDesc: 'A leitura de conversas permanece fechada até a infraestrutura real estar pronta. Nenhum dado demonstrativo será usado como fallback.',
+    governance: 'Ver estado em Governança',
+    safe: 'Identidade e permissão são revalidadas no servidor.',
+    back: 'Voltar às conversas',
+    openContext: 'Abrir contexto',
+    status: {
+      new: 'Novo',
+      in_progress: 'Em andamento',
+      waiting_person: 'Aguardando pessoa',
+      waiting_team: 'Aguardando equipe',
+      resolved: 'Resolvido',
+      archived: 'Arquivado',
     },
-    foundationLabels: {
-      thread_state_machine: 'Máquina de estados',
-      durable_event_store: 'Event store durável',
-      authority: 'RBAC / autoridade',
-      message_content_store: 'Conteúdo de mensagens',
-      provider_ingestion: 'Ingestão de canal',
-      human_reply: 'Resposta humana',
+    modes: {
+      automatic: 'Automático',
+      approval: 'Com aprovação',
+      human: 'Humano',
+    },
+    delivery: {
+      received: 'Recebida',
+      queued: 'Na fila',
+      sent: 'Enviada',
+      delivered: 'Entregue',
+      read: 'Lida',
+      failed: 'Falhou',
     },
   },
   'en-US': {
-    eyebrow: 'WORK · INBOX',
-    title: 'Real support, without fake conversations.',
-    subtitle: 'Inbox shows only conversations persisted by Connect. No contact, message or counter is invented to fill the surface.',
+    eyebrow: 'WORK',
+    title: 'Support',
+    subtitle: 'Talk, understand and resolve with context — without turning Inbox into a technical dashboard.',
     refresh: 'Refresh',
-    blocked: 'Blocked',
-    controlled: 'Controlled activation',
-    available: 'Available',
-    storage: 'Persistence',
-    durable: 'Durable Inbox',
-    auth: 'Authority',
-    yes: 'On',
-    no: 'Off',
-    ready: 'Ready',
-    gated: 'Gated',
-    next: 'Next step',
-    foundations: 'Inbox foundations',
-    blockers: 'What still blocks the complete flow',
-    noFake: 'No demo-data fallback',
-    noFakeDesc: 'If no real conversation has arrived, Inbox stays empty. That is intentional.',
-    privacy: 'PII separated from conversation state',
-    privacyDesc: 'Message bodies stay in sensitive storage. Canonical thread metadata remains free of phone, name and message text.',
+    all: 'All',
+    open: 'Open',
+    resolved: 'Resolved',
+    search: 'Search conversations…',
+    conversation: 'Conversation',
     conversations: 'Conversations',
-    timeline: 'Messages',
-    empty: 'No real conversations yet',
-    emptyDesc: 'The read path is ready. The first conversation will appear when enabled official ingestion persists real data.',
+    noConversation: 'No conversations in this filter',
+    noConversationDesc: 'Inbox only shows real, authorized records. Review the filter or wait for a conversation to arrive.',
     select: 'Select a conversation',
-    selectDesc: 'Choose a conversation to open its timeline.',
-    noMessages: 'No persisted messages for this conversation.',
+    selectDesc: 'Choose a conversation to open history and context.',
+    noMessages: 'No persisted messages in this conversation.',
     inbound: 'Person',
     outbound: 'Team',
-    replyLocked: 'Human reply is still gated',
-    replyLockedDesc: 'Reading can already be real. Sending remains unavailable until the official outbound provider passes its own gate.',
+    today: 'Today',
     replyPlaceholder: 'Write a reply…',
-    replySend: 'Send',
-    replySending: 'Sending…',
-    replySent: 'Reply sent through the official channel.',
+    send: 'Send',
+    sending: 'Sending…',
+    sent: 'Reply sent through the official channel.',
     replyHint: 'Official delivery · audited · no silent automation',
-    updated: 'Updated',
-    events: 'events',
-    storageStates: {
-      read_write_confirmed: 'Read and write confirmed',
-      read_only: 'Read only',
-      denied_or_missing: 'Permissions missing',
-      unknown: 'Not confirmed',
+    replyLocked: 'Reply unavailable',
+    replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
+    context: 'Conversation context',
+    close: 'Close',
+    organization: 'Organization',
+    channel: 'Channel',
+    responsible: 'Owner',
+    unassigned: 'Unassigned',
+    state: 'State',
+    mode: 'Mode',
+    next: 'Next step',
+    nextNew: 'Take ownership or reply to the conversation.',
+    nextInProgress: 'Continue support and record the outcome.',
+    nextWaitingPerson: 'Wait for the person without duplicating outreach.',
+    nextWaitingTeam: 'The team needs to act before returning the conversation.',
+    nextResolved: 'Reopen only if new work appears.',
+    nextArchived: 'Conversation archived. Reopen through the authorized flow if needed.',
+    assist: 'Consult in Assist',
+    assistDesc: 'Use an authorized ecosystem tool without turning the consultation into a sent message.',
+    availability: 'Availability',
+    available: 'Available',
+    controlled: 'Controlled activation',
+    blocked: 'Unavailable',
+    unavailableTitle: 'Support is not available yet',
+    unavailableDesc: 'Conversation reading stays closed until real infrastructure is ready. Demo data is never used as fallback.',
+    governance: 'View state in Governance',
+    safe: 'Identity and permission are revalidated on the server.',
+    back: 'Back to conversations',
+    openContext: 'Open context',
+    status: {
+      new: 'New',
+      in_progress: 'In progress',
+      waiting_person: 'Waiting for person',
+      waiting_team: 'Waiting for team',
+      resolved: 'Resolved',
+      archived: 'Archived',
     },
-    foundationLabels: {
-      thread_state_machine: 'State machine',
-      durable_event_store: 'Durable event store',
-      authority: 'RBAC / authority',
-      message_content_store: 'Message content',
-      provider_ingestion: 'Channel ingestion',
-      human_reply: 'Human reply',
+    modes: {
+      automatic: 'Automatic',
+      approval: 'With approval',
+      human: 'Human',
+    },
+    delivery: {
+      received: 'Received',
+      queued: 'Queued',
+      sent: 'Sent',
+      delivered: 'Delivered',
+      read: 'Read',
+      failed: 'Failed',
     },
   },
   'es-ES': {
-    eyebrow: 'TRABAJO · BANDEJA DE ENTRADA',
-    title: 'Atención real, sin conversaciones falsas.',
-    subtitle: 'Inbox muestra solo conversaciones persistidas por Connect. No inventa contactos, mensajes ni contadores para llenar la pantalla.',
+    eyebrow: 'TRABAJO',
+    title: 'Atención',
+    subtitle: 'Conversa, entiende y resuelve con contexto — sin convertir la bandeja en un panel técnico.',
     refresh: 'Actualizar',
-    blocked: 'Bloqueada',
-    controlled: 'Activación controlada',
-    available: 'Disponible',
-    storage: 'Persistencia',
-    durable: 'Inbox duradera',
-    auth: 'Autoridad',
-    yes: 'Activa',
-    no: 'Desactivada',
-    ready: 'Listo',
-    gated: 'Protegido por gate',
-    next: 'Próxima etapa',
-    foundations: 'Fundaciones de Inbox',
-    blockers: 'Qué impide el flujo completo',
-    noFake: 'Sin fallback de datos demo',
-    noFakeDesc: 'Si no llegó una conversación real, Inbox queda vacía. Es intencional.',
-    privacy: 'PII separada del estado de la conversación',
-    privacyDesc: 'El cuerpo del mensaje queda en storage sensible. Los metadatos canónicos siguen sin teléfono, nombre ni texto.',
+    all: 'Todas',
+    open: 'Abiertas',
+    resolved: 'Resueltas',
+    search: 'Buscar conversaciones…',
+    conversation: 'Conversación',
     conversations: 'Conversaciones',
-    timeline: 'Mensajes',
-    empty: 'Todavía no hay conversaciones reales',
-    emptyDesc: 'La lectura está lista. La primera conversación aparecerá cuando una ingestión oficial habilitada persista datos reales.',
+    noConversation: 'No hay conversaciones en este filtro',
+    noConversationDesc: 'La bandeja solo muestra registros reales y autorizados. Revisa el filtro o espera la llegada de una conversación.',
     select: 'Selecciona una conversación',
-    selectDesc: 'Elige una conversación para abrir su línea de tiempo.',
-    noMessages: 'No hay mensajes persistidos para esta conversación.',
+    selectDesc: 'Elige una conversación para abrir el historial y el contexto.',
+    noMessages: 'No hay mensajes persistidos en esta conversación.',
     inbound: 'Persona',
     outbound: 'Equipo',
-    replyLocked: 'La respuesta humana sigue protegida',
-    replyLockedDesc: 'La lectura ya puede ser real. El envío seguirá desactivado hasta que el provider oficial pase su propio gate.',
+    today: 'Hoy',
     replyPlaceholder: 'Escribe una respuesta…',
-    replySend: 'Enviar',
-    replySending: 'Enviando…',
-    replySent: 'Respuesta enviada por el canal oficial.',
+    send: 'Enviar',
+    sending: 'Enviando…',
+    sent: 'Respuesta enviada por el canal oficial.',
     replyHint: 'Envío oficial · auditado · sin automatización silenciosa',
-    updated: 'Actualizada',
-    events: 'eventos',
-    storageStates: {
-      read_write_confirmed: 'Lectura y escritura confirmadas',
-      read_only: 'Solo lectura',
-      denied_or_missing: 'Permisos ausentes',
-      unknown: 'No confirmado',
+    replyLocked: 'Respuesta no disponible',
+    replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
+    context: 'Contexto de la conversación',
+    close: 'Cerrar',
+    organization: 'Organización',
+    channel: 'Canal',
+    responsible: 'Responsable',
+    unassigned: 'Sin asignar',
+    state: 'Estado',
+    mode: 'Modo',
+    next: 'Próximo paso',
+    nextNew: 'Asume o responde la conversación.',
+    nextInProgress: 'Continúa la atención y registra el resultado.',
+    nextWaitingPerson: 'Espera la respuesta sin duplicar el contacto.',
+    nextWaitingTeam: 'El equipo debe actuar antes de devolver la conversación.',
+    nextResolved: 'Reabre solo si aparece nuevo trabajo.',
+    nextArchived: 'Conversación archivada. Reabre por el flujo autorizado si es necesario.',
+    assist: 'Consultar en Assist',
+    assistDesc: 'Usa una herramienta autorizada del ecosistema sin convertir la consulta en un mensaje enviado.',
+    availability: 'Disponibilidad',
+    available: 'Disponible',
+    controlled: 'Activación controlada',
+    blocked: 'No disponible',
+    unavailableTitle: 'La atención todavía no está disponible',
+    unavailableDesc: 'La lectura de conversaciones permanece cerrada hasta que la infraestructura real esté lista. No se usan datos demo como fallback.',
+    governance: 'Ver estado en Gobernanza',
+    safe: 'Identidad y permisos se revalidan en el servidor.',
+    back: 'Volver a conversaciones',
+    openContext: 'Abrir contexto',
+    status: {
+      new: 'Nuevo',
+      in_progress: 'En curso',
+      waiting_person: 'Esperando persona',
+      waiting_team: 'Esperando equipo',
+      resolved: 'Resuelta',
+      archived: 'Archivada',
     },
-    foundationLabels: {
-      thread_state_machine: 'Máquina de estados',
-      durable_event_store: 'Event store duradero',
-      authority: 'RBAC / autoridad',
-      message_content_store: 'Contenido de mensajes',
-      provider_ingestion: 'Ingestión de canal',
-      human_reply: 'Respuesta humana',
+    modes: {
+      automatic: 'Automático',
+      approval: 'Con aprobación',
+      human: 'Humano',
+    },
+    delivery: {
+      received: 'Recibida',
+      queued: 'En cola',
+      sent: 'Enviada',
+      delivered: 'Entregada',
+      read: 'Leída',
+      failed: 'Falló',
     },
   },
 } satisfies Record<LanguageCode, any>;
 
-const blockerLabels: Record<string, Record<LanguageCode, string>> = {
-  durable_storage_not_ready: {
-    'pt-BR': 'A identidade de runtime ainda não possui leitura/gravação Firestore confirmada.',
-    'en-US': 'The runtime identity still lacks confirmed Firestore read/write access.',
-    'es-ES': 'La identidad de runtime aún no tiene lectura/escritura Firestore confirmada.',
-  },
-  durable_inbox_disabled: {
-    'pt-BR': 'A Inbox durável está desligada.',
-    'en-US': 'Durable Inbox is disabled.',
-    'es-ES': 'Inbox duradera está desactivada.',
-  },
-  message_content_store_not_mounted: {
-    'pt-BR': 'A store sensível de conteúdo ainda não está montada.',
-    'en-US': 'The sensitive message-content store is not mounted yet.',
-    'es-ES': 'La store sensible de contenido aún no está montada.',
-  },
-  provider_ingestion_not_mounted: {
-    'pt-BR': 'A ingestão do canal oficial ainda não está ativada.',
-    'en-US': 'Official channel ingestion is not active yet.',
-    'es-ES': 'La ingestión del canal oficial aún no está activa.',
-  },
-  human_reply_not_mounted: {
-    'pt-BR': 'A boundary de resposta humana ainda não está ativa.',
-    'en-US': 'The human-reply boundary is not active yet.',
-    'es-ES': 'La boundary de respuesta humana aún no está activa.',
-  },
-};
-
 function shortConversationId(value: string): string {
-  return value.length > 18 ? `…${value.slice(-12)}` : value;
+  return value.length > 16 ? `…${value.slice(-10)}` : value;
 }
 
-export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
+function isOpenConversation(conversation: LiveInboxConversation) {
+  return !['resolved', 'archived'].includes(conversation.status);
+}
+
+function nextStep(status: LiveInboxConversation['status'], t: typeof copy['pt-BR']) {
+  switch (status) {
+    case 'new': return t.nextNew;
+    case 'in_progress': return t.nextInProgress;
+    case 'waiting_person': return t.nextWaitingPerson;
+    case 'waiting_team': return t.nextWaitingTeam;
+    case 'resolved': return t.nextResolved;
+    case 'archived': return t.nextArchived;
+  }
+}
+
+function readinessLabel(readiness: LiveInboxReadiness | null, t: typeof copy['pt-BR']) {
+  if (!readiness) return '—';
+  if (readiness.state === 'available') return t.available;
+  if (readiness.state === 'controlled') return t.controlled;
+  return t.blocked;
+}
+
+export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigate }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveInboxClient(session), [session]);
-  const [data, setData] = useState<LiveInboxReadiness | null>(null);
+  const [readiness, setReadiness] = useState<LiveInboxReadiness | null>(null);
   const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
+  const [filter, setFilter] = useState<ConversationFilter>('all');
+  const [query, setQuery] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(false);
-  const [replyText, setReplyText] = useState('');
   const [replySending, setReplySending] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
+  const contentReady = readiness?.foundations.some(
+    (item) => item.id === 'message_content_store' && item.status === 'ready',
+  ) ?? false;
+  const humanReplyReady = readiness?.foundations.some(
+    (item) => item.id === 'human_reply' && item.status === 'ready',
+  ) ?? false;
+
   const load = async () => {
     setLoading(true);
+    setError('');
     try {
-      const readiness = await client.getReadiness();
-      setData(readiness);
-      const contentReady = readiness.foundations.some(
+      const nextReadiness = await client.getReadiness();
+      setReadiness(nextReadiness);
+      const canRead = nextReadiness.foundations.some(
         (item) => item.id === 'message_content_store' && item.status === 'ready',
       );
-      if (contentReady) {
-        const next = await client.listConversations();
-        setConversations(next);
-        setSelectedId((current) =>
-          current && next.some((conversation) => conversation.conversationId === current)
-            ? current
-            : next[0]?.conversationId || '',
-        );
-      } else {
+
+      if (!canRead) {
         setConversations([]);
         setSelectedId('');
         setMessages([]);
+        return;
       }
-      setError('');
+
+      const next = await client.listConversations();
+      setConversations(next);
+      setSelectedId((current) => current && next.some((item) => item.conversationId === current) ? current : '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.error);
+      setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
     } finally {
       setLoading(false);
     }
@@ -271,31 +341,55 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
   useEffect(() => { void load(); }, [client]);
 
   useEffect(() => {
+    setSelectedId('');
+    setMessages([]);
+    setDrafts({});
+    setShowContext(false);
+  }, [session.expectedOrganizationId]);
+
+  useEffect(() => {
     if (!selectedId) {
       setMessages([]);
       return;
     }
+
     let cancelled = false;
     setTimelineLoading(true);
+    setError('');
     void client.listMessages(selectedId)
       .then((next) => { if (!cancelled) setMessages(next); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : t.error); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'INBOX_MESSAGES_FAILED'); })
       .finally(() => { if (!cancelled) setTimelineLoading(false); });
     return () => { cancelled = true; };
   }, [client, selectedId]);
 
-  const stateLabel = data?.state === 'available'
-    ? t.available
-    : data?.state === 'controlled'
-      ? t.controlled
-      : t.blocked;
-  const contentReady = data?.foundations.some(
-    (item) => item.id === 'message_content_store' && item.status === 'ready',
-  ) ?? false;
+  useEffect(() => {
+    if (!showContext) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowContext(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [showContext]);
+
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
-  const humanReplyReady = data?.foundations.some(
-    (item) => item.id === 'human_reply' && item.status === 'ready',
-  ) ?? false;
+  const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
+  const replyText = draftKey ? drafts[draftKey] || '' : '';
+
+  const visibleConversations = conversations
+    .filter((conversation) => {
+      if (filter === 'open' && !isOpenConversation(conversation)) return false;
+      if (filter === 'resolved' && !['resolved', 'archived'].includes(conversation.status)) return false;
+      const normalized = query.trim().toLocaleLowerCase(currentLang);
+      if (!normalized) return true;
+      return [
+        conversation.conversationId,
+        conversation.status,
+        conversation.mode,
+        conversation.assignedTo?.ref || '',
+      ].some((value) => value.toLocaleLowerCase(currentLang).includes(normalized));
+    })
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const sendReply = async () => {
     if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
@@ -308,8 +402,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
         requestId: globalThis.crypto?.randomUUID?.() || `reply-${Date.now()}`,
         text: replyText.trim(),
       });
-      setReplyText('');
-      setNotice(t.replySent);
+      setDrafts((current) => ({ ...current, [draftKey]: '' }));
+      setNotice(t.sent);
       const [nextMessages, nextConversations] = await Promise.all([
         client.listMessages(selected.conversationId),
         client.listConversations(),
@@ -323,193 +417,358 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang }) => {
     }
   };
 
-  return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_0%_0%,rgba(99,102,241,.17),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(34,211,238,.07),transparent_28%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-4xl">
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300"><Inbox size={14} /> {t.eyebrow}</div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-300/15 bg-amber-300/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-amber-100">
-              <CircleDashed size={12} /> {stateLabel}
-            </div>
+  const contextPanel = selected ? (
+    <div className="flex h-full flex-col">
+      <div className="border-b connect-divider px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[#F2F5FA]">{t.context}</div>
+            <div className="mt-1 font-mono text-[9px] text-[#64788D]">{shortConversationId(selected.conversationId)}</div>
           </div>
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold text-slate-200 hover:bg-white/[0.07] disabled:opacity-50">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {t.refresh}
+          <button
+            type="button"
+            onClick={() => setShowContext(false)}
+            className="connect-focus grid h-9 w-9 place-items-center rounded-lg text-[#708398] hover:bg-white/[0.04] hover:text-white xl:hidden"
+            aria-label={t.close}
+          >
+            <X size={16} />
           </button>
         </div>
-      </section>
+      </div>
 
-      {error && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-100">{t.error} <span className="text-rose-100/55">{error}</span></div>}
-      {notice && <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-3 text-sm text-emerald-100">{notice}</div>}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#66D9EF]/18 bg-[#163442] text-[#66D9EF]">
+            <UserRound size={17} />
+          </span>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-[#EAF1F6]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
+            <div className="mt-1 text-[10px] text-[#708398]">{session.context.activeOrganization.name}</div>
+          </div>
+        </div>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.storage}</div>
-          <div className="mt-2 text-sm font-semibold text-white">{data ? t.storageStates[data.storageState] : loading ? '…' : '—'}</div>
-        </article>
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.durable}</div>
-          <div className="mt-2 text-sm font-semibold text-white">{data?.durableInboxEnabled ? t.yes : t.no}</div>
-        </article>
-        <article className="rounded-[22px] border border-white/[0.08] bg-white/[0.025] p-4">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.auth}</div>
-          <div className="mt-2 text-sm font-semibold text-white">{data?.authoritySource || '—'}</div>
-        </article>
-      </section>
+        <dl className="mt-5 divide-y divide-[#27394B] border-y border-[#27394B] text-[11px]">
+          <div className="flex items-center justify-between gap-3 py-2.5">
+            <dt className="text-[#687C91]">{t.organization}</dt>
+            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{session.context.activeOrganization.name}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2.5">
+            <dt className="text-[#687C91]">{t.channel}</dt>
+            <dd className="font-medium text-[#C7D2DC]">{messages[0]?.channel || '—'}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2.5">
+            <dt className="text-[#687C91]">{t.responsible}</dt>
+            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{selected.assignedTo?.ref || t.unassigned}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2.5">
+            <dt className="text-[#687C91]">{t.state}</dt>
+            <dd className="font-medium text-[#C7D2DC]">{t.status[selected.status]}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2.5">
+            <dt className="text-[#687C91]">{t.mode}</dt>
+            <dd className="font-medium text-[#C7D2DC]">{t.modes[selected.mode]}</dd>
+          </div>
+        </dl>
 
-      {contentReady && (
-        <section className="grid min-h-[520px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.018] lg:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="border-b border-white/[0.07] lg:border-b-0 lg:border-r">
-            <div className="flex items-center justify-between px-4 py-4 sm:px-5">
-              <div className="text-sm font-semibold text-white">{t.conversations}</div>
-              <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[9px] font-semibold text-slate-500">{conversations.length}</span>
-            </div>
-            <div className="max-h-[420px] overflow-y-auto lg:max-h-[620px]">
-              {conversations.length === 0 ? (
-                <div className="px-5 py-12 text-center">
-                  <MessageSquareText size={24} className="mx-auto text-slate-700" />
-                  <div className="mt-3 text-sm font-semibold text-slate-300">{t.empty}</div>
-                  <p className="mt-2 text-xs leading-5 text-slate-600">{t.emptyDesc}</p>
-                </div>
-              ) : conversations.map((conversation) => (
-                <button
-                  key={conversation.conversationId}
-                  type="button"
-                  onClick={() => setSelectedId(conversation.conversationId)}
-                  className={`block w-full border-t border-white/[0.05] px-4 py-4 text-left transition sm:px-5 ${selectedId === conversation.conversationId ? 'bg-indigo-400/[0.07]' : 'hover:bg-white/[0.025]'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-white">WhatsApp · {shortConversationId(conversation.conversationId)}</div>
-                      <div className="mt-1 text-[10px] text-slate-600">{t.updated} {new Date(conversation.updatedAt).toLocaleString(currentLang)}</div>
-                    </div>
-                    <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-slate-500">{conversation.status}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-[10px] text-slate-600">
-                    <span>{conversation.mode}</span>
-                    <span>{conversation.sourceEventCount} {t.events}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </aside>
+        <div className="mt-5">
+          <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#6A7E93]">{t.next}</div>
+          <p className="mt-2 text-xs leading-5 text-[#A7B5C3]">{nextStep(selected.status, t)}</p>
+        </div>
 
-          <div className="flex min-h-[420px] flex-col">
-            <div className="border-b border-white/[0.07] px-4 py-4 sm:px-6">
-              <div className="text-sm font-semibold text-white">{t.timeline}</div>
-              {selected && <div className="mt-1 font-mono text-[9px] text-slate-600">{selected.conversationId}</div>}
-            </div>
+        {onNavigate && session.context.appAccess.some((item) => item.access) && (
+          <button
+            type="button"
+            onClick={() => onNavigate('assist')}
+            className="connect-focus mt-5 flex w-full items-center gap-3 rounded-[10px] border border-[#315064] bg-[#163442]/40 p-3 text-left transition hover:bg-[#163442]/65"
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#66D9EF]/10 text-[#66D9EF]">
+              <ShieldCheck size={15} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-semibold text-[#DDF8FC]">{t.assist}</span>
+              <span className="mt-1 block text-[10px] leading-4 text-[#7F9AA5]">{t.assistDesc}</span>
+            </span>
+            <ChevronRight size={14} className="shrink-0 text-[#7DBECA]" />
+          </button>
+        )}
 
-            {!selected ? (
-              <div className="grid flex-1 place-items-center px-6 py-16 text-center">
-                <div>
-                  <UsersRound size={28} className="mx-auto text-slate-700" />
-                  <div className="mt-3 text-sm font-semibold text-slate-300">{t.select}</div>
-                  <p className="mt-2 text-xs text-slate-600">{t.selectDesc}</p>
-                </div>
+        <div className="mt-5 flex items-start gap-2 rounded-[10px] border border-[#2B3A4D] bg-[#0C141E] p-3 text-[10px] leading-4 text-[#708398]">
+          <ShieldCheck size={13} className="mt-0.5 shrink-0 text-[#7FA4B8]" />
+          {t.safe}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <main className="mx-auto w-full max-w-[1600px] space-y-4 pb-28 lg:pb-8">
+      <header className="flex items-end justify-between gap-4 px-1 pt-1">
+        <div>
+          <div className="connect-eyebrow">{t.eyebrow}</div>
+          <h1 className="connect-page-title mt-2">{t.title}</h1>
+          <p className="connect-page-subtitle mt-1.5 max-w-2xl">{t.subtitle}</p>
+        </div>
+        <div className="hidden items-center gap-2 sm:flex">
+          <span className={`rounded-lg border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[.1em] ${readiness?.state === 'available'
+            ? 'border-[#7CDEB3]/18 bg-[#7CDEB3]/[0.06] text-[#9BE8C6]'
+            : readiness?.state === 'controlled'
+              ? 'border-[#F1C77A]/18 bg-[#F1C77A]/[0.06] text-[#F5D79B]'
+              : 'border-[#FF9AA7]/18 bg-[#FF9AA7]/[0.06] text-[#FFB7C0]'}`}>
+            {readinessLabel(readiness, t)}
+          </span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="connect-focus grid h-9 w-9 place-items-center rounded-[9px] border border-[#2B3A4D] bg-[#111A27] text-[#8194A8] hover:text-white disabled:opacity-40"
+            aria-label={t.refresh}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          </button>
+        </div>
+      </header>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-[#FF9AA7]/20 bg-[#FF9AA7]/[0.06] px-4 py-3 text-xs text-[#FFD0D5]">
+          <CircleAlert size={15} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="flex items-center gap-2 rounded-xl border border-[#7CDEB3]/20 bg-[#7CDEB3]/[0.06] px-4 py-3 text-xs text-[#B9F0D6]">
+          <CheckCircle2 size={15} /> {notice}
+        </div>
+      )}
+
+      {!loading && !contentReady ? (
+        <section className="connect-surface grid min-h-[460px] place-items-center rounded-[14px] px-6 py-12 text-center">
+          <div className="max-w-lg">
+            <LockKeyhole size={27} className="mx-auto text-[#75899E]" />
+            <h2 className="mt-4 text-base font-semibold text-[#E8EFF5]">{t.unavailableTitle}</h2>
+            <p className="mt-2 text-xs leading-5 text-[#71849A]">{t.unavailableDesc}</p>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('audit')}
+                className="connect-focus mt-5 inline-flex min-h-10 items-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-4 text-xs font-semibold text-[#C6D4DF] hover:bg-[#162231]"
+              >
+                {t.governance} <ChevronRight size={13} />
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="connect-surface grid min-h-[620px] overflow-hidden rounded-[14px] md:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[310px_minmax(0,1fr)_320px]">
+          <aside className={`${selected ? 'hidden md:flex' : 'flex'} min-h-[620px] flex-col border-r connect-divider`}>
+            <div className="border-b connect-divider p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold text-[#E7EEF4]">{t.conversations}</div>
+                <span className="rounded-md border border-[#2B3A4D] bg-[#0D151F] px-2 py-0.5 text-[9px] text-[#75899D]">{conversations.length}</span>
               </div>
-            ) : timelineLoading ? (
-              <div className="grid flex-1 place-items-center text-slate-600"><Loader2 size={22} className="animate-spin" /></div>
-            ) : messages.length === 0 ? (
-              <div className="grid flex-1 place-items-center px-6 py-16 text-center text-sm text-slate-600">{t.noMessages}</div>
-            ) : (
-              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
-                {messages.map((message) => (
-                  <div key={message.messageId} className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <article className={`max-w-[88%] rounded-2xl border px-4 py-3 sm:max-w-[72%] ${message.direction === 'outbound' ? 'border-indigo-400/15 bg-indigo-400/[0.07]' : 'border-white/[0.08] bg-white/[0.035]'}`}>
-                      <div className="text-[9px] font-semibold uppercase tracking-[0.11em] text-slate-600">
-                        {message.direction === 'outbound' ? t.outbound : t.inbound} · {message.channel}
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-200">{message.body || `[${message.messageType}]`}</p>
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-slate-600">
-                        <span>{new Date(message.occurredAt).toLocaleString(currentLang)}</span>
-                        <span>{message.deliveryStatus}</span>
-                      </div>
-                    </article>
-                  </div>
+
+              <div className="mt-3 flex items-center gap-1">
+                {([
+                  ['all', t.all],
+                  ['open', t.open],
+                  ['resolved', t.resolved],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFilter(id)}
+                    className={`connect-focus min-h-8 flex-1 rounded-lg border px-2 text-[9px] font-semibold transition ${filter === id
+                      ? 'border-[#66D9EF]/25 bg-[#163442]/70 text-[#B8F0F9]'
+                      : 'border-[#27394B] text-[#708398] hover:text-[#AAB8C9]'}`}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
-            )}
 
-            <div className="border-t border-white/[0.07] bg-black/10 px-4 py-3 sm:px-6">
-              {humanReplyReady && selected ? (
-                <div className="space-y-2.5">
-                  <textarea
-                    value={replyText}
-                    onChange={(event) => setReplyText(event.target.value.slice(0, 4096))}
-                    placeholder={t.replyPlaceholder}
-                    rows={3}
-                    className="w-full resize-none rounded-2xl border border-white/[0.09] bg-black/20 px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-700 focus:border-indigo-400/30 focus:ring-2 focus:ring-indigo-400/10"
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-[10px] text-slate-600">{t.replyHint}</div>
-                    <button
-                      type="button"
-                      onClick={() => void sendReply()}
-                      disabled={!replyText.trim() || replySending}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      {replySending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                      {replySending ? t.replySending : t.replySend}
-                    </button>
-                  </div>
+              <label className="mt-3 flex h-9 items-center gap-2 rounded-[9px] border border-[#27394B] bg-[#0C141E] px-3 focus-within:border-[#66D9EF]/30">
+                <Search size={13} className="shrink-0 text-[#62768A]" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t.search}
+                  className="min-w-0 flex-1 bg-transparent text-xs text-[#D9E2EA] outline-none placeholder:text-[#526579]"
+                />
+              </label>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="space-y-0 divide-y divide-[#263648]/60">
+                  {[0, 1, 2, 3].map((item) => (
+                    <div key={item} className="animate-pulse px-4 py-4">
+                      <div className="h-3 w-32 rounded bg-white/[0.05]" />
+                      <div className="mt-2 h-2.5 w-44 rounded bg-white/[0.03]" />
+                    </div>
+                  ))}
+                </div>
+              ) : visibleConversations.length === 0 ? (
+                <div className="px-5 py-12 text-center">
+                  <Inbox size={23} className="mx-auto text-[#5C7085]" />
+                  <div className="mt-3 text-xs font-semibold text-[#CBD6DF]">{t.noConversation}</div>
+                  <p className="mt-2 text-[10px] leading-5 text-[#61758A]">{t.noConversationDesc}</p>
                 </div>
               ) : (
-                <div className="flex items-start gap-2 text-xs text-slate-500">
-                  <LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-200" />
-                  <span><strong className="font-semibold text-slate-300">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                <div className="divide-y divide-[#263648]/60">
+                  {visibleConversations.map((conversation) => {
+                    const active = selectedId === conversation.conversationId;
+                    return (
+                      <button
+                        key={conversation.conversationId}
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(conversation.conversationId);
+                          setShowContext(false);
+                        }}
+                        className={`connect-row connect-focus w-full px-4 py-3.5 text-left ${active ? 'connect-row-selected' : ''}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border ${active ? 'border-[#66D9EF]/24 bg-[#163442] text-[#66D9EF]' : 'border-[#324659] bg-[#111A27] text-[#71869A]'}`}>
+                            <MessageSquareText size={14} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="truncate text-[11px] font-semibold text-[#E8EFF5]">{t.conversation} {shortConversationId(conversation.conversationId)}</span>
+                              <span className="shrink-0 text-[8px] text-[#5E7287]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] text-[#6D8196]">
+                              {t.status[conversation.status]} · {t.modes[conversation.mode]}
+                            </span>
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          </div>
+          </aside>
+
+          <section className={`${selected ? 'flex' : 'hidden md:flex'} min-w-0 flex-col bg-[#0B121B]/35`}>
+            {!selected ? (
+              <div className="grid flex-1 place-items-center px-6 py-12 text-center">
+                <div className="max-w-sm">
+                  <MessageSquareText size={28} className="mx-auto text-[#5B6F84]" />
+                  <h2 className="mt-4 text-sm font-semibold text-[#DCE5ED]">{t.select}</h2>
+                  <p className="mt-2 text-xs leading-5 text-[#667A90]">{t.selectDesc}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex min-h-[58px] items-center gap-3 border-b connect-divider px-3.5 sm:px-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId('')}
+                    className="connect-focus grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#7A8EA3] hover:bg-white/[0.04] md:hidden"
+                    aria-label={t.back}
+                  >
+                    <ArrowLeft size={17} />
+                  </button>
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#315064] bg-[#163442] text-[#66D9EF]">
+                    <MessageSquareText size={14} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-[#EEF4F8]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
+                    <div className="mt-0.5 text-[9px] text-[#6A7E93]">{t.status[selected.status]} · {t.modes[selected.mode]}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowContext(true)}
+                    className="connect-focus grid h-9 w-9 place-items-center rounded-lg border border-[#2B3A4D] text-[#8094A8] hover:bg-white/[0.04] xl:hidden"
+                    aria-label={t.openContext}
+                  >
+                    <PanelRightOpen size={16} />
+                  </button>
+                </div>
+
+                <div className="relative flex-1 overflow-y-auto px-3.5 py-5 sm:px-5">
+                  <div className="mx-auto flex max-w-3xl items-center gap-3 pb-5 text-[9px] uppercase tracking-[.12em] text-[#52667A]">
+                    <span className="h-px flex-1 bg-[#26384A]" />
+                    {t.today}
+                    <span className="h-px flex-1 bg-[#26384A]" />
+                  </div>
+
+                  {timelineLoading ? (
+                    <div className="grid min-h-[300px] place-items-center text-[#687C91]"><Loader2 size={20} className="animate-spin" /></div>
+                  ) : messages.length === 0 ? (
+                    <div className="grid min-h-[300px] place-items-center px-6 text-center text-xs text-[#667A90]">{t.noMessages}</div>
+                  ) : (
+                    <div className="mx-auto max-w-3xl space-y-3">
+                      {messages.map((message) => {
+                        const outbound = message.direction === 'outbound';
+                        return (
+                          <div key={message.messageId} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
+                            <article className={`max-w-[88%] rounded-[14px] border px-3.5 py-3 sm:max-w-[76%] ${outbound
+                              ? 'border-[#315064] bg-[#163442]/55'
+                              : 'border-[#2B3A4D] bg-[#111A27]'}`}>
+                              <p className="whitespace-pre-wrap break-words text-[13px] leading-5 text-[#E1E9F0]">{message.body || `[${message.messageType}]`}</p>
+                              <div className="mt-2 flex items-center justify-end gap-2 text-[8px] text-[#677B90]">
+                                <span>{new Date(message.occurredAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className={message.deliveryStatus === 'failed' ? 'text-[#FF9AA7]' : ''}>{t.delivery[message.deliveryStatus]}</span>
+                              </div>
+                            </article>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t connect-divider bg-[#0B121B]/80 p-3 sm:p-4">
+                  {humanReplyReady ? (
+                    <div className="mx-auto max-w-3xl">
+                      <div className="rounded-[12px] border border-[#31465A] bg-[#101A27] p-2 focus-within:border-[#66D9EF]/35">
+                        <textarea
+                          value={replyText}
+                          onChange={(event) => setDrafts((current) => ({ ...current, [draftKey]: event.target.value.slice(0, 4096) }))}
+                          placeholder={t.replyPlaceholder}
+                          rows={2}
+                          className="w-full resize-none bg-transparent px-2 py-1.5 text-base leading-6 text-[#EEF4F8] outline-none placeholder:text-[#5A6E82] md:text-sm"
+                        />
+                        <div className="mt-1 flex items-center justify-between gap-3 border-t border-[#27394B] pt-2">
+                          <span className="hidden text-[9px] text-[#5F7388] sm:block">{t.replyHint}</span>
+                          <span className="flex-1 sm:hidden" />
+                          <button
+                            type="button"
+                            onClick={() => void sendReply()}
+                            disabled={!replyText.trim() || replySending}
+                            className="connect-accent-button connect-focus inline-flex min-h-9 items-center justify-center gap-2 rounded-[9px] px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-35"
+                          >
+                            {replySending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                            {replySending ? t.sending : t.send}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mx-auto flex max-w-3xl items-start gap-2 rounded-[10px] border border-[#F1C77A]/15 bg-[#F1C77A]/[0.045] p-3 text-[10px] leading-4 text-[#B9A47B]">
+                      <LockKeyhole size={13} className="mt-0.5 shrink-0 text-[#F1C77A]" />
+                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+
+          <aside className="hidden min-h-0 border-l connect-divider xl:block">
+            {contextPanel}
+          </aside>
         </section>
       )}
 
-      <section className="rounded-[28px] border border-white/[0.08] bg-white/[0.02] p-4 sm:p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck size={16} className="text-indigo-300" /> {t.foundations}</div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {(data?.foundations || []).map((item) => (
-            <div key={item.id} className="rounded-2xl border border-white/[0.07] bg-black/10 p-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-slate-300">{t.foundationLabels[item.id]}</span>
-                {item.status === 'ready'
-                  ? <CheckCircle2 size={14} className="text-emerald-300" />
-                  : <CircleDashed size={14} className={item.status === 'gated' ? 'text-amber-200' : 'text-slate-600'} />}
-              </div>
-              <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.11em] text-slate-600">
-                {item.status === 'ready' ? t.ready : item.status === 'gated' ? t.gated : t.next}
-              </div>
-            </div>
-          ))}
+      {showContext && selected && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/55 p-3 backdrop-blur-[2px] xl:hidden" role="dialog" aria-modal="true" aria-label={t.context}>
+          <button type="button" className="absolute inset-0 cursor-default" onClick={() => setShowContext(false)} aria-label={t.close} />
+          <aside className="connect-surface-raised relative z-10 max-h-[88dvh] w-full overflow-hidden rounded-[16px] sm:max-w-[380px]">
+            {contextPanel}
+          </aside>
         </div>
-      </section>
-
-      <section className="grid gap-3 lg:grid-cols-2">
-        <article className="rounded-[26px] border border-amber-300/15 bg-amber-300/[0.04] p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-50"><LockKeyhole size={16} /> {t.blockers}</div>
-          <div className="mt-4 space-y-2">
-            {(data?.blockers || []).length ? (data?.blockers || []).map((blocker) => (
-              <div key={blocker} className="flex items-start gap-2 text-xs leading-5 text-amber-50/55">
-                <CircleDashed size={12} className="mt-1 shrink-0" />
-                {blockerLabels[blocker]?.[currentLang] || blocker}
-              </div>
-            )) : <div className="text-xs text-emerald-200">{t.ready}</div>}
-          </div>
-        </article>
-
-        <div className="space-y-3">
-          <article className="rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white"><UsersRound size={16} className="text-indigo-300" /> {t.noFake}</div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{t.noFakeDesc}</p>
-          </article>
-          <article className="rounded-[26px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white"><MessageSquareText size={16} className="text-cyan-300" /> {t.privacy}</div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{t.privacyDesc}</p>
-          </article>
-        </div>
-      </section>
+      )}
     </main>
   );
 };

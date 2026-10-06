@@ -20,6 +20,7 @@ import {
   SavedMessageModel,
 } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
+import { CommercialWorkspaceHeader } from './CommercialWorkspaceHeader';
 
 type ComposerObjective =
   | 'iniciar_conversa'
@@ -162,12 +163,12 @@ export const CommercialOpportunitiesPage: React.FC<BaseProps> = ({ session, curr
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,.15),transparent_35%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300">{t.eyebrow}</div>
-        <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-        <div className="mt-5 inline-flex rounded-full border border-white/[0.08] bg-black/15 px-3 py-1.5 text-[10px] font-semibold text-slate-400">{t.product}</div>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <CommercialWorkspaceHeader currentLang={currentLang} activeRoute="opportunities" onNavigate={onNavigate} />
+      <section className="connect-surface rounded-[12px] px-4 py-3.5 sm:px-5">
+        <div className="connect-eyebrow">{t.eyebrow}</div>
+        <div className="mt-1.5 text-sm font-semibold text-[#E7EEF4]">{t.title}</div>
+        <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#72869A]">{t.subtitle}</p>
       </section>
 
       {error && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-100">{error}</div>}
@@ -175,7 +176,7 @@ export const CommercialOpportunitiesPage: React.FC<BaseProps> = ({ session, curr
       {loading ? (
         <div className="grid min-h-52 place-items-center text-slate-500"><Loader2 className="animate-spin" size={22} /></div>
       ) : people.length === 0 ? (
-        <section className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center">
+        <section className="rounded-[14px] border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center">
           <UsersRound size={28} className="mx-auto text-slate-600" />
           <div className="mt-4 text-base font-semibold text-white">{t.empty}</div>
           <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">{t.emptyDesc}</p>
@@ -189,12 +190,12 @@ export const CommercialOpportunitiesPage: React.FC<BaseProps> = ({ session, curr
               : 'iniciar_conversa';
             const approach = person.approachProfile || 'unknown';
             return (
-              <article key={person.id} className="rounded-[26px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
+              <article key={person.id} className="rounded-[14px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="truncate text-base font-semibold text-white">{person.probableName || person.displayName}</h2>
-                      {saving[person.id] && <Loader2 size={13} className="animate-spin text-indigo-300" />}
+                      {saving[person.id] && <Loader2 size={13} className="animate-spin text-cyan-300" />}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-600">{t.product}</div>
                   </div>
@@ -287,23 +288,24 @@ const playbookStages: Array<{
 export const CommercialPlaybooksPage: React.FC<BaseProps> = ({ currentLang, onNavigate }) => {
   const t = playbookCopy[currentLang];
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,.15),transparent_34%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300"><BookOpen size={14} /> {t.eyebrow}</div>
-        <h1 className="mt-4 max-w-4xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <CommercialWorkspaceHeader currentLang={currentLang} activeRoute="playbooks" onNavigate={onNavigate} />
+      <section className="connect-surface rounded-[12px] px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-2 connect-eyebrow"><BookOpen size={13} /> {t.eyebrow}</div>
+        <div className="mt-1.5 text-sm font-semibold text-[#E7EEF4]">{t.title}</div>
+        <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#72869A]">{t.subtitle}</p>
       </section>
 
-      <section className="rounded-[24px] border border-indigo-400/15 bg-indigo-400/[0.045] p-4 sm:p-5">
-        <div className="text-xs font-semibold text-indigo-100">{t.rule}</div>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-indigo-100/55">{t.ruleText}</p>
+      <section className="rounded-[12px] border border-cyan-400/15 bg-cyan-400/[0.045] p-4 sm:p-5">
+        <div className="text-xs font-semibold text-cyan-100">{t.rule}</div>
+        <p className="mt-2 max-w-4xl text-sm leading-6 text-cyan-100/55">{t.ruleText}</p>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {playbookStages.map((stage, index) => (
-          <article key={stage.objective} className="rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+          <article key={stage.objective} className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
-              <span className="grid h-8 w-8 place-items-center rounded-xl border border-white/[0.08] bg-black/15 text-xs font-semibold text-indigo-200">{index + 1}</span>
+              <span className="grid h-8 w-8 place-items-center rounded-xl border border-white/[0.08] bg-black/15 text-xs font-semibold text-cyan-200">{index + 1}</span>
               <span className="rounded-full border border-white/[0.07] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.11em] text-slate-500">{stage.channel[currentLang]}</span>
             </div>
             <h2 className="mt-4 text-sm font-semibold text-white">{objectiveLabels[stage.objective][currentLang]}</h2>
@@ -438,11 +440,12 @@ export const CommercialComposerPage: React.FC<BaseProps> = ({ session, currentLa
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,.07),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,.15),transparent_34%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300"><MessageSquareText size={14} /> {t.eyebrow}</div>
-        <h1 className="mt-4 max-w-4xl text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <CommercialWorkspaceHeader currentLang={currentLang} activeRoute="composer" onNavigate={onNavigate} />
+      <section className="connect-surface rounded-[12px] px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-2 connect-eyebrow"><MessageSquareText size={13} /> {t.eyebrow}</div>
+        <div className="mt-1.5 text-sm font-semibold text-[#E7EEF4]">{t.title}</div>
+        <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#72869A]">{t.subtitle}</p>
       </section>
 
       {(error || notice) && (
@@ -452,11 +455,11 @@ export const CommercialComposerPage: React.FC<BaseProps> = ({ session, currentLa
       )}
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,.8fr)]">
-        <article className="rounded-[28px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[14px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.label}</span>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/15 px-3 text-sm text-white outline-none focus:border-indigo-400/30" />
+              <input value={label} onChange={(e) => setLabel(e.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/15 px-3 text-sm text-white outline-none focus:border-cyan-400/30" />
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label>
@@ -475,7 +478,7 @@ export const CommercialComposerPage: React.FC<BaseProps> = ({ session, currentLa
           </div>
           <label className="mt-3 block">
             <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-600">{t.text}</span>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} className="mt-2 min-h-40 w-full resize-y rounded-2xl border border-white/10 bg-black/15 p-3 text-sm leading-6 text-white outline-none focus:border-indigo-400/30" />
+            <textarea value={text} onChange={(e) => setText(e.target.value)} className="mt-2 min-h-40 w-full resize-y rounded-2xl border border-white/10 bg-black/15 p-3 text-sm leading-6 text-white outline-none focus:border-cyan-400/30" />
           </label>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => void save()} disabled={!text.trim() || saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-xs font-semibold text-slate-950 disabled:opacity-35">
@@ -487,7 +490,7 @@ export const CommercialComposerPage: React.FC<BaseProps> = ({ session, currentLa
           </div>
         </article>
 
-        <article className="rounded-[28px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[14px] border border-white/[0.09] bg-white/[0.025] p-4 sm:p-5">
           <div className="text-sm font-semibold text-white">{t.library}</div>
           {loading ? (
             <div className="grid min-h-40 place-items-center text-slate-600"><Loader2 size={20} className="animate-spin" /></div>

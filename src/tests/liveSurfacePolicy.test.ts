@@ -45,11 +45,14 @@ equal(resolveRealExperienceProfile(null, 'Líder de Louvor'), 'worship_leader', 
 equal(resolveExperienceProfile('commercial', 'ceo'), 'commercial', 'preview lens changes experience only');
 equal(resolveExperienceProfile('real', 'ceo'), 'ceo', 'real lens keeps the canonical experience');
 ok(getExperienceNavigationRouteIds('commercial', true).includes('radar'), 'commercial experience exposes Radar');
+ok(getExperienceNavigationRouteIds('commercial', true).includes('followups'), 'commercial experience exposes Follow-ups inside the commercial workspace');
 ok(!getExperienceNavigationRouteIds('musician', true).includes('radar'), 'musician experience does not expose commercial Radar');
 ok(getExperienceNavigationRouteIds('organization_admin', false).includes('channels'), 'admin experience can see staged operations');
 ok(getExperienceNavigationRouteIds('ceo', true).includes('developer'), 'CEO experience exposes the safe Developer Center');
+ok(getExperienceNavigationRouteIds('ceo', true).includes('followups'), 'CEO experience exposes the full commercial follow-up workflow');
 ok(!getExperienceNavigationRouteIds('organization_admin', true).includes('developer'), 'Developer Center stays out of organization-admin navigation');
 ok(!getExperienceNavigationRouteIds('commercial', false).includes('radar'), 'relationship routes remain gated when Radar capability is unavailable');
+ok(!getExperienceNavigationRouteIds('commercial', false).includes('followups'), 'commercial follow-ups stay gated when relationship capability is unavailable');
 
 equal(
   toTrustedMusicScaleUrl('/scales/scale-123'),
