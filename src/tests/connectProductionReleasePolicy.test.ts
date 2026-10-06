@@ -292,6 +292,26 @@ assert.match(
 );
 assert.match(
   whatsappActivation,
+  /CONNECT_WHATSAPP_ASSIST_ENABLED=true/,
+  'WhatsApp activation must enable the known-intent Assist bridge only inside the explicit provider activation workflow',
+);
+assert.match(
+  whatsappActivation,
+  /api\/ecosystem\/connect\/channel-grants/,
+  'WhatsApp activation must prove the Hub channel-grant boundary before enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /api\/ecosystem\/connect\/channel-session/,
+  'WhatsApp activation must prove the Hub channel-session boundary before enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /api\/core\/channel-link\/confirm/,
+  'WhatsApp activation must prove the protected Connect channel-link endpoint after deployment',
+);
+assert.match(
+  whatsappActivation,
   /CONNECT_WHATSAPP_REPLY_POLICY_READY/,
   'WhatsApp activation must acknowledge the provider policy gate explicitly',
 );
