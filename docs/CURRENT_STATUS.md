@@ -1,86 +1,80 @@
 # MillionsNest Connect — Estado atual
 
-**Atualizado em:** 2026-10-04  
+**Atualizado em:** 2026-10-05  
 **Fonte de verdade operacional:** código + GitHub Actions + Blueprint v4.
 
 ## Resumo executivo
 
-O Connect **não está 100% concluído**. A base principal e várias superfícies reais já foram implantadas, mas o último grande gate da Fase A — **ativar o WhatsApp Business Platform oficial em produção e provar receive/reply real** — ainda depende de configuração externa da Meta/GitHub Actions.
+A fronteira oficial do WhatsApp já foi comprovada em produção com tráfego real: mensagem externa recebida, persistida na Inbox durável e resposta humana enviada pela Inbox e entregue de volta no WhatsApp.
 
-A tentativa de ativação em produção de 2026-10-03 falhou **antes de alterar o Cloud Run**, exatamente como o desenho fail-closed exige. A revisão anterior permaneceu servindo, sem regressão provocada pela tentativa.
+O próximo gate da Fase A é o **Magic Moment do Assist pelo WhatsApp**: uma pessoa autenticada/vinculada pergunta por dados do MusicScale e o Connect resolve identidade, organização e permissões pelo Hub, consulta o MusicScale pela boundary oficial e responde no próprio WhatsApp.
 
-## Branches verificadas
+A implementação desse gate agora usa vinculação explícita e segura. Telefone **não** é tratado como identidade MillionsNest. O canal recebe um identificador opaco, o usuário autentica sua conta, escolhe uma organização autorizada e Hub/MusicScale continuam revalidando autoridade a cada consulta.
 
-- `main`: `2c021d3be607f79f8c26c8f7612e7f014907fd7c`
-- `production`: `6e1def8d14006c2343691ecfc67af6d6ad0f78d5`
-- `production` está à frente de `main` apenas pelos commits operacionais de promoção/release.
+## Evidência já comprovada em produção
 
-## O que já está implantado no código e certificado
+| Área | Estado |
+|---|---|
+| Meta WhatsApp Business Platform oficial | Ativada e validada |
+| Webhook assinado | Validado |
+| Binding Phone Number ID → organização do canal | Validado |
+| Inbox durável | Leitura/gravação confirmadas |
+| WhatsApp → Connect Inbox | Comprovado com mensagem real |
+| Connect Inbox → WhatsApp | Comprovado com resposta real |
+| Preflight e Production Activation | Verdes |
+| Assist in-app → MusicScale | Vertical real existente |
+| WhatsApp → Assist → MusicScale | Em promoção/ativação final |
 
-| Área | Estado | Evidência principal |
-|---|---|---|
-| Home adaptativa por papel | Real | PR/commit #157 |
-| Preview seguro para CEO/ecosystem owner | Real | #157 |
-| Radar leader-first / abordagem por perfil | Real | #157 |
-| Developer Center seguro / preview avançado | Real | #158 |
-| Oportunidades, Playbooks e Composer | Real | #160 |
-| Entrada Google nativa + troca de organização | Real | release após #160 |
-| Canais live / readiness | Real | #162 |
-| Fundação oficial WhatsApp | Implementada, gated | #162 |
-| Control plane de Automações | Real | #163 |
-| Operações, auditoria e saúde | Real | #165 |
-| Inbox durável + ingestão tenant-safe | Real, provider gated | #166 |
-| Inbox lista/timeline reais | Real | #167 |
-| Boundary de resposta humana + outbox | Implementada, dispatch gated | #168 |
-| Workflow de ativação WhatsApp com rollback | Implementado | #169 / #170 |
+## Magic Moment — arquitetura de identidade
 
-## Último gate: WhatsApp oficial em produção
+Fluxo:
 
-Workflow: **Connect WhatsApp Production Activation**  
-Run: `37136918765`  
-Resultado: **failure no preflight** — sem mudança de runtime.
+```text
+WhatsApp
+  → Meta webhook oficial
+  → persistência durável na Inbox
+  → intent conhecido?
+      não → permanece para atendimento humano
+      sim → identidade de canal opaca
+             → existe vínculo seguro?
+                 não → envia link curto de vinculação
+                        → login MillionsNest
+                        → seleção de organização autorizada
+                        → Hub cria grant opaco
+                        → pedido original continua automaticamente
+                 sim → Hub revalida grant + usuário + organização
+                        → token de identidade de curta duração
+                        → Connect Core
+                        → Hub session-context
+                        → MusicScale Tool Gateway
+                        → resposta oficial no WhatsApp
+```
 
-Configurações ausentes detectadas:
+Princípios preservados:
+- telefone não prova identidade;
+- grant não carrega RBAC/tenant como autoridade;
+- Hub revalida membership/global access em cada sessão de canal;
+- MusicScale revalida seu próprio domínio;
+- segredo do grant fica criptografado no storage sensível do Connect;
+- intents desconhecidos não recebem automação inventada;
+- conteúdo de cifra continua usando resposta segura/deep link quando a superfície rica é a escolha correta;
+- resposta automática possui idempotência durável.
 
-### GitHub Actions variables
-- `CONNECT_WHATSAPP_PHONE_NUMBER_ID`
-- `CONNECT_WHATSAPP_WABA_ID`
-- `CONNECT_WHATSAPP_GRAPH_API_VERSION`
-- `CONNECT_WHATSAPP_ORGANIZATION_ID`
+## Correção de regressão de release
 
-### GitHub Actions secrets
-- `CONNECT_WHATSAPP_APP_SECRET`
-- `CONNECT_WHATSAPP_ACCESS_TOKEN`
-- `CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+Foi identificado um risco operacional: um release normal do Connect Core podia sobrescrever variáveis do Cloud Run e religar provider gates como `false`, mesmo após uma ativação WhatsApp bem-sucedida.
 
-O `CONNECT_WHATSAPP_CONNECTION_REF` já possui fallback seguro `primary`.
+A política de release foi corrigida para usar atualização parcial de ambiente e **preservar** as gates do provider já ativadas. A ativação do WhatsApp/Assist permanece responsabilidade do workflow fail-closed específico.
 
-## O que o workflow fará quando a configuração existir
+## Próxima sequência de produção
 
-1. valida intenção explícita de ativação;
-2. confirma que todas as variáveis/segredos estão presentes;
-3. autentica no GCP via WIF;
-4. exige storage `read_write_confirmed`;
-5. valida que o Phone Number ID pertence ao WABA;
-6. inscreve o app no WABA via `subscribed_apps`;
-7. cria o binding server-side `phoneNumberId -> organizationId`;
-8. liga webhook, ingestão, resposta humana e provider dispatch;
-9. executa smoke real do challenge do webhook;
-10. executa smoke de assinatura `X-Hub-Signature-256`;
-11. revalida storage;
-12. em qualquer falha após a mudança, faz rollback de tráfego para a revisão anterior.
+1. publicar e provar no Hub as boundaries `channel-grants` e `channel-session`;
+2. promover o Connect com a ponte WhatsApp Assist e a correção de release;
+3. executar novamente **Connect WhatsApp Production Activation**;
+4. provar o primeiro uso:
+   - enviar “Qual é minha próxima escala?” pelo WhatsApp;
+   - concluir a vinculação da conta na primeira vez;
+   - receber automaticamente a resposta real do MusicScale no WhatsApp;
+5. repetir repertório/presença e validar fallback humano para intent desconhecido.
 
-## Funcionalidades propositalmente ainda não tratadas como concluídas
-
-- ativação real do WhatsApp oficial;
-- prova end-to-end de mensagem externa recebida e resposta oficial entregue;
-- Agentes com autonomia progressiva;
-- Conhecimento contextual completo;
-- Configurações/Preferências avançadas;
-- expansão de adapters/canais adicionais conforme roadmap.
-
-## Próximo passo obrigatório
-
-**Não expandir o escopo antes de fechar o fluxo vertical real do WhatsApp.**
-
-Assim que os quatro valores não secretos e os três segredos da Meta forem configurados, reexecutar o workflow com o acknowledgement `CONNECT_WHATSAPP_PRODUCTION_READY`, validar o receive/reply real e registrar a evidência de conclusão da Fase A.
+A Fase A só deve ser marcada como concluída depois dessa prova final.

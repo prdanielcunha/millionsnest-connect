@@ -5,6 +5,7 @@ const release = fs.readFileSync('.github/workflows/connect-core-production-relea
 const hosting = fs.readFileSync('.github/workflows/firebase-hosting-deploy.yml', 'utf8');
 const whatsappActivation = fs.readFileSync('.github/workflows/connect-whatsapp-production-activation.yml', 'utf8');
 const whatsappActivationMarker = fs.readFileSync('.github/whatsapp-production-activation.json', 'utf8');
+const directReleaseTrigger = fs.readFileSync('.github/workflows/connect-direct-official-sso-release.yml', 'utf8');
 
 assert.match(release, /on:\s*\n\s*workflow_dispatch:/, 'Core production release must be manual-only');
 assert.doesNotMatch(release, /\n\s*push:/, 'Core production release must not auto-deploy on push');
@@ -94,6 +95,26 @@ assert.doesNotMatch(
 );
 assert.match(release, /--min-instances 0/, 'Core must preserve scale-to-zero policy');
 assert.match(release, /--allow-unauthenticated/, 'Firebase Hosting must be able to invoke the HTTP service');
+assert.match(
+  release,
+  /Capture current serving revision/,
+  'Release must capture the revision currently receiving production traffic before deployment',
+);
+assert.match(
+  release,
+  /--to-revisions="\$EXPECTED_RELEASE_REVISION=100"/,
+  'Release must explicitly route traffic to the exact revision named for this certified run',
+);
+assert.match(
+  release,
+  /--to-revisions="\$PREVIOUS_TRAFFIC_REVISION=100"/,
+  'Production smoke failure must be able to restore the previously serving revision',
+);
+assert.match(
+  release,
+  /trap rollback ERR/,
+  'Production smoke must fail closed with traffic rollback',
+);
 assert.match(release, /MILLIONSNEST_HUB_ORIGIN=https:\/\/www\.millionsnest\.com/);
 assert.match(release, /MUSICSCALE_ORIGIN=https:\/\/musicscale\.millionsnest\.com/);
 assert.match(
@@ -103,8 +124,33 @@ assert.match(
 );
 assert.match(
   release,
+  /CONNECT_RELEASE_RUN_ID=\$GITHUB_RUN_ID/,
+  'Production release must change the Cloud Run template on every certified run so a fresh revision is created',
+);
+assert.match(
+  release,
+  /--revision-suffix "\$REVISION_SUFFIX"/,
+  'Production release must give each certified Core revision a deterministic unique name',
+);
+assert.match(
+  release,
+  /EXPECTED_RELEASE_REVISION/,
+  'Production release must carry the exact revision identity across deploy, traffic routing and smoke checks',
+);
+assert.match(
+  release,
+  /CONNECT_EXACT_REVISION_READY=/,
+  'Production release must prove the exact named revision is Ready and stamped with the matching SHA/run ID',
+);
+assert.match(
+  release,
+  /CONNECT_DIRECT_RELEASE_SHA_OK=/,
+  'Production release must prove the Cloud Run service itself serves the exact SHA before deploying Hosting',
+);
+assert.doesNotMatch(
+  release,
   /--to-latest/,
-  'Production release must explicitly restore traffic to the newly certified revision after a rollback pin',
+  'Production release must route the exact ready revision and never adopt a later provider revision implicitly',
 );
 assert.match(
   release,
@@ -180,6 +226,22 @@ assert.match(
   release,
   /x\.releaseSha!==process\.env\.GITHUB_SHA/,
   'Local and production health smokes must verify the serving revision',
+);
+
+assert.match(
+  release,
+  /CORE_MATCHED=false/,
+  'Canonical production smoke must converge on the exact Core release instead of failing on a stale healthy revision',
+);
+assert.match(
+  release,
+  /CONNECT_CANONICAL_RELEASE_SHA_OK/,
+  'Production smoke must emit an explicit exact-SHA convergence marker',
+);
+assert.match(
+  release,
+  /Cache-Control: no-cache, no-store/,
+  'Canonical release proof must bypass intermediary cache while traffic converges',
 );
 
 assert.match(
@@ -312,6 +374,11 @@ assert.match(
 );
 assert.match(
   whatsappActivation,
+  /activationRun=\$GITHUB_RUN_ID/,
+  'WhatsApp activation must cache-bust the matching-Core health probe',
+);
+assert.match(
+  whatsappActivation,
   /api\/ecosystem\/connect\/channel-grants/,
   'WhatsApp activation must prove the Hub channel-grant boundary before enabling Assist',
 );
@@ -347,8 +414,49 @@ assert.match(
 );
 assert.match(
   whatsappActivation,
+  /ACTIVATED_REVISION/,
+  'WhatsApp activation must identify the exact config revision created after enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /--revision-suffix "\$ACTIVATION_SUFFIX"/,
+  'WhatsApp activation must create a deterministic revision unique to the activation run',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_ACTIVATION_RUN_ID=\$GITHUB_RUN_ID/,
+  'WhatsApp activation must force a new template revision and stamp the activation run',
+);
+assert.match(
+  whatsappActivation,
+  /Number\(v\.percent\)===100/,
+  'WhatsApp rollback must capture the revision actually serving 100% traffic, not a stale tagged target',
+);
+assert.doesNotMatch(
+  whatsappActivation,
+  /status\.latestReadyRevisionName/,
+  'WhatsApp activation must never select a stale latestReadyRevisionName',
+);
+assert.match(
+  whatsappActivation,
+  /--to-revisions="\$ACTIVATED_REVISION=100"/,
+  'WhatsApp activation must explicitly route traffic to the activated Assist revision before smoke tests',
+);
+assert.match(
+  whatsappActivation,
   /read_write_confirmed/,
   'WhatsApp activation must preserve the durable Firestore readiness gate',
+);
+
+assert.match(
+  directReleaseTrigger,
+  /paths:[\s\S]*connect-core-production-release\.yml[\s\S]*connect-whatsapp-production-activation\.yml/,
+  'Production workflow changes must dispatch the certified Core release before WhatsApp activation can proceed',
+);
+assert.match(
+  directReleaseTrigger,
+  /gh workflow run connect-core-production-release\.yml/,
+  'The coordinated trigger must dispatch the canonical Core production release',
 );
 
 console.log('Connect production release policy: OK');

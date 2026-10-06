@@ -16,6 +16,12 @@ assert.deepEqual(firebase?.hosting?.rewrites, [
 ]);
 
 const rc = JSON.parse(fs.readFileSync(".firebaserc", "utf8"));
+assert.equal(
+  firebase?.hosting?.rewrites?.[0]?.run?.pinTag,
+  undefined,
+  "Connect Hosting must follow the exact revision already certified at 100% Cloud Run service traffic"
+);
+
 assert.deepEqual(
   rc?.targets?.millionsnest?.hosting?.connect,
   ["mn-connect-555464791734"],

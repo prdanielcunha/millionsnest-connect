@@ -41,6 +41,99 @@ jobs:
           echo "HOSTING_SITES:"
           npm install -g firebase-tools@15.26.0 >/dev/null 2>&1
           firebase hosting:sites:list --project millionsnest || true
+          echo "CONNECT_CLOUD_RUN_REVISION_DIAGNOSTICS:"
+          SERVICE="connect-api"
+          PROJECT_ID="millionsnest"
+          REGION="us-central1"
+          LATEST_READY="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.latestReadyRevisionName)')"
+          SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "CONNECT_CLOUD_RUN_LATEST_READY=$LATEST_READY"
+          echo "CONNECT_CLOUD_RUN_SERVICE_URL=$SERVICE_URL"
+          gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format='table(status.traffic.revisionName,status.traffic.percent,status.traffic.tag)'
+          echo "CONNECT_CLOUD_RUN_RECENT_REVISIONS:"
+          gcloud run revisions list \
+            --service "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --limit=6 \
+            --sort-by='~metadata.creationTimestamp' \
+            --format='table(metadata.name,status.conditions[0].status,metadata.creationTimestamp,spec.containers[0].image)'
+          for rev in $(gcloud run revisions list --service "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --limit=3 --sort-by='~metadata.creationTimestamp' --format='value(metadata.name)'); do
+            echo "CONNECT_CLOUD_RUN_REVISION=$rev"
+            gcloud run revisions describe "$rev" \
+              --project "$PROJECT_ID" --region "$REGION" \
+              --format="value(spec.containers[0].image)"
+            REV_JSON="/tmp/${rev}.json"
+            gcloud run revisions describe "$rev" \
+              --project "$PROJECT_ID" --region "$REGION" \
+              --format=json > "$REV_JSON"
+            REV="$rev" node - "$REV_JSON" <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map((e) => [e.name, e.value]));
+          console.log(`CONNECT_CLOUD_RUN_RELEASE_META=${process.env.REV}:${env.CONNECT_RELEASE_SHA || ''}:${env.CONNECT_RELEASE_RUN_ID || ''}`);
+          NODE
+          done
+          curl --fail --silent --show-error --location --max-time 10 \
+            -H 'Cache-Control: no-cache, no-store' \
+            "$SERVICE_URL/api/health?diag=$(date +%s)" || true
+          echo
+
+          echo "CONNECT_HOSTING_CUSTOM_DOMAINS:"
+          HOSTING_TOKEN="$(gcloud auth print-access-token)"
+          for site in millionsnest mn-connect-555464791734; do
+            echo "CONNECT_HOSTING_SITE=$site"
+            STATUS="$(curl --silent --show-error \
+              -o "/tmp/${site}-custom-domains.json" -w '%{http_code}' \
+              -H "Authorization: Bearer $HOSTING_TOKEN" \
+              "https://firebasehosting.googleapis.com/v1beta1/projects/millionsnest/sites/$site/customDomains")"
+            echo "CONNECT_HOSTING_CUSTOM_DOMAIN_HTTP=$site:$STATUS"
+            if [ "$STATUS" = "200" ]; then
+              SITE="$site" node - <<'NODE'
+          const fs = require('fs');
+          const site = process.env.SITE;
+          const payload = JSON.parse(fs.readFileSync(`/tmp/${site}-custom-domains.json`, 'utf8'));
+          for (const item of Array.isArray(payload.customDomains) ? payload.customDomains : []) {
+            const name = String(item.name || '').split('/').pop() || '';
+            const state = item.reconciling ? 'reconciling' : 'stable';
+            const certState = item.cert?.state || item.cert?.status || '';
+            console.log(`CONNECT_HOSTING_CUSTOM_DOMAIN=${site}:${name}:${state}:${certState}`);
+          }
+          NODE
+            fi
+          done
+          unset HOSTING_TOKEN
+          echo "CONNECT_WHATSAPP_ASSIST_RUNTIME_DIAGNOSTICS:"
+          CONNECT_BASE="https://connect.millionsnest.com"
+          LINK_STATUS="$(curl --silent --show-error --location --max-time 15 \
+            -o /tmp/connect-link-diag.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' --data '{}' \
+            "$CONNECT_BASE/api/core/channel-link/confirm" || true)"
+          echo "CONNECT_CHANNEL_LINK_DIAG_STATUS=$LINK_STATUS"
+          if [ -s /tmp/connect-link-diag.json ]; then
+            node - <<'NODE'
+          const fs = require('fs');
+          let x = {};
+          try { x = JSON.parse(fs.readFileSync('/tmp/connect-link-diag.json', 'utf8')); } catch {}
+          const safe = {
+            success: x.success,
+            status: x.status,
+            code: x.code,
+            humanSummary: x.humanSummary,
+          };
+          console.log('CONNECT_CHANNEL_LINK_DIAG_BODY=' + JSON.stringify(safe));
+          NODE
+          fi
+
+          echo "CONNECT_WHATSAPP_ASSIST_RECENT_RUNTIME_ERRORS:"
+          gcloud logging read \
+            'resource.type="cloud_run_revision" AND resource.labels.service_name="connect-api" AND timestamp>="2026-10-06T04:20:00Z"' \
+            --project millionsnest \
+            --limit 100 \
+            --order desc \
+            --format='value(timestamp,textPayload,jsonPayload.message,jsonPayload.error)' \
+            | grep -E 'CONNECT_WHATSAPP_ASSIST|CONNECT_INBOX_CONFIGURATION|CONNECT_WHATSAPP_INGESTION|CONFIGURATION' \
+            | head -40 || true
+
           echo "SECRET_NAMES_ONLY:"
           gcloud secrets list --project millionsnest --format='value(name)' || true
           echo "READ_ONLY_DISCOVERY_OK"

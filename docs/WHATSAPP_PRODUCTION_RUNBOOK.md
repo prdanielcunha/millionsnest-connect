@@ -1,6 +1,6 @@
 # WhatsApp oficial — Runbook de ativação em produção
 
-**Última revisão:** 2026-10-04  
+**Última revisão:** 2026-10-05  
 **Objetivo:** concluir a única etapa que exige acesso humano às contas Meta/GitHub sem colocar credenciais em código, issue, chat ou commit.
 
 ## O que já está pronto do lado do Connect
@@ -116,3 +116,38 @@ Nunca:
 - desative o fail-closed para “fazer funcionar”;
 - registre entrega apenas porque uma mensagem entrou na outbox;
 - reutilize um número/WABA sem confirmar o binding da organização.
+
+
+## Magic Moment do Assist — ativação final
+
+Depois de a Inbox oficial e a resposta humana terem sido comprovadas, a ativação final também liga `CONNECT_WHATSAPP_ASSIST_ENABLED=true`.
+
+Antes de alterar o runtime, o workflow exige que o Hub publicado prove as novas boundaries de identidade de canal. Depois do deploy, também exige que o endpoint de confirmação de vínculo do Connect exista e permaneça protegido por autenticação.
+
+Primeiro uso esperado para um número ainda não vinculado:
+
+1. usuário envia uma intenção suportada, por exemplo **“Qual é minha próxima escala?”**;
+2. Connect persiste a mensagem na Inbox antes de qualquer automação;
+3. Connect responde com um link assinado e expirável em `https://connect.millionsnest.com/link/whatsapp`;
+4. usuário autentica sua conta MillionsNest e escolhe uma organização à qual realmente possui acesso;
+5. Hub revalida identidade + organização + membership/global access e cria o grant;
+6. Connect armazena a credencial do grant criptografada;
+7. o pedido original é retomado automaticamente;
+8. Hub revalida novamente o grant e emite identidade de curta duração;
+9. Connect Core e MusicScale executam suas validações normais;
+10. resposta real volta pelo provider oficial.
+
+Nos usos seguintes, enquanto o grant permanecer válido e autorizado, o usuário não precisa repetir a vinculação.
+
+Se membership/acesso for revogado, o Hub bloqueia a próxima troca do grant. Se o intent não for suportado, a conversa continua disponível na Inbox para atendimento humano.
+
+### Ordem de publicação
+
+Não ativar Assist antes do Hub. A ordem canônica é:
+
+1. Hub channel-grants/channel-session verde em produção;
+2. Connect Core verde em produção;
+3. Connect WhatsApp Production Activation verde;
+4. smoke real pelo WhatsApp.
+
+Um release normal do Core não deve mais desligar as gates já ativadas do WhatsApp; a política de release preserva as configurações de provider e deixa a mudança dessas gates para o workflow específico de ativação.
