@@ -181,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          PREVIOUS_REVISION="$(gcloud run services describe "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --format='value(status.latestReadyRevisionName)')"
+          PREVIOUS_REVISION="$(gcloud run services describe "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --format='value(status.traffic[0].revisionName)')"
           test -n "$PREVIOUS_REVISION"
 
           BINDINGS="$(node -e 'process.stdout.write(JSON.stringify([{organizationId:process.env.CONNECT_ORGANIZATION_ID,phoneNumberId:process.env.META_PHONE_NUMBER_ID,connectionRef:process.env.CONNECT_CONNECTION_REF,enabled:true}]))')"
@@ -193,6 +193,11 @@ jobs:
           trap rollback ERR
 
           gcloud run services update "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --update-env-vars "^@^CONNECT_WHATSAPP_WEBHOOK_ENABLED=true@CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN=$META_VERIFY_TOKEN@CONNECT_WHATSAPP_APP_SECRET=$META_APP_SECRET@CONNECT_WHATSAPP_ACCESS_TOKEN=$META_ACCESS_TOKEN@CONNECT_WHATSAPP_GRAPH_API_VERSION=$META_GRAPH_VERSION@CONNECT_WHATSAPP_PHONE_NUMBER_ID=$META_PHONE_NUMBER_ID@CONNECT_WHATSAPP_CONNECTIONS_JSON=$BINDINGS@CONNECT_WHATSAPP_INGESTION_ENABLED=true@CONNECT_INBOX_HUMAN_REPLY_ENABLED=true@CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true@CONNECT_WHATSAPP_REPLY_POLICY_ACK=CONNECT_WHATSAPP_REPLY_POLICY_READY@CONNECT_WHATSAPP_ASSIST_ENABLED=true"             --quiet
+
+          ACTIVATED_REVISION="$(gcloud run services describe "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --format='value(status.latestReadyRevisionName)')"
+          test -n "$ACTIVATED_REVISION"
+          gcloud run services update-traffic "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --to-revisions="$ACTIVATED_REVISION=100"             --quiet
+          echo "CONNECT_WHATSAPP_ACTIVATION_TRAFFIC_ROUTED=$ACTIVATED_REVISION"
 
           BASE="${PUBLIC_ORIGIN%/}"
           CALLBACK="$BASE/api/channels/whatsapp/webhook"

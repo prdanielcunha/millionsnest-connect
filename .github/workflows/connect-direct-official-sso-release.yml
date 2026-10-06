@@ -7,6 +7,8 @@ on:
       - production
     paths:
       - .github/workflows/connect-direct-official-sso-release.yml
+      - .github/workflows/connect-core-production-release.yml
+      - .github/workflows/connect-whatsapp-production-activation.yml
 
 permissions:
   contents: read

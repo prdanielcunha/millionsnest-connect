@@ -185,11 +185,17 @@ jobs:
           echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
 
       - name: Deploy Connect Core revision
+        shell: bash
         run: |
+          set -euo pipefail
+          REVISION_SUFFIX="r${GITHUB_SHA:0:7}-${GITHUB_RUN_ID}"
+          EXPECTED_RELEASE_REVISION="${SERVICE}-${REVISION_SUFFIX}"
+          echo "EXPECTED_RELEASE_REVISION=$EXPECTED_RELEASE_REVISION" >> "$GITHUB_ENV"
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
+            --revision-suffix "$REVISION_SUFFIX" \
             --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
@@ -211,6 +217,7 @@ jobs:
             --region "$REGION" \
             --format='value(status.latestReadyRevisionName)')"
           test -n "$RELEASE_REVISION"
+          test "$RELEASE_REVISION" = "$EXPECTED_RELEASE_REVISION"
           gcloud run services update-traffic "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -225,26 +232,6 @@ jobs:
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --format='table(metadata.name,status.url,status.latestReadyRevisionName,status.conditions[0].type,status.conditions[0].status)'
-
-      - name: Route certified revision to production traffic
-        run: |
-          set -euo pipefail
-          LATEST_READY="$(gcloud run services describe "$SERVICE" \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --format='value(status.latestReadyRevisionName)')"
-          test -n "$LATEST_READY"
-          gcloud run services update-traffic "$SERVICE" \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --to-latest \
-            --quiet
-          SERVING_REVISION="$(gcloud run services describe "$SERVICE" \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --format='value(status.traffic[0].revisionName)')"
-          test "$SERVING_REVISION" = "$LATEST_READY"
-          echo "CONNECT_CORE_TRAFFIC_ROUTED=$SERVING_REVISION"
 
       - name: Deploy Connect Firebase Hosting with API rewrite
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
