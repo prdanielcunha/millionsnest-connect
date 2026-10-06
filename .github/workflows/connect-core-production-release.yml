@@ -226,6 +226,26 @@ jobs:
             --region "$REGION" \
             --format='table(metadata.name,status.url,status.latestReadyRevisionName,status.conditions[0].type,status.conditions[0].status)'
 
+      - name: Route certified revision to production traffic
+        run: |
+          set -euo pipefail
+          LATEST_READY="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          test -n "$LATEST_READY"
+          gcloud run services update-traffic "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --to-latest \
+            --quiet
+          SERVING_REVISION="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.traffic[0].revisionName)')"
+          test "$SERVING_REVISION" = "$LATEST_READY"
+          echo "CONNECT_CORE_TRAFFIC_ROUTED=$SERVING_REVISION"
+
       - name: Deploy Connect Firebase Hosting with API rewrite
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
 
