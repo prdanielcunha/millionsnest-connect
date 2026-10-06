@@ -46,6 +46,7 @@ const RELATIONSHIP_ROUTES = [
   LIVE_SOURCES_ROUTE,
   LIVE_INTELLIGENCE_ROUTE,
   'opportunities',
+  'followups',
   'playbooks',
   'composer',
 ] as const;
@@ -117,6 +118,7 @@ export function getExperienceNavigationRouteIds(
         'assist',
         'radar',
         'opportunities',
+        'followups',
         'playbooks',
         'composer',
         'intelligence',
@@ -149,6 +151,7 @@ export function getExperienceNavigationRouteIds(
         'assist',
         'radar',
         'opportunities',
+        'followups',
         'playbooks',
         'composer',
         'intelligence',

@@ -35,6 +35,7 @@ import { LiveAutomationsPage } from './features/automations/LiveAutomationsPage'
 import { LiveInboxPage } from './features/inbox/LiveInboxPage';
 import { LiveOperationsPage } from './features/audit/LiveOperationsPage';
 import { LiveCorePage } from './features/live/LiveCorePage';
+import { OperationAgentsStagedPage } from './features/live/OperationAgentsStagedPage';
 import { RadarPage } from './features/radar/RadarPage';
 import { LivePeoplePage } from './features/contacts/LivePeoplePage';
 import { PersonalSourcesPage } from './features/sources/PersonalSourcesPage';
@@ -131,21 +132,21 @@ function LiveStagedSection({
   statusLabel: string;
 }) {
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-4xl items-center justify-center px-3 py-10 sm:px-5">
-      <section className="relative w-full overflow-hidden rounded-[30px] border border-white/[0.09] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,.12),transparent_35%),rgba(255,255,255,.025)] p-7 text-center shadow-[0_28px_80px_rgba(0,0,0,.2)] sm:p-10">
-        <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.04]">
-          <ShieldCheck className="text-slate-300" size={20} />
+    <main className="mx-auto flex min-h-[calc(100vh-8rem)] w-full max-w-3xl items-center justify-center px-2 py-8 sm:px-4">
+      <section className="connect-surface w-full rounded-[14px] p-6 text-center sm:p-8">
+        <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl border border-[#315064] bg-[#163442]/55 text-[#8FE6F3]">
+          <ShieldCheck size={18} />
         </div>
-        <div className="mx-auto mt-4 w-fit rounded-full border border-amber-300/15 bg-amber-300/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-100">
+        <div className="mx-auto mt-4 w-fit rounded-lg border border-[#F1C77A]/18 bg-[#F1C77A]/[0.06] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#EACB8D]">
           {statusLabel}
         </div>
-        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">{description}</p>
+        <h2 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-[#F2F5FA] sm:text-xl">{title}</h2>
+        <p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-[#8497AA]">{description}</p>
         {actionLabel && onAction && (
           <button
             type="button"
             onClick={onAction}
-            className="mt-6 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.09]"
+            className="connect-focus mt-5 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-4 py-2.5 text-xs font-semibold text-[#DCE7EF] transition hover:bg-[#172332]"
           >
             {actionLabel}
           </button>
@@ -453,7 +454,7 @@ export default function App() {
       return <LiveCorePage session={liveSession} currentLang={currentLang} />;
     }
     if (activeRoute === 'inbox') {
-      return <LiveInboxPage session={liveSession} currentLang={currentLang} />;
+      return <LiveInboxPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'radar' && showRadar) {
       return <RadarPage session={liveSession} currentLang={currentLang} />;
@@ -468,7 +469,7 @@ export default function App() {
       return <CommercialComposerPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'channels') {
-      return <LiveChannelsPage session={liveSession} currentLang={currentLang} />;
+      return <LiveChannelsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'audit') {
       return <LiveOperationsPage session={liveSession} currentLang={currentLang} />;
@@ -476,8 +477,14 @@ export default function App() {
     if (activeRoute === 'automations') {
       return <LiveAutomationsPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
     }
+    if (activeRoute === 'agents') {
+      return <OperationAgentsStagedPage currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
     if ((activeRoute === 'sources' || activeRoute === 'imports') && showRadar) {
       return <PersonalSourcesPage session={liveSession} currentLang={currentLang} onNavigate={setActiveRoute} />;
+    }
+    if (activeRoute === 'followups' && showRadar) {
+      return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} initialTab="followups" commercialMode onNavigate={setActiveRoute} />;
     }
     if (activeRoute === 'intelligence' && showRadar) {
       return <RelationshipIntelligencePage session={liveSession} currentLang={currentLang} />;

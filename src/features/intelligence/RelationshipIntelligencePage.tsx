@@ -25,8 +25,9 @@ import { AudienceDefinition, PersonalIntelligenceClient } from '../../core/clien
 import { PersonalRadarClient, RadarClientPerson, RadarConversationSummary } from '../../core/client/personalRadarClient';
 import { LanguageCode } from '../../types';
 import { Person360Panel } from '../contacts/Person360Panel';
+import { CommercialWorkspaceHeader } from '../commercial/CommercialWorkspaceHeader';
 
-type Props = { session: LiveConnectSession; currentLang: LanguageCode };
+type Props = { session: LiveConnectSession; currentLang: LanguageCode; initialTab?: Tab; commercialMode?: boolean; onNavigate?: (route: string) => void };
 type Tab = 'identity' | 'audiences' | 'followups' | 'connections';
 
 function dateTimeLocal(hours = 24) {
@@ -42,11 +43,11 @@ function shortDate(value: unknown, lang: LanguageCode) {
   return new Intl.DateTimeFormat(lang, { day: '2-digit', month: 'short', year: 'numeric', hour: value.includes('T') ? '2-digit' : undefined, minute: value.includes('T') ? '2-digit' : undefined }).format(parsed);
 }
 
-export const RelationshipIntelligencePage: React.FC<Props> = ({ session, currentLang }) => {
+export const RelationshipIntelligencePage: React.FC<Props> = ({ session, currentLang, initialTab, commercialMode = false, onNavigate }) => {
   const intelligence = useMemo(() => new PersonalIntelligenceClient(session), [session]);
   const radar = useMemo(() => new PersonalRadarClient(session), [session]);
   const vcardRef = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<Tab>('identity');
+  const [tab, setTab] = useState<Tab>(initialTab || 'identity');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -115,6 +116,7 @@ export const RelationshipIntelligencePage: React.FC<Props> = ({ session, current
   };
 
   useEffect(() => { void refresh(); }, [intelligence, radar]);
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
 
   const act = async (key: string, action: () => Promise<unknown>, success: string) => {
     setBusy(key); setError(''); setNotice('');
@@ -155,17 +157,34 @@ export const RelationshipIntelligencePage: React.FC<Props> = ({ session, current
   const healthLabel = health?.status === 'healthy' ? t.healthy : health?.status === 'attention' ? t.attention : t.empty;
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,.18),transparent_35%),linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))] p-5 shadow-2xl sm:p-7 lg:p-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div><div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-indigo-300"><BrainCircuit size={15} /> {t.eyebrow}</div><h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1><p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p><div className="mt-4 flex items-center gap-2 text-[11px] text-emerald-300/80"><ShieldCheck size={13} /> {t.privacy}</div></div>
-          <button onClick={() => void refresh()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07] disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> {t.refresh}</button>
-        </div>
-      </section>
+    <main className={`mx-auto w-full ${commercialMode ? 'max-w-[1500px] space-y-4' : 'max-w-7xl space-y-5'} pb-28 lg:pb-8`}>
+      {commercialMode && onNavigate ? (
+        <CommercialWorkspaceHeader currentLang={currentLang} activeRoute="followups" onNavigate={onNavigate} />
+      ) : (
+        <section className="connect-surface rounded-[14px] p-5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 connect-eyebrow"><BrainCircuit size={14} /> {t.eyebrow}</div>
+              <h1 className="connect-page-title mt-2">{t.title}</h1>
+              <p className="connect-page-subtitle mt-1.5 max-w-3xl">{t.subtitle}</p>
+              <div className="mt-3 flex items-center gap-2 text-[10px] text-[#7CDEB3]"><ShieldCheck size={12} /> {t.privacy}</div>
+            </div>
+            <button onClick={() => void refresh()} disabled={loading} className="connect-focus inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-4 text-xs font-semibold text-[#C8D4DE] hover:bg-[#172332] disabled:opacity-50"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> {t.refresh}</button>
+          </div>
+        </section>
+      )}
+      {commercialMode && (
+        <section className="connect-surface rounded-[12px] px-4 py-3.5 sm:px-5">
+          <div className="connect-eyebrow">{t.followups}</div>
+          <p className="mt-1 text-[11px] leading-5 text-[#72869A]">{t.followHint}</p>
+        </section>
+      )}
 
       {(error || notice) && <div className={`rounded-2xl border p-4 text-sm ${error ? 'border-rose-400/20 bg-rose-400/[0.06] text-rose-100' : 'border-emerald-400/20 bg-emerald-400/[0.05] text-emerald-100'}`}>{error || notice}</div>}
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-white/[0.02] p-2 sm:grid-cols-4">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition ${tab === id ? 'bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/20' : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'}`}><Icon size={14} /> {label}{id === 'identity' && identity.length > 0 ? <span className="rounded-full bg-indigo-400/15 px-1.5 py-0.5 text-[9px]">{identity.length}</span> : null}</button>)}</div>
+      {!commercialMode && (
+        <div className="grid grid-cols-2 gap-1 rounded-[12px] border border-[#2B3A4D] bg-[#0D151F] p-1.5 sm:grid-cols-4">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`connect-focus flex min-h-9 items-center justify-center gap-2 rounded-[8px] px-3 text-[11px] font-semibold transition ${tab === id ? 'bg-[#163442] text-[#B6F1F9]' : 'text-[#71859A] hover:bg-white/[0.03] hover:text-[#AAB8C9]'}`}><Icon size={13} /> {label}{id === 'identity' && identity.length > 0 ? <span className="rounded-md bg-[#66D9EF]/10 px-1.5 py-0.5 text-[8px] text-[#8CE6F3]">{identity.length}</span> : null}</button>)}</div>
+      )}
 
       {loading ? <div className="grid min-h-72 place-items-center"><Loader2 className="animate-spin text-slate-500" /></div> : tab === 'identity' ? (
         <section className="space-y-3">

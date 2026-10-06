@@ -17,10 +17,12 @@ import {
   type LiveChannelReadinessItem,
 } from '../../core/client/liveChannelClient';
 import type { LanguageCode } from '../../types';
+import { OperationWorkspaceHeader } from '../live/OperationWorkspaceHeader';
 
 interface LiveChannelsPageProps {
   session: LiveConnectSession;
   currentLang: LanguageCode;
+  onNavigate: (route: string) => void;
 }
 
 const copy = {
@@ -188,6 +190,7 @@ function channelIcon(id: LiveChannelReadinessItem['id']) {
 export const LiveChannelsPage: React.FC<LiveChannelsPageProps> = ({
   session,
   currentLang,
+  onNavigate,
 }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveChannelClient(session), [session]);
@@ -214,30 +217,27 @@ export const LiveChannelsPage: React.FC<LiveChannelsPageProps> = ({
     status === 'active' ? t.active : status === 'blocked' ? t.blocked : t.planned;
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,.08),transparent_30%),radial-gradient(circle_at_92%_5%,rgba(99,102,241,.16),transparent_34%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-4xl">
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300">
-              <Radio size={14} /> {t.eyebrow}
-            </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            {t.refresh}
-          </button>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <OperationWorkspaceHeader currentLang={currentLang} activeRoute="channels" onNavigate={onNavigate} />
+      <section className="connect-surface flex flex-col gap-3 rounded-[12px] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <div className="flex items-center gap-2 connect-eyebrow"><Radio size={13} /> {t.eyebrow}</div>
+          <div className="mt-1.5 text-sm font-semibold text-[#E7EEF4]">{t.title}</div>
+          <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#72869A]">{t.subtitle}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="connect-focus inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3.5 text-xs font-semibold text-[#C8D4DE] hover:bg-[#172332] disabled:opacity-50"
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          {t.refresh}
+        </button>
       </section>
 
       <section className="grid gap-3 lg:grid-cols-[1fr_.7fr]">
-        <article className="rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.06] text-emerald-200">
               <ShieldCheck size={18} />
@@ -249,7 +249,7 @@ export const LiveChannelsPage: React.FC<LiveChannelsPageProps> = ({
           </div>
         </article>
 
-        <article className="rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
+        <article className="rounded-[12px] border border-white/[0.08] bg-white/[0.025] p-4 sm:p-5">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/[0.08] bg-black/15 text-slate-300">
               <LockKeyhole size={18} />
@@ -278,7 +278,7 @@ export const LiveChannelsPage: React.FC<LiveChannelsPageProps> = ({
             const Icon = channelIcon(channel.id);
             const note = channel.id === 'whatsapp' ? t.waNote : channel.id === 'inapp' ? t.inappNote : '';
             return (
-              <article key={channel.id} className="rounded-[26px] border border-white/[0.085] bg-white/[0.025] p-4 sm:p-5">
+              <article key={channel.id} className="rounded-[14px] border border-white/[0.085] bg-white/[0.025] p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[0.08] bg-black/15 text-slate-200">
@@ -349,7 +349,7 @@ export const LiveChannelsPage: React.FC<LiveChannelsPageProps> = ({
           })}
         </section>
       ) : (
-        <div className="rounded-[24px] border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-600">{t.empty}</div>
+        <div className="rounded-[12px] border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-600">{t.empty}</div>
       )}
     </main>
   );

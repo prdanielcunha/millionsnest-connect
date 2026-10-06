@@ -158,8 +158,8 @@ const deviceLabels: Record<PreviewDevice, Record<LanguageCode, string>> = {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block rounded-2xl border border-white/[0.08] bg-black/15 p-3.5">
-      <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{label}</span>
+    <label className="block rounded-[10px] border border-[#2B3A4D] bg-[#0D151F] p-3.5">
+      <span className="mb-2 block text-[9px] font-semibold uppercase tracking-[0.13em] text-[#667A90]">{label}</span>
       {children}
     </label>
   );
@@ -220,19 +220,19 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
   const compareProfiles: ExperienceProfile[] = ['ceo', 'worship_leader', 'musician'];
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_15%_0%,rgba(99,102,241,.17),transparent_34%),linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.018))] p-5 shadow-[0_30px_90px_rgba(0,0,0,.24)] sm:p-7 lg:p-9">
-        <div className="max-w-4xl">
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300">
-            <Eye size={14} /> {t.eyebrow}
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <header className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2 connect-eyebrow">
+            <Eye size={13} /> {t.eyebrow}
           </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-2 text-xs text-emerald-100">
-            <ShieldCheck size={14} /> {t.guard}
-          </div>
+          <h1 className="connect-page-title mt-2">{t.title}</h1>
+          <p className="connect-page-subtitle mt-1.5">{t.subtitle}</p>
         </div>
-      </section>
+        <div className="inline-flex min-h-9 items-center gap-2 self-start rounded-[9px] border border-[#7CDEB3]/18 bg-[#7CDEB3]/[0.055] px-3 text-[10px] font-semibold text-[#A7DFC3] sm:self-auto">
+          <ShieldCheck size={13} /> {t.guard}
+        </div>
+      </header>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Field label={t.role}>
@@ -244,20 +244,20 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
         <Field label={t.organization}>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Building2 size={14} className="shrink-0 text-indigo-300" />
+              <Building2 size={14} className="shrink-0 text-[#66D9EF]" />
               <select value={config.organizationId} onChange={(e) => update('organizationId', e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
                 {session.context.availableOrganizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
               </select>
             </div>
-            <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-2.5 py-2">
+            <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-[#27394B] bg-[#0B121B] px-2.5 py-2">
               <div className="min-w-0">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-600">{t.organizationId}</div>
-                <code className="mt-1 block truncate text-[10px] text-slate-400">{realOrgId}</code>
+                <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#61758A]">{t.organizationId}</div>
+                <code className="mt-1 block truncate text-[10px] text-[#8A9CAE]">{realOrgId}</code>
               </div>
               <button
                 type="button"
                 onClick={() => void copyRealOrganizationId()}
-                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2.5 text-[10px] font-semibold text-slate-300 transition hover:bg-white/[0.07]"
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#2B3A4D] bg-[#111A27] px-2.5 text-[10px] font-semibold text-[#C1CED9] transition hover:bg-white/[0.07]"
                 title={organizationIdCopied ? t.copiedOrganizationId : t.copyOrganizationId}
               >
                 {organizationIdCopied ? <Check size={12} /> : <Copy size={12} />}
@@ -269,7 +269,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
 
         <Field label={t.product}>
           <div className="flex items-center gap-2">
-            <Layers3 size={14} className="shrink-0 text-indigo-300" />
+            <Layers3 size={14} className="shrink-0 text-[#66D9EF]" />
             <select value={config.product} onChange={(e) => update('product', e.target.value as PreviewProduct)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
               {(Object.keys(productLabels) as PreviewProduct[]).map((product) => <option key={product} value={product}>{productLabels[product][currentLang]}</option>)}
             </select>
@@ -278,7 +278,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
 
         <Field label={t.plan}>
           <div className="flex items-center gap-2">
-            <BadgeCheck size={14} className="shrink-0 text-indigo-300" />
+            <BadgeCheck size={14} className="shrink-0 text-[#66D9EF]" />
             <select value={config.plan} onChange={(e) => update('plan', e.target.value as ExperiencePreviewConfig['plan'])} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
               <option value="real">{currentLang === 'pt-BR' ? `Plano real · ${realPlan}` : currentLang === 'es-ES' ? `Plan real · ${realPlan}` : `Real plan · ${realPlan}`}</option>
               <option value="starter">Starter</option>
@@ -290,7 +290,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
 
         <Field label={t.language}>
           <div className="flex items-center gap-2">
-            <Languages size={14} className="shrink-0 text-indigo-300" />
+            <Languages size={14} className="shrink-0 text-[#66D9EF]" />
             <select value={currentLang} onChange={(e) => onChangeLang(e.target.value as LanguageCode)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
               <option value="pt-BR">Português</option>
               <option value="en-US">English</option>
@@ -301,7 +301,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
 
         <Field label={t.device}>
           <div className="flex items-center gap-2">
-            {config.device === 'mobile' ? <Smartphone size={14} className="text-indigo-300" /> : config.device === 'tablet' ? <Tablet size={14} className="text-indigo-300" /> : <Monitor size={14} className="text-indigo-300" />}
+            {config.device === 'mobile' ? <Smartphone size={14} className="text-[#66D9EF]" /> : config.device === 'tablet' ? <Tablet size={14} className="text-[#66D9EF]" /> : <Monitor size={14} className="text-[#66D9EF]" />}
             <select value={config.device} onChange={(e) => update('device', e.target.value as PreviewDevice)} className="min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none">
               {(Object.keys(deviceLabels) as PreviewDevice[]).map((device) => <option key={device} value={device}>{deviceLabels[device][currentLang]}</option>)}
             </select>
@@ -322,16 +322,16 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
         </Field>
       </section>
 
-      <section className="rounded-[24px] border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+      <section className="rounded-[12px] border border-[#2B3A4D] bg-white/[0.02] p-4 sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">{t.capabilities}</div>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.capabilitiesHint}</p>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#61758A]">{t.capabilities}</div>
+            <p className="mt-1 text-xs leading-5 text-[#708398]">{t.capabilitiesHint}</p>
           </div>
           <button
             type="button"
             onClick={() => update('capabilities', null)}
-            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${config.capabilities === null ? 'border-indigo-400/25 bg-indigo-400/[0.08] text-indigo-100' : 'border-white/10 text-slate-400 hover:text-white'}`}
+            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${config.capabilities === null ? 'border-[#66D9EF]/25 bg-[#66D9EF]/[0.08] text-[#C6F6FB]' : 'border-[#2B3A4D] text-[#8A9CAE] hover:text-white'}`}
           >
             {t.capabilitiesReal}
           </button>
@@ -347,7 +347,7 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
                   const current = config.capabilities || [];
                   update('capabilities', selected ? current.filter((item) => item !== capability) : [...current, capability]);
                 }}
-                className={`rounded-xl border px-3 py-2.5 text-left font-mono text-[11px] transition ${selected ? 'border-indigo-400/25 bg-indigo-400/[0.08] text-indigo-100' : 'border-white/[0.08] bg-black/10 text-slate-500 hover:text-slate-300'}`}
+                className={`rounded-xl border px-3 py-2.5 text-left font-mono text-[11px] transition ${selected ? 'border-[#66D9EF]/25 bg-[#66D9EF]/[0.08] text-[#C6F6FB]' : 'border-[#2B3A4D] bg-[#0B121B] text-[#708398] hover:text-[#C1CED9]'}`}
               >
                 {capability}
               </button>
@@ -356,18 +356,18 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-[24px] border border-white/[0.08] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <section className="flex flex-col gap-3 rounded-[12px] border border-[#2B3A4D] bg-[#111A27] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-white">{t.guard}</div>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">{t.guardDesc}</p>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#708398]">{t.guardDesc}</p>
           {isSynthetic && (
-            <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-300">
+            <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#66D9EF]">
               {roleLabels[config.view][currentLang]} · {productLabels[config.product][currentLang]} · {deviceLabels[config.device][currentLang]}
             </div>
           )}
         </div>
         <div className="flex shrink-0 gap-2">
-          <button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 px-3.5 text-xs font-medium text-slate-300 hover:bg-white/[0.04]">
+          <button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#2B3A4D] px-3.5 text-xs font-medium text-[#C1CED9] hover:bg-white/[0.04]">
             <RotateCcw size={14} /> {t.reset}
           </button>
           <button type="button" onClick={onOpenHome} className="min-h-10 rounded-xl bg-white px-4 text-xs font-semibold text-slate-950">
@@ -376,9 +376,9 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6">
+      <section className="rounded-[14px] border border-[#2B3A4D] bg-white/[0.02] p-5 sm:p-6">
         <div className="text-sm font-semibold text-white">{t.compare}</div>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{t.compareDesc}</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#708398]">{t.compareDesc}</p>
         <div className="mt-5 grid gap-3 lg:grid-cols-3">
           {compareProfiles.map((profile) => {
             const routes = getExperienceNavigationRouteIds(profile, showRadar);
@@ -387,13 +387,13 @@ export const DeveloperPreviewPage: React.FC<DeveloperPreviewPageProps> = ({
                 key={profile}
                 type="button"
                 onClick={() => onChange({ ...config, view: profile })}
-                className="rounded-[22px] border border-white/[0.08] bg-black/15 p-4 text-left transition hover:-translate-y-0.5 hover:border-indigo-400/20 hover:bg-indigo-400/[0.035]"
+                className="rounded-[12px] border border-[#2B3A4D] bg-[#0D151F] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#66D9EF]/20 hover:bg-indigo-400/[0.035]"
               >
                 <div className="text-sm font-semibold text-white">{roleLabels[profile][currentLang]}</div>
-                <div className="mt-1 text-[11px] text-slate-600">{routes.length} {t.visible}</div>
+                <div className="mt-1 text-[11px] text-[#61758A]">{routes.length} {t.visible}</div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {routes.slice(0, 6).map((route) => <span key={route} className="rounded-lg border border-white/[0.07] px-2 py-1 text-[9px] text-slate-500">{route}</span>)}
-                  {routes.length > 6 && <span className="rounded-lg border border-white/[0.07] px-2 py-1 text-[9px] text-slate-600">+{routes.length - 6}</span>}
+                  {routes.slice(0, 6).map((route) => <span key={route} className="rounded-lg border border-[#27394B] px-2 py-1 text-[9px] text-[#708398]">{route}</span>)}
+                  {routes.length > 6 && <span className="rounded-lg border border-[#27394B] px-2 py-1 text-[9px] text-[#61758A]">+{routes.length - 6}</span>}
                 </div>
               </button>
             );

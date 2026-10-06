@@ -78,7 +78,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   };
 
   return (
-    <div ref={headerRef} className={`flex flex-col border-b border-white/10 bg-[#121824] shrink-0 z-40 ${className}`}>
+    <div ref={headerRef} className={`flex flex-col border-b border-[#27394B] bg-[#0D151F] shrink-0 z-40 ${className}`}>
       <div className="h-14 px-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <button
@@ -89,7 +89,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
                 setIsMobileOrgMenuOpen(false);
               }
             }}
-            className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+            className="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#66D9EF]/60 rounded-lg"
             aria-expanded={isMobileMenuOpen}
             aria-controls="mobile-navigation-drawer"
             aria-label={isMobileMenuOpen ? t.header.closeMenu : t.header.openMenu}
@@ -115,7 +115,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
               }
               setIsCommandPaletteOpen(true);
             }}
-            className="w-11 h-11 flex items-center justify-center focus:outline-none rounded-lg text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="w-11 h-11 flex items-center justify-center focus:outline-none rounded-lg text-gray-400 hover:text-white focus-visible:ring-2 focus-visible:ring-[#66D9EF]/60"
             aria-label={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
             title={isLive ? liveSearchLabels[currentLang] : t.header.openSearch}
           >
@@ -134,7 +134,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         </div>
       </div>
 
-      <div className="h-12 border-t border-white/5 flex items-center bg-[#1A2234]">
+      <div className="h-12 border-t border-[#223345] flex items-center bg-[#111A27]">
         {isLive ? (
           <div
             className="flex items-center w-full h-full px-4 text-left"
@@ -142,7 +142,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
             title={context.activeOrganization.name}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
+              <Building2 className="w-4 h-4 text-[#66D9EF] shrink-0" />
               <span className="font-semibold text-white text-xs truncate">
                 {context.activeOrganization.name}
               </span>
@@ -152,14 +152,14 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           <button
             type="button"
             onClick={toggleOrgMenu}
-            className="flex items-center justify-between w-full h-full px-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+            className="flex items-center justify-between w-full h-full px-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#66D9EF]/60"
             aria-expanded={isMobileOrgMenuOpen}
             aria-controls="mobile-org-menu"
             aria-label={`${t.header.activeOrganization}: ${context.activeOrganization.name}`}
             title={context.activeOrganization.name}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
+              <Building2 className="w-4 h-4 text-[#66D9EF] shrink-0" />
               <span className="font-semibold text-white text-xs truncate">
                 {context.activeOrganization.name}
               </span>
@@ -174,8 +174,8 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
       </div>
 
       {!isLive && isMobileOrgMenuOpen && (
-        <div id="mobile-org-menu" className="bg-[#121824] border-t border-white/10 max-h-64 overflow-y-auto shadow-inner">
-          <div className="px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5 bg-[#0B0E14]/50">
+        <div id="mobile-org-menu" className="bg-[#0D151F] border-t border-[#27394B] max-h-64 overflow-y-auto shadow-inner">
+          <div className="px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-[#223345] bg-[#0B1018]/70">
             {t.header.organizations}
           </div>
           <div className="flex flex-col">
@@ -187,7 +187,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
                   type="button"
                   onClick={() => handleSelectOrg(org.id)}
                   className={`w-full text-left px-4 py-3 min-h-[44px] text-xs flex items-center justify-between transition focus:outline-none focus-visible:bg-white/10 ${
-                    isActive ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-300 hover:bg-white/5'
+                    isActive ? 'bg-[#163442]/70 text-[#B8F0F8]' : 'text-[#AAB8C9] hover:bg-white/[0.035]'
                   }`}
                   aria-current={isActive ? 'true' : undefined}
                   aria-label={org.name}
@@ -195,7 +195,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
                 >
                   <span className="font-medium truncate pr-2">{org.name}</span>
                   {isActive && (
-                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0 uppercase tracking-wider">{t.header.active}</span>
+                    <span className="text-[10px] font-semibold text-[#66D9EF] shrink-0 uppercase tracking-wider">{t.header.active}</span>
                   )}
                 </button>
               );

@@ -144,7 +144,7 @@ function LiveStructuredResult({
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
             <ListMusic size={14} /> {t.repertoire}
           </span>
-          <span className="text-[10px] text-slate-500">{result.songs.length}</span>
+          <span className="text-[10px] text-[#667A90]">{result.songs.length}</span>
         </div>
         <div className="divide-y divide-white/[0.06]">
           {result.songs.map((song) => (
@@ -154,7 +154,7 @@ function LiveStructuredResult({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-slate-100">{song.title}</p>
-                {song.artist && <p className="mt-0.5 truncate text-[10px] text-slate-500">{song.artist}</p>}
+                {song.artist && <p className="mt-0.5 truncate text-[10px] text-[#667A90]">{song.artist}</p>}
               </div>
               <div className="shrink-0 text-right text-[10px] text-slate-400">
                 {song.scheduledKey && <div>{t.scheduledKey}: <span className="text-slate-200">{song.scheduledKey}</span></div>}
@@ -203,7 +203,7 @@ function LiveStructuredResult({
               <FileMusic size={14} /> {t.chart}
             </span>
             {chart?.title && <p className="mt-1 truncate text-sm font-medium text-white">{chart.title}</p>}
-            {chart?.artist && <p className="truncate text-[10px] text-slate-500">{chart.artist}</p>}
+            {chart?.artist && <p className="truncate text-[10px] text-[#667A90]">{chart.artist}</p>}
           </div>
           {chart && (
             <div className="shrink-0 text-right text-[10px] text-slate-400">
@@ -279,37 +279,32 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
   };
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl flex-col gap-6 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
-      <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-7">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-violet-500/10 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-violet-300/90">
-              <Sparkles size={14} />
-              {t.eyebrow}
+    <main className="mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-[1120px] flex-col gap-4 pb-28 lg:pb-8">
+      <header className="flex flex-col gap-4 px-1 pt-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-2 connect-eyebrow"><Sparkles size={13} /> ASSIST</div>
+          <h1 className="connect-page-title mt-2">{t.title}</h1>
+          <p className="connect-page-subtitle mt-1.5">{t.subtitle}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <div className="flex min-h-9 items-center gap-2 rounded-[9px] border border-[#7CDEB3]/18 bg-[#7CDEB3]/[0.055] px-3">
+            <CheckCircle2 size={13} className="text-[#7CDEB3]" />
+            <div className="min-w-0">
+              <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#6F947F]">{t.verified}</div>
+              <div className="max-w-[160px] truncate text-[10px] font-semibold text-[#D7E9DF]">{session.context.user.name}</div>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">{t.title}</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">{t.subtitle}</p>
           </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[390px]">
-            <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.055] px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-emerald-200">
-                <CheckCircle2 size={15} /> {t.verified}
-              </div>
-              <p className="mt-1 truncate text-sm text-white">{session.context.user.name}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                <ShieldCheck size={15} /> {t.tenant}
-              </div>
-              <p className="mt-1 truncate text-sm text-white">{session.context.activeOrganization.name}</p>
+          <div className="flex min-h-9 items-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3">
+            <ShieldCheck size={13} className="text-[#86A1B8]" />
+            <div className="min-w-0">
+              <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#607489]">{t.tenant}</div>
+              <div className="max-w-[180px] truncate text-[10px] font-semibold text-[#D7E0E8]">{session.context.activeOrganization.name}</div>
             </div>
           </div>
         </div>
-      </section>
+      </header>
 
-      <section className="flex min-h-[470px] flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-black/10 shadow-2xl shadow-black/10 backdrop-blur-xl">
+      <section className="connect-surface flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-[14px]">
         <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {messages.map((message) => {
             const musicScaleUrl = toTrustedMusicScaleUrl(message.deepLink);
@@ -318,8 +313,8 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
                 <div className={`max-w-[88%] sm:max-w-[72%] ${message.sender === 'user' ? 'text-right' : ''}`}>
                   <div
                     className={message.sender === 'user'
-                      ? 'rounded-[22px] rounded-br-md bg-white px-4 py-3 text-left text-sm leading-6 text-slate-950 shadow-lg'
-                      : 'rounded-[22px] rounded-bl-md border border-white/10 bg-white/[0.045] px-4 py-3 text-sm leading-6 text-slate-100'}
+                      ? 'rounded-[14px] rounded-br-md border border-[#66D9EF]/18 bg-[#163442]/70 px-4 py-3 text-left text-[13px] leading-5 text-[#EAFBFF]'
+                      : 'rounded-[14px] rounded-bl-md border border-[#2B3A4D] bg-[#111A27] px-4 py-3 text-[13px] leading-5 text-[#E3EBF1]'}
                   >
                     {message.content}
                   </div>
@@ -331,13 +326,13 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
                       href={musicScaleUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-violet-400/20 bg-violet-400/[0.07] px-3 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-400/12"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-[#66D9EF]/18 bg-[#163442]/45 px-3 py-2 text-xs font-medium text-[#B9F2FA] transition hover:bg-[#163442]/65"
                     >
                       {t.openInMusicScale} <ExternalLink size={12} />
                     </a>
                   )}
                   {message.auditId && (
-                    <div className="mt-2 flex items-center gap-1.5 px-1 text-[10px] text-slate-500">
+                    <div className="mt-2 flex items-center gap-1.5 px-1 text-[10px] text-[#667A90]">
                       <LockKeyhole size={11} />
                       {t.audit}: {message.auditId}
                     </div>
@@ -357,7 +352,7 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
           )}
         </div>
 
-        <div className="border-t border-white/10 bg-black/15 p-4 sm:p-5">
+        <div className="border-t connect-divider bg-[#0B121B]/75 p-4 sm:p-5">
           {messages.length === 1 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {t.suggestions.map((suggestion) => (
@@ -366,7 +361,7 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
                   type="button"
                   onClick={() => submit(suggestion)}
                   disabled={busy}
-                  className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.07] px-3.5 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-400/10 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#66D9EF]/18 bg-[#163442]/45 px-3.5 py-2 text-xs font-medium text-[#B9F2FA] transition hover:bg-[#163442]/65 disabled:opacity-50"
                 >
                   <MessageSquareText size={14} /> {suggestion}
                 </button>
@@ -378,13 +373,14 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
               event.preventDefault();
               void submit(input);
             }}
-            className="flex items-end gap-2 rounded-[22px] border border-white/10 bg-white/[0.045] p-2 focus-within:border-violet-400/35"
+            className="flex items-end gap-2 rounded-[12px] border border-[#31465A] bg-[#101A27] p-2 focus-within:border-[#66D9EF]/35"
           >
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
+                const desktopKeyboard = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches;
+                if (desktopKeyboard && event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
                   void submit(input);
                 }
@@ -392,18 +388,18 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
               rows={1}
               maxLength={2000}
               placeholder={t.placeholder}
-              className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+              className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-[#EEF4F8] outline-none placeholder:text-[#5C7085] md:text-sm"
             />
             <button
               type="submit"
               disabled={busy || !input.trim()}
               aria-label="Send"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-slate-950 transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-35"
+              className="connect-accent-button connect-focus grid h-11 w-11 shrink-0 place-items-center rounded-[10px] disabled:cursor-not-allowed disabled:opacity-35"
             >
               {busy ? <Loader2 size={17} className="animate-spin" /> : <ArrowUp size={17} />}
             </button>
           </form>
-          <p className="mt-3 flex items-start gap-2 px-1 text-[11px] leading-4 text-slate-500">
+          <p className="mt-3 flex items-start gap-2 px-1 text-[11px] leading-4 text-[#667A90]">
             <LockKeyhole size={12} className="mt-0.5 shrink-0" /> {t.footer}
           </p>
         </div>

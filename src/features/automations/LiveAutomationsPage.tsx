@@ -18,6 +18,7 @@ import {
   type ConnectAutomationDefinition,
 } from '../../core/automations/automationCatalog';
 import type { LanguageCode } from '../../types';
+import { OperationWorkspaceHeader } from '../live/OperationWorkspaceHeader';
 
 interface Props {
   session: LiveConnectSession;
@@ -151,24 +152,21 @@ export const LiveAutomationsPage: React.FC<Props> = ({
   useEffect(() => { void load(); }, [client]);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 pb-28 lg:pb-10">
-      <section className="relative overflow-hidden rounded-[32px] border border-white/[0.09] bg-[radial-gradient(circle_at_0%_0%,rgba(99,102,241,.16),transparent_34%),radial-gradient(circle_at_90%_15%,rgba(34,211,238,.07),transparent_30%),rgba(255,255,255,.025)] p-5 sm:p-7 lg:p-9">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-4xl">
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300">
-              <Workflow size={14} /> {t.eyebrow}
-            </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">{t.title}</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">{t.subtitle}</p>
-          </div>
-          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold text-slate-200 hover:bg-white/[0.07] disabled:opacity-50">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            {t.refresh}
-          </button>
+    <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
+      <OperationWorkspaceHeader currentLang={currentLang} activeRoute="automations" onNavigate={onNavigate} />
+      <section className="connect-surface flex flex-col gap-3 rounded-[12px] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <div className="flex items-center gap-2 connect-eyebrow"><Workflow size={13} /> {t.eyebrow}</div>
+          <div className="mt-1.5 text-sm font-semibold text-[#E7EEF4]">{t.title}</div>
+          <p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#72869A]">{t.subtitle}</p>
         </div>
+        <button type="button" onClick={() => void load()} disabled={loading} className="connect-focus inline-flex min-h-10 items-center justify-center gap-2 rounded-[9px] border border-[#2B3A4D] bg-[#111A27] px-3.5 text-xs font-semibold text-[#C8D4DE] hover:bg-[#172332] disabled:opacity-50">
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          {t.refresh}
+        </button>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-[24px] border border-amber-300/15 bg-amber-300/[0.045] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <section className="flex flex-col gap-4 rounded-[12px] border border-amber-300/15 bg-amber-300/[0.045] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] text-amber-100">
             <LockKeyhole size={18} />
@@ -190,17 +188,17 @@ export const LiveAutomationsPage: React.FC<Props> = ({
           const blockers = automationBlockers(definition, readiness?.channels || []);
           const isPlanned = definition.maturity === 'planned';
           return (
-            <article key={definition.id} className="rounded-[26px] border border-white/[0.085] bg-white/[0.025] p-4 sm:p-5">
+            <article key={definition.id} className="rounded-[14px] border border-white/[0.085] bg-white/[0.025] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-indigo-300">{definition.sourceApp}</div>
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.13em] text-cyan-300">{definition.sourceApp}</div>
                   <h2 className="mt-2 break-words font-mono text-sm font-semibold text-white">{definition.id}</h2>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.11em] ${
                   isPlanned
                     ? 'border-white/[0.08] bg-white/[0.03] text-slate-500'
                     : definition.maturity === 'prepared'
-                      ? 'border-indigo-400/15 bg-indigo-400/[0.06] text-indigo-100'
+                      ? 'border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-100'
                       : 'border-amber-300/15 bg-amber-300/[0.06] text-amber-100'
                 }`}>
                   {maturityLabel(definition, currentLang)}
