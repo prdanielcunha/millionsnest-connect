@@ -122,15 +122,20 @@ assert.match(
   /CONNECT_RELEASE_SHA=\$\{\{ github\.sha \}\}/,
   'Production release must stamp the deployed revision into runtime environment',
 );
-assert.match(
+assert.doesNotMatch(
   release,
-  /--revision-suffix "\$REVISION_SUFFIX"/,
-  'Production release must force a unique Cloud Run revision for each certified run',
+  /--revision-suffix/,
+  'Production release must not predict Cloud Run revision names; Cloud Run is the naming authority',
 );
 assert.match(
   release,
-  /EXPECTED_RELEASE_REVISION/,
-  'Production release must prove the ready revision is the exact revision created by this run',
+  /test "\$RELEASE_REVISION" != "\$PREVIOUS_TRAFFIC_REVISION"/,
+  'Production release must prove the deployed ready revision is newer than the previously serving revision',
+);
+assert.match(
+  release,
+  /x\.releaseSha!==process\.env\.GITHUB_SHA/,
+  'Canonical production smoke must prove the serving Core carries the exact release SHA',
 );
 assert.doesNotMatch(
   release,
