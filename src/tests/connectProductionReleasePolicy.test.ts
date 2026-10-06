@@ -288,6 +288,11 @@ assert.match(
   'WhatsApp production activation must require an explicit activation marker or acknowledgement',
 );
 assert.match(
+  whatsappActivation,
+  /CONNECT_HOSTING_API_REWRITE_PIN_POLICY_OK/,
+  'WhatsApp activation must require the Firebase Hosting API rewrite to pin the released Cloud Run revision',
+);
+assert.match(
   whatsappActivationMarker,
   /CONNECT_WHATSAPP_PRODUCTION_READY/,
   'The production marker must explicitly request WhatsApp activation',
