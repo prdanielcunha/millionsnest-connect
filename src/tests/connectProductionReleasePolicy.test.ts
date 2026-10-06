@@ -102,8 +102,8 @@ assert.match(
 );
 assert.match(
   release,
-  /--to-revisions="\$RELEASE_REVISION=100"/,
-  'Release must explicitly route traffic to the newly ready revision even after an earlier rollback pinned traffic',
+  /--to-revisions="\$EXPECTED_RELEASE_REVISION=100"/,
+  'Release must explicitly route traffic to the exact revision named for this certified run',
 );
 assert.match(
   release,
@@ -126,6 +126,26 @@ assert.match(
   release,
   /CONNECT_RELEASE_RUN_ID=\$GITHUB_RUN_ID/,
   'Production release must change the Cloud Run template on every certified run so a fresh revision is created',
+);
+assert.match(
+  release,
+  /--revision-suffix "\$REVISION_SUFFIX"/,
+  'Production release must give each certified Core revision a deterministic unique name',
+);
+assert.match(
+  release,
+  /EXPECTED_RELEASE_REVISION/,
+  'Production release must carry the exact revision identity across deploy, traffic routing and smoke checks',
+);
+assert.match(
+  release,
+  /CONNECT_EXACT_REVISION_READY=/,
+  'Production release must prove the exact named revision is Ready and stamped with the matching SHA/run ID',
+);
+assert.match(
+  release,
+  /CONNECT_DIRECT_RELEASE_SHA_OK=/,
+  'Production release must prove the Cloud Run service itself serves the exact SHA before deploying Hosting',
 );
 assert.doesNotMatch(
   release,
@@ -286,11 +306,6 @@ assert.match(
   whatsappActivation,
   /CONNECT_WHATSAPP_PRODUCTION_READY/,
   'WhatsApp production activation must require an explicit activation marker or acknowledgement',
-);
-assert.match(
-  whatsappActivation,
-  /CONNECT_HOSTING_API_REWRITE_PIN_POLICY_OK/,
-  'WhatsApp activation must require the Firebase Hosting API rewrite to pin the released Cloud Run revision',
 );
 assert.match(
   whatsappActivationMarker,

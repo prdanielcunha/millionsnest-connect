@@ -62,16 +62,15 @@ jobs:
             gcloud run revisions describe "$rev" \
               --project "$PROJECT_ID" --region "$REGION" \
               --format="value(spec.containers[0].image)"
+            REV_JSON="/tmp/${rev}.json"
             gcloud run revisions describe "$rev" \
               --project "$PROJECT_ID" --region "$REGION" \
-              --format=json | REV="$rev" node - <<'NODE'
-          let input = '';
-          process.stdin.on('data', (d) => input += d);
-          process.stdin.on('end', () => {
-            const x = JSON.parse(input);
-            const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map((e) => [e.name, e.value]));
-            console.log(`CONNECT_CLOUD_RUN_RELEASE_META=${process.env.REV}:${env.CONNECT_RELEASE_SHA || ''}:${env.CONNECT_RELEASE_RUN_ID || ''}`);
-          });
+              --format=json > "$REV_JSON"
+            REV="$rev" node - "$REV_JSON" <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map((e) => [e.name, e.value]));
+          console.log(`CONNECT_CLOUD_RUN_RELEASE_META=${process.env.REV}:${env.CONNECT_RELEASE_SHA || ''}:${env.CONNECT_RELEASE_RUN_ID || ''}`);
           NODE
           done
           curl --fail --silent --show-error --location --max-time 10 \

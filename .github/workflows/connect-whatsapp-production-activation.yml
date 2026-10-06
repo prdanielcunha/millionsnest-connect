@@ -86,20 +86,6 @@ jobs:
             fi
           done
 
-          node - <<'NODE'
-          const fs = require('fs');
-          const firebase = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
-          const rewrite = firebase?.hosting?.rewrites?.find((item) => item?.source === '/api/**');
-          if (
-            rewrite?.run?.serviceId !== 'connect-api' ||
-            rewrite?.run?.region !== 'us-central1' ||
-            rewrite?.run?.pinTag !== true
-          ) {
-            throw new Error('CONNECT_HOSTING_API_REWRITE_NOT_PINNED');
-          }
-          console.log('CONNECT_HOSTING_API_REWRITE_PIN_POLICY_OK');
-          NODE
-
           echo "CONNECT_WHATSAPP_ACTIVATION_CONFIG_PRESENT"
 
       - name: Authenticate with MillionsNest production WIF

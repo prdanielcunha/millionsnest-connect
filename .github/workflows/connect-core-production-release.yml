@@ -176,10 +176,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PREVIOUS_TRAFFIC_REVISION="$(gcloud run services describe "$SERVICE" \
+          gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --format='value(status.traffic[0].revisionName)')"
+            --format=json > /tmp/connect-service-before.json
+          PREVIOUS_TRAFFIC_REVISION="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-service-before.json','utf8'));const t=(x?.status?.traffic||[]).find(v=>Number(v.percent)===100&&v.revisionName);process.stdout.write(t?.revisionName||'')")"
           test -n "$PREVIOUS_TRAFFIC_REVISION"
           echo "PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION" >> "$GITHUB_ENV"
           echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
@@ -188,10 +189,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          REVISION_SUFFIX="r${GITHUB_RUN_ID}"
+          EXPECTED_RELEASE_REVISION="${SERVICE}-${REVISION_SUFFIX}"
+          echo "EXPECTED_RELEASE_REVISION=$EXPECTED_RELEASE_REVISION" >> "$GITHUB_ENV"
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
+            --revision-suffix "$REVISION_SUFFIX" \
             --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
@@ -204,29 +209,99 @@ jobs:
             --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
-      - name: Route traffic to released revision
+      - name: Route traffic to exact released revision
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_REVISION="$(gcloud run services describe "$SERVICE" \
-            --project "$PROJECT_ID" \
-            --region "$REGION" \
-            --format='value(status.latestReadyRevisionName)')"
-          test -n "$RELEASE_REVISION"
+          test -n "${EXPECTED_RELEASE_REVISION:-}"
+
+          EXACT_READY=false
+          for attempt in {1..60}; do
+            if gcloud run revisions describe "$EXPECTED_RELEASE_REVISION" \
+              --project "$PROJECT_ID" \
+              --region "$REGION" \
+              --format=json > /tmp/connect-release-revision.json 2>/dev/null; then
+              if GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/connect-release-revision.json', 'utf8'));
+          const ready = (x?.status?.conditions || []).some((c) => c.type === 'Ready' && c.status === 'True');
+          const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map((e) => [e.name, e.value]));
+          if (!ready) process.exit(1);
+          if (env.CONNECT_RELEASE_SHA !== process.env.GITHUB_SHA) process.exit(1);
+          if (env.CONNECT_RELEASE_RUN_ID !== process.env.GITHUB_RUN_ID) process.exit(1);
+          NODE
+              then
+                EXACT_READY=true
+                break
+              fi
+            fi
+            echo "CONNECT_EXACT_REVISION_WAIT attempt=$attempt revision=$EXPECTED_RELEASE_REVISION"
+            sleep 2
+          done
+          test "$EXACT_READY" = "true"
+          echo "CONNECT_EXACT_REVISION_READY=$EXPECTED_RELEASE_REVISION"
+
           gcloud run services update-traffic "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --to-revisions="$RELEASE_REVISION=100" \
+            --to-revisions="$EXPECTED_RELEASE_REVISION=100" \
             --quiet
+
+          TRAFFIC_OK=false
+          for attempt in {1..30}; do
+            gcloud run services describe "$SERVICE" \
+              --project "$PROJECT_ID" \
+              --region "$REGION" \
+              --format=json > /tmp/connect-service-after.json
+            if EXPECTED_RELEASE_REVISION="$EXPECTED_RELEASE_REVISION" node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/connect-service-after.json', 'utf8'));
+          const expected = process.env.EXPECTED_RELEASE_REVISION;
+          const target = (x?.status?.traffic || []).find((t) => t.revisionName === expected && Number(t.percent) === 100);
+          if (!target) process.exit(1);
+          NODE
+            then
+              TRAFFIC_OK=true
+              break
+            fi
+            sleep 2
+          done
+          test "$TRAFFIC_OK" = "true"
+
+          RELEASE_REVISION="$EXPECTED_RELEASE_REVISION"
           echo "RELEASE_REVISION=$RELEASE_REVISION" >> "$GITHUB_ENV"
           echo "CONNECT_RELEASE_TRAFFIC_ROUTED=$RELEASE_REVISION"
 
+          SERVICE_URL="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.url)')"
+          DIRECT_MATCHED=false
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --location --max-time 10 \
+              -H 'Cache-Control: no-cache, no-store' \
+              "$SERVICE_URL/api/health?release=$GITHUB_SHA&run=$GITHUB_RUN_ID&attempt=$attempt" \
+              -o /tmp/connect-direct-health.json; then
+              if node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-direct-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core'||x.releaseSha!==process.env.GITHUB_SHA)process.exit(1)"; then
+                DIRECT_MATCHED=true
+                break
+              fi
+            fi
+            sleep 2
+          done
+          test "$DIRECT_MATCHED" = "true"
+          echo "CONNECT_DIRECT_RELEASE_SHA_OK=$GITHUB_SHA"
+
       - name: Verify Cloud Run readiness
         run: |
+          gcloud run revisions describe "$RELEASE_REVISION" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='table(metadata.name,status.conditions[0].type,status.conditions[0].status,spec.containers[0].image)'
           gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
-            --format='table(metadata.name,status.url,status.latestReadyRevisionName,status.conditions[0].type,status.conditions[0].status)'
+            --format='table(metadata.name,status.url,status.traffic.revisionName,status.traffic.percent,status.traffic.tag)'
 
       - name: Deploy Connect Firebase Hosting with API rewrite
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
