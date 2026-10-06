@@ -102,6 +102,38 @@ jobs:
             fi
           done
           unset HOSTING_TOKEN
+          echo "CONNECT_WHATSAPP_ASSIST_RUNTIME_DIAGNOSTICS:"
+          CONNECT_BASE="https://connect.millionsnest.com"
+          LINK_STATUS="$(curl --silent --show-error --location --max-time 15 \
+            -o /tmp/connect-link-diag.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' --data '{}' \
+            "$CONNECT_BASE/api/core/channel-link/confirm" || true)"
+          echo "CONNECT_CHANNEL_LINK_DIAG_STATUS=$LINK_STATUS"
+          if [ -s /tmp/connect-link-diag.json ]; then
+            node - <<'NODE'
+          const fs = require('fs');
+          let x = {};
+          try { x = JSON.parse(fs.readFileSync('/tmp/connect-link-diag.json', 'utf8')); } catch {}
+          const safe = {
+            success: x.success,
+            status: x.status,
+            code: x.code,
+            humanSummary: x.humanSummary,
+          };
+          console.log('CONNECT_CHANNEL_LINK_DIAG_BODY=' + JSON.stringify(safe));
+          NODE
+          fi
+
+          echo "CONNECT_WHATSAPP_ASSIST_RECENT_RUNTIME_ERRORS:"
+          gcloud logging read \
+            'resource.type="cloud_run_revision" AND resource.labels.service_name="connect-api" AND timestamp>="2026-10-06T04:20:00Z"' \
+            --project millionsnest \
+            --limit 100 \
+            --order desc \
+            --format='value(timestamp,textPayload,jsonPayload.message,jsonPayload.error)' \
+            | grep -E 'CONNECT_WHATSAPP_ASSIST|CONNECT_INBOX_CONFIGURATION|CONNECT_WHATSAPP_INGESTION|CONFIGURATION' \
+            | head -40 || true
+
           echo "SECRET_NAMES_ONLY:"
           gcloud secrets list --project millionsnest --format='value(name)' || true
           echo "READ_ONLY_DISCOVERY_OK"
