@@ -118,18 +118,33 @@ assert.match(
 );
 assert.match(
   release,
-  /CONNECT_WHATSAPP_INGESTION_ENABLED=false/,
-  'Production release must keep provider ingestion off until official provider bindings are configured',
+  /--update-env-vars/,
+  'Normal Core releases must update their own runtime config without replacing separately activated provider gates',
 );
-assert.match(
+assert.doesNotMatch(
+  release,
+  /CONNECT_WHATSAPP_INGESTION_ENABLED=false/,
+  'A later Core release must never silently disable an already activated WhatsApp ingestion boundary',
+);
+assert.doesNotMatch(
   release,
   /CONNECT_INBOX_HUMAN_REPLY_ENABLED=false/,
-  'Production release must keep human reply off until official provider policy is acknowledged',
+  'A later Core release must never silently disable an already activated human-reply boundary',
+);
+assert.doesNotMatch(
+  release,
+  /CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=false/,
+  'A later Core release must never silently disable an already activated provider dispatch boundary',
 );
 assert.match(
   release,
-  /CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=false/,
-  'Production release must keep provider dispatch explicitly disabled until credentials and policy gates are complete',
+  /CONNECT_FIREBASE_API_KEY=\$VITE_FIREBASE_API_KEY/,
+  'Core must receive the public Firebase Web API key used for safe custom-token exchange',
+);
+assert.match(
+  release,
+  /CONNECT_PUBLIC_ORIGIN=\$CONNECT_CANONICAL_ORIGIN/,
+  'Core must build channel-link URLs only from the canonical Connect origin',
 );
 assert.match(
   release,
@@ -274,6 +289,26 @@ assert.match(
   whatsappActivation,
   /CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true/,
   'WhatsApp activation must enable official provider dispatch',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_ASSIST_ENABLED=true/,
+  'WhatsApp activation must enable the known-intent Assist bridge only inside the explicit provider activation workflow',
+);
+assert.match(
+  whatsappActivation,
+  /api\/ecosystem\/connect\/channel-grants/,
+  'WhatsApp activation must prove the Hub channel-grant boundary before enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /api\/ecosystem\/connect\/channel-session/,
+  'WhatsApp activation must prove the Hub channel-session boundary before enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /api\/core\/channel-link\/confirm/,
+  'WhatsApp activation must prove the protected Connect channel-link endpoint after deployment',
 );
 assert.match(
   whatsappActivation,

@@ -47,6 +47,15 @@ import {
   WhatsAppConnectionRegistry,
   parseWhatsAppConnectionBindings,
 } from '../core/channels/whatsappConnectionRegistry';
+import { FirestoreWhatsAppChannelIdentityBindingStore } from '../core/channels/firestoreWhatsAppChannelIdentityBindingStore';
+import { FirestoreAssistReplyDispatchStore } from '../core/inbox/firestoreAssistReplyDispatchStore';
+import { WhatsAppAssistReplyService } from '../core/inbox/whatsappAssistReplyService';
+import {
+  FirebaseCustomTokenExchanger,
+  HubChannelGrantHttpClient,
+} from '../core/runtime/hubChannelGrantHttpClient';
+import { WhatsAppAssistOrchestrator } from '../core/runtime/whatsappAssistOrchestrator';
+import { createConnectChannelLinkConfirmHttpHandler } from '../core/runtime/connectChannelLinkHttpHandler';
 import { FirestorePersonalVault } from '../personal/storage/firestorePersonalVault';
 import { PersonalRadarService } from '../personal/radar/personalRadarService';
 import { createPersonalRadarRouter } from '../personal/radar/personalRadarHttp';
@@ -94,6 +103,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     env.CONNECT_INBOX_MESSAGE_CONTENT_ENABLED?.trim().toLowerCase() === 'true';
   const whatsappIngestionEnabled =
     env.CONNECT_WHATSAPP_INGESTION_ENABLED?.trim().toLowerCase() === 'true';
+  const whatsappAssistEnabled =
+    env.CONNECT_WHATSAPP_ASSIST_ENABLED?.trim().toLowerCase() === 'true';
   let core = options.core ?? null;
   let handler: ReturnType<typeof createConnectCoreHttpHandler> | null = core
     ? createConnectCoreHttpHandler(core)
@@ -105,6 +116,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let channelReadinessHandler: ReturnType<typeof createConnectChannelReadinessHttpHandler> | null = null;
   const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
   let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
+  let whatsappIngestor: WhatsAppInboxIngestor | null = null;
+  let whatsappAssistOrchestrator: WhatsAppAssistOrchestrator | null = null;
+  let channelLinkConfirmHandler: ReturnType<typeof createConnectChannelLinkConfirmHttpHandler> | null = null;
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
   let personalRadarRouter: ReturnType<typeof createPersonalRadarRouter> | null = null;
   let personalSourcesRouter: ReturnType<typeof createPersonalSourcesRouter> | null = null;
@@ -254,23 +268,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
         if (registry && whatsappIngestionEnabled) {
           if (registry.size > 0) {
-            const ingestor = new WhatsAppInboxIngestor(
+            whatsappIngestor = new WhatsAppInboxIngestor(
               registry,
               messageStore,
               gatedStore,
             );
-            whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({
-              env,
-              logger,
-              ingestor,
-            });
           } else {
             logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
           }
         }
 
+        const officialWhatsAppProvider =
+          registry && registry.size > 0 && isWhatsAppHumanReplyConfigured(env)
+            ? createMetaWhatsAppProviderFromEnv(env, options.fetchImpl)
+            : null;
+
         let humanReplyService: HumanReplyService | undefined;
-        if (registry && registry.size > 0 && isWhatsAppHumanReplyConfigured(env)) {
+        if (registry && registry.size > 0 && officialWhatsAppProvider) {
           humanReplyService = new HumanReplyService({
             registry,
             messageStore,
@@ -279,7 +293,85 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               fetchImpl: options.fetchImpl,
             }),
             threadStore: gatedStore,
-            provider: createMetaWhatsAppProviderFromEnv(env, options.fetchImpl),
+            provider: officialWhatsAppProvider,
+          });
+        }
+
+        if (whatsappAssistEnabled && registry && registry.size > 0 && officialWhatsAppProvider) {
+          const firebaseApiKey = env.CONNECT_FIREBASE_API_KEY?.trim();
+          const linkRootSecret = env.CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+          const publicOrigin = env.CONNECT_PUBLIC_ORIGIN?.trim() || 'https://connect.millionsnest.com';
+
+          if (!hubOrigin || !firebaseApiKey || !linkRootSecret) {
+            logger.warn?.('CONNECT_WHATSAPP_ASSIST_CONFIGURATION_MISSING', {
+              hubOrigin: Boolean(hubOrigin),
+              firebaseApiKey: Boolean(firebaseApiKey),
+              linkRootSecret: Boolean(linkRootSecret),
+            });
+          } else {
+            try {
+              if (!core) {
+                core = createConnectCoreRuntime({
+                  env,
+                  logger,
+                  fetchImpl: options.fetchImpl,
+                });
+                handler = createConnectCoreHttpHandler(core);
+              }
+
+              const assistReplyService = new WhatsAppAssistReplyService({
+                messageStore,
+                dispatchStore: new FirestoreAssistReplyDispatchStore({
+                  projectId,
+                  fetchImpl: options.fetchImpl,
+                }),
+                provider: officialWhatsAppProvider,
+              });
+
+              whatsappAssistOrchestrator = new WhatsAppAssistOrchestrator({
+                registry,
+                bindingStore: new FirestoreWhatsAppChannelIdentityBindingStore({
+                  projectId,
+                  encryptionRootSecret: linkRootSecret,
+                  fetchImpl: options.fetchImpl,
+                }),
+                messageStore,
+                hubClient: new HubChannelGrantHttpClient({
+                  hubOrigin,
+                  fetchImpl: options.fetchImpl,
+                }),
+                tokenExchanger: new FirebaseCustomTokenExchanger({
+                  apiKey: firebaseApiKey,
+                  fetchImpl: options.fetchImpl,
+                }),
+                core,
+                replyService: assistReplyService,
+                linkRootSecret,
+                publicOrigin,
+                logger,
+              });
+              channelLinkConfirmHandler = createConnectChannelLinkConfirmHttpHandler({
+                orchestrator: whatsappAssistOrchestrator,
+                logger,
+              });
+            } catch (error) {
+              logger.error?.('CONNECT_WHATSAPP_ASSIST_CONFIGURATION_ERROR', {
+                error: error instanceof Error ? error.message : 'unknown_error',
+              });
+              whatsappAssistOrchestrator = null;
+              channelLinkConfirmHandler = null;
+            }
+          }
+        }
+
+        if (whatsappIngestor) {
+          whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({
+            env,
+            logger,
+            ingestor: whatsappIngestor,
+            afterIngest: whatsappAssistOrchestrator
+              ? (events) => whatsappAssistOrchestrator!.afterIngest(events)
+              : undefined,
           });
         }
 
@@ -322,6 +414,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   );
 
   app.use(express.json({ limit: '32kb' }));
+
+  app.post('/api/core/channel-link/confirm', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!whatsappAssistEnabled) {
+      return res.status(404).json({
+        success: false,
+        code: 'WHATSAPP_ASSIST_DISABLED',
+      });
+    }
+    if (!channelLinkConfirmHandler) {
+      return res.status(503).json({
+        success: false,
+        code: 'WHATSAPP_ASSIST_CONFIGURATION_MISSING',
+      });
+    }
+    return channelLinkConfirmHandler(req, res);
+  });
 
   app.get('/api/health', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
