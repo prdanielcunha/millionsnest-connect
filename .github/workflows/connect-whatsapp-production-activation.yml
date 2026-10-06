@@ -159,6 +159,23 @@ jobs:
           console.log('CONNECT_WHATSAPP_META_APP_SUBSCRIBED');
           NODE
 
+      - name: Wait for matching Connect Core production release
+        run: |
+          set -euo pipefail
+          BASE="${PUBLIC_ORIGIN%/}"
+          EXPECTED_SHA="$GITHUB_SHA"
+          for attempt in {1..60}; do
+            CURRENT_SHA="$(curl --fail --silent --show-error --location --max-time 10 "$BASE/api/health" | node -e "let b='';process.stdin.on('data',d=>b+=d);process.stdin.on('end',()=>{try{const x=JSON.parse(b);process.stdout.write(x.releaseSha||'')}catch{}})")" || true
+            if [ "$CURRENT_SHA" = "$EXPECTED_SHA" ]; then
+              echo "CONNECT_WHATSAPP_MATCHING_CORE_RELEASE_OK=$EXPECTED_SHA"
+              break
+            fi
+            if [ "$attempt" = "60" ]; then
+              echo "::error::Matching Connect Core release did not become active in time"
+              exit 1
+            fi
+            sleep 5
+          done
       - name: Activate official WhatsApp on Connect Core
         shell: bash
         run: |
