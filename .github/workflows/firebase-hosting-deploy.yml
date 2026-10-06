@@ -7,6 +7,10 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  CONNECT_CANONICAL_ORIGIN: https://connect.millionsnest.com
+  CONNECT_HOSTING_FALLBACK_ORIGIN: https://mn-connect-555464791734.web.app
+
 concurrency:
   group: connect-firebase-hosting-production
   cancel-in-progress: true
@@ -42,14 +46,22 @@ jobs:
           test -s /tmp/connect-api-url.txt
       - name: Deploy Hosting
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project millionsnest --non-interactive
-      - name: Smoke test Firebase Hosting and Core rewrite
+      - name: Smoke test canonical Connect domain and Firebase fallback
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://mn-connect-555464791734.web.app"
-          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$BASE/" -o /tmp/firebase-index.html
+          BASE="$CONNECT_CANONICAL_ORIGIN"
+          FALLBACK="$CONNECT_HOSTING_FALLBACK_ORIGIN"
+
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$FALLBACK/" -o /tmp/firebase-index.html
           grep -Eiq '<!doctype html|<html' /tmp/firebase-index.html
           test -s /tmp/firebase-index.html
+
+          curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$BASE/" -o /tmp/connect-index.html
+          grep -Eiq '<!doctype html|<html' /tmp/connect-index.html
+          test -s /tmp/connect-index.html
+
           curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$BASE/api/health" -o /tmp/connect-health.json
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.success!==true||x.service!=='millionsnest-connect-core')process.exit(1)"
+          echo "CONNECT_CANONICAL_DOMAIN_OK=$BASE"
           echo "FIREBASE_HOSTING_SMOKE_OK=Connect+Core"
