@@ -33,5 +33,7 @@ jobs:
       - run: npm run test:chartdelivery
       - run: npm run test:firebase-hosting
       - run: npm run test:release-policy
+      - run: npm run test:mobile-layout
+      - run: npm run test:inbox-mobile
       - run: npm run build
       - run: npm run build:core
