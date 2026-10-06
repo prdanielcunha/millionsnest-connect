@@ -103,6 +103,11 @@ assert.match(
 );
 assert.match(
   release,
+  /--to-latest/,
+  'Production release must explicitly restore traffic to the newly certified revision after a rollback pin',
+);
+assert.match(
+  release,
   /CONNECT_STORAGE_READINESS_PROBE_ENABLED=true/,
   'Production release must explicitly enable the narrow runtime storage readiness diagnostic',
 );
@@ -294,6 +299,16 @@ assert.match(
   whatsappActivation,
   /CONNECT_WHATSAPP_ASSIST_ENABLED=true/,
   'WhatsApp activation must enable the known-intent Assist bridge only inside the explicit provider activation workflow',
+);
+assert.match(
+  whatsappActivation,
+  /Wait for matching Connect Core production release/,
+  'WhatsApp activation must wait for the matching Core deployment instead of racing the production release',
+);
+assert.match(
+  whatsappActivation,
+  /CURRENT_SHA.*EXPECTED_SHA/s,
+  'WhatsApp activation must prove the serving Core SHA matches the production commit before changing provider gates',
 );
 assert.match(
   whatsappActivation,
