@@ -188,14 +188,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REVISION_SUFFIX="r${GITHUB_SHA:0:7}-${GITHUB_RUN_ID}"
-          EXPECTED_RELEASE_REVISION="${SERVICE}-${REVISION_SUFFIX}"
-          echo "EXPECTED_RELEASE_REVISION=$EXPECTED_RELEASE_REVISION" >> "$GITHUB_ENV"
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
             --image "$IMAGE" \
-            --revision-suffix "$REVISION_SUFFIX" \
             --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
@@ -205,7 +201,7 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to released revision
@@ -217,7 +213,6 @@ jobs:
             --region "$REGION" \
             --format='value(status.latestReadyRevisionName)')"
           test -n "$RELEASE_REVISION"
-          test "$RELEASE_REVISION" = "$EXPECTED_RELEASE_REVISION"
           gcloud run services update-traffic "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \

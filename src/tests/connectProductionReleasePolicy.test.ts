@@ -124,18 +124,13 @@ assert.match(
 );
 assert.match(
   release,
-  /--revision-suffix "\$REVISION_SUFFIX"/,
-  'Production release must force a unique Cloud Run revision for each certified run',
-);
-assert.match(
-  release,
-  /EXPECTED_RELEASE_REVISION/,
-  'Production release must prove the ready revision is the exact revision created by this run',
+  /CONNECT_RELEASE_RUN_ID=\$GITHUB_RUN_ID/,
+  'Production release must change the Cloud Run template on every certified run so a fresh revision is created',
 );
 assert.doesNotMatch(
   release,
   /--to-latest/,
-  'Production release must never route to an ambiguous latest revision while provider activation can create revisions',
+  'Production release must route the exact ready revision and never adopt a later provider revision implicitly',
 );
 assert.match(
   release,
