@@ -10,12 +10,19 @@ assert.deepEqual(firebase?.hosting?.rewrites, [
     run: {
       serviceId: "connect-api",
       region: "us-central1",
+      pinTag: true,
     },
   },
   { source: "**", destination: "/index.html" },
 ]);
 
 const rc = JSON.parse(fs.readFileSync(".firebaserc", "utf8"));
+assert.equal(
+  firebase?.hosting?.rewrites?.[0]?.run?.pinTag,
+  true,
+  "Connect API rewrite must pin the exact Cloud Run revision released with Hosting"
+);
+
 assert.deepEqual(
   rc?.targets?.millionsnest?.hosting?.connect,
   ["mn-connect-555464791734"],
