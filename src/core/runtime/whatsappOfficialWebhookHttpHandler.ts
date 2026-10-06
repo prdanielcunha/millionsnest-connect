@@ -13,6 +13,7 @@ export interface WhatsAppWebhookIngestor {
 export interface WhatsAppOfficialWebhookHandlerOptions {
   env?: NodeJS.ProcessEnv;
   ingestor?: WhatsAppWebhookIngestor;
+  afterIngest?: (events: WhatsAppNormalizedEvent[]) => Promise<void>;
   logger?: {
     info(message: string, meta?: Record<string, unknown>): void;
     warn?(message: string, meta?: Record<string, unknown>): void;
@@ -156,6 +157,20 @@ export function createWhatsAppWebhookIngressHandler(
         success: false,
         code: 'WHATSAPP_INGESTION_FAILED',
       });
+    }
+
+    if (options.afterIngest) {
+      try {
+        await options.afterIngest(events);
+      } catch (error) {
+        // Inbound durability already succeeded. Keep the official webhook ACK
+        // and leave the thread visible for human fallback instead of making
+        // Meta retry a safely persisted message because Assist failed.
+        logger.error?.('CONNECT_WHATSAPP_ASSIST_POST_INGEST_FAILED', {
+          eventCount: events.length,
+          error: error instanceof Error ? error.message : 'unknown_error',
+        });
+      }
     }
 
     logger.info('CONNECT_WHATSAPP_WEBHOOK_ACCEPTED', {

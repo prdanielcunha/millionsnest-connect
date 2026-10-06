@@ -23,6 +23,7 @@ import {
 import { buildHubConnectLaunchUrl } from './core/client/connectLaunchBridge';
 import { startConnectGoogleSignIn, signOutConnectDirectIdentity } from './core/client/connectDirectAuth';
 import { ConnectEntryScreen } from './features/auth/ConnectEntryScreen';
+import { WhatsAppLinkPage } from './features/auth/WhatsAppLinkPage';
 import { AdaptiveHomePage } from './features/live/AdaptiveHomePage';
 import { DeveloperPreviewPage } from './features/developer/DeveloperPreviewPage';
 import {
@@ -339,6 +340,14 @@ export default function App() {
         onSelectOrganization={handleDirectOrganizationSelect}
       />
     );
+  }
+
+  if (
+    CONNECT_LIVE_MODE_ENABLED &&
+    liveSession &&
+    window.location.pathname === '/link/whatsapp'
+  ) {
+    return <WhatsAppLinkPage session={liveSession} currentLang={currentLang} />;
   }
 
   const context = liveSession?.context ?? demoContext;

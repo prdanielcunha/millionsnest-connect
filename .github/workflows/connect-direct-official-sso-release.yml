@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Canonical domain connect.millionsnest.com certified release trigger — 2026-10-06
+# WhatsApp Assist magic-moment certified release trigger — 2026-10-06
 
 on:
   push:
