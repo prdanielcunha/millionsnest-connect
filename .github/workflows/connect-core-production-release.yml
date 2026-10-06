@@ -29,6 +29,8 @@ env:
   REPOSITORY: millionsnest-web
   RUNTIME_SA: mn-connect-runtime@millionsnest.iam.gserviceaccount.com
   IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${{ github.sha }}
+  CONNECT_CANONICAL_ORIGIN: https://connect.millionsnest.com
+  CONNECT_HOSTING_FALLBACK_ORIGIN: https://mn-connect-555464791734.web.app
   # Firebase Web API keys are public client configuration, not credentials.
   # Pin the same canonical MillionsNest project config used by Hub so the
   # custom-token exchange does not depend on Hosting's reserved init endpoint.
@@ -197,12 +199,22 @@ jobs:
       - name: Deploy Connect Firebase Hosting with API rewrite
         run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
 
-      - name: Production smoke through Firebase Hosting
+      - name: Production smoke through canonical Connect domain
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://mn-connect-555464791734.web.app"
+          BASE="$CONNECT_CANONICAL_ORIGIN"
+          FALLBACK="$CONNECT_HOSTING_FALLBACK_ORIGIN"
 
+          # Prove the Firebase site itself is healthy, but never treat the
+          # technical web.app hostname as the canonical production URL.
+          curl --fail --silent --show-error --location \
+            --retry 12 --retry-delay 3 --retry-all-errors \
+            "$FALLBACK/" -o /tmp/connect-firebase-index.html
+          grep -Eiq '<!doctype html|<html' /tmp/connect-firebase-index.html
+
+          # The release is only considered successful when the canonical
+          # Connect domain serves the frontend and the matching Core revision.
           curl --fail --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             "$BASE/" -o /tmp/connect-index.html
@@ -266,5 +278,6 @@ jobs:
             "$BASE/api/core/nestjourney/followup?organizationId=release-smoke&followupId=release-smoke")"
           test "$JOURNEY_STATUS" = "401"
 
+          echo "CONNECT_CANONICAL_DOMAIN_OK=$BASE"
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ inputs.live_mode }}"
