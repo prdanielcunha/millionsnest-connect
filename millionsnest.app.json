@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "appId": "connect",
+  "name": "MillionsNest Connect",
+  "ai": {
+    "enabled": true,
+    "tasks": [
+      "connect.message.classify",
+      "connect.reply.suggest",
+      "connect.audio.transcribe"
+    ],
+    "defaultSensitivity": "P2_PERSONAL"
+  },
+  "locales": [
+    "pt-BR",
+    "en",
+    "es"
+  ],
+  "owner": {
+    "repository": "prdanielcunha/millionsnest-connect"
+  }
+}
