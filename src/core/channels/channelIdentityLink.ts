@@ -46,14 +46,16 @@ function validIdentityRef(value: string): boolean {
  * opaque stable ref. The raw provider identifier never becomes Hub identity
  * and never crosses the channel-link boundary.
  */
-export function deriveWhatsAppChannelIdentityRef(
-  providerUserId: string,
-  rootSecret: string,
-): string {
-  const providerId = cleanSegment(providerUserId, 64);
-  const key = deriveKey(rootSecret, 'millionsnest-connect-channel-identity-v1');
+export function deriveWhatsAppChannelIdentityRef(input: {
+  providerUserId: string;
+  phoneNumberId: string;
+  rootSecret: string;
+}): string {
+  const providerId = cleanSegment(input.providerUserId, 64);
+  const phoneNumberId = cleanSegment(input.phoneNumberId, 128);
+  const key = deriveKey(input.rootSecret, 'millionsnest-connect-channel-identity-v1');
   return createHmac('sha256', key)
-    .update(`whatsapp:${providerId}`, 'utf8')
+    .update(`whatsapp:${phoneNumberId}:${providerId}`, 'utf8')
     .digest('hex');
 }
 
