@@ -232,7 +232,8 @@ export const Shell: React.FC<ShellProps> = ({
     { id: 'preferences', label: routeLabels.preferences[currentLang], icon: Settings, section: 'personal', status: 'controlled' },
   ];
 
-  const visibleLiveRouteIds = new Set(getExperienceNavigationRouteIds(experienceProfile, showRadar));
+  const effectiveExperienceProfile: ExperienceProfile = experienceProfile as ExperienceProfile;
+  const visibleLiveRouteIds = new Set(getExperienceNavigationRouteIds(effectiveExperienceProfile, showRadar));
   const navItems = isLive
     ? liveNavItems.filter((item) => visibleLiveRouteIds.has(item.id))
     : demoNavItems;
