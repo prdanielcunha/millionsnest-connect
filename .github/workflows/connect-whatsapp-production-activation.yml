@@ -109,6 +109,28 @@ jobs:
           console.log('CONNECT_WHATSAPP_STORAGE_GATE_OK');
           NODE
 
+      - name: Prove Hub channel identity boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          HUB="https://www.millionsnest.com"
+
+          GRANT_STATUS="$(curl --silent --show-error \
+            -o /tmp/hub-channel-grant.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"channel":"whatsapp","channelIdentityRef":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","organizationId":"release-smoke"}' \
+            "$HUB/api/ecosystem/connect/channel-grants")"
+          test "$GRANT_STATUS" = "401"
+
+          SESSION_STATUS="$(curl --silent --show-error \
+            -o /tmp/hub-channel-session.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"channel":"whatsapp","grantRef":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","grantSecret":"invalidinvalidinvalidinvalidinvalidinvalid"}' \
+            "$HUB/api/ecosystem/connect/channel-session")"
+          test "$SESSION_STATUS" = "401" || test "$SESSION_STATUS" = "400"
+
+          echo "CONNECT_WHATSAPP_HUB_CHANNEL_BOUNDARY_OK"
+
       - name: Validate Meta WABA and phone binding
         shell: bash
         run: |
@@ -153,7 +175,7 @@ jobs:
           }
           trap rollback ERR
 
-          gcloud run services update "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --update-env-vars "^@^CONNECT_WHATSAPP_WEBHOOK_ENABLED=true@CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN=$META_VERIFY_TOKEN@CONNECT_WHATSAPP_APP_SECRET=$META_APP_SECRET@CONNECT_WHATSAPP_ACCESS_TOKEN=$META_ACCESS_TOKEN@CONNECT_WHATSAPP_GRAPH_API_VERSION=$META_GRAPH_VERSION@CONNECT_WHATSAPP_PHONE_NUMBER_ID=$META_PHONE_NUMBER_ID@CONNECT_WHATSAPP_CONNECTIONS_JSON=$BINDINGS@CONNECT_WHATSAPP_INGESTION_ENABLED=true@CONNECT_INBOX_HUMAN_REPLY_ENABLED=true@CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true@CONNECT_WHATSAPP_REPLY_POLICY_ACK=CONNECT_WHATSAPP_REPLY_POLICY_READY"             --quiet
+          gcloud run services update "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --update-env-vars "^@^CONNECT_WHATSAPP_WEBHOOK_ENABLED=true@CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN=$META_VERIFY_TOKEN@CONNECT_WHATSAPP_APP_SECRET=$META_APP_SECRET@CONNECT_WHATSAPP_ACCESS_TOKEN=$META_ACCESS_TOKEN@CONNECT_WHATSAPP_GRAPH_API_VERSION=$META_GRAPH_VERSION@CONNECT_WHATSAPP_PHONE_NUMBER_ID=$META_PHONE_NUMBER_ID@CONNECT_WHATSAPP_CONNECTIONS_JSON=$BINDINGS@CONNECT_WHATSAPP_INGESTION_ENABLED=true@CONNECT_INBOX_HUMAN_REPLY_ENABLED=true@CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true@CONNECT_WHATSAPP_REPLY_POLICY_ACK=CONNECT_WHATSAPP_REPLY_POLICY_READY@CONNECT_WHATSAPP_ASSIST_ENABLED=true"             --quiet
 
           BASE="${PUBLIC_ORIGIN%/}"
           CALLBACK="$BASE/api/channels/whatsapp/webhook"
@@ -162,6 +184,15 @@ jobs:
           VERIFY_BODY="$(curl --fail --silent --show-error --location             --retry 8 --retry-delay 2 --retry-all-errors             --get             --data-urlencode "hub.mode=subscribe"             --data-urlencode "hub.verify_token=$META_VERIFY_TOKEN"             --data-urlencode "hub.challenge=$CHALLENGE"             "$CALLBACK")"
           test "$VERIFY_BODY" = "$CHALLENGE"
           echo "CONNECT_WHATSAPP_WEBHOOK_CHALLENGE_OK"
+
+          LINK_STATUS="$(curl --silent --show-error --location \
+            --retry 4 --retry-delay 2 --retry-all-errors \
+            -o /tmp/connect-channel-link-auth.json -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{}' \
+            "$BASE/api/core/channel-link/confirm")"
+          test "$LINK_STATUS" = "401"
+          echo "CONNECT_WHATSAPP_ASSIST_LINK_GATE_OK"
 
           printf '%s' '{"object":"whatsapp_business_account","entry":[]}' > /tmp/meta-webhook-smoke.json
           SIGNATURE="$(node - <<'NODE'
@@ -191,4 +222,5 @@ jobs:
           NODE
 
           trap - ERR
+          echo "CONNECT_WHATSAPP_ASSIST_ENABLED"
           echo "CONNECT_WHATSAPP_PRODUCTION_ACTIVATION_OK"
