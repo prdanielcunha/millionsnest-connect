@@ -299,7 +299,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
         if (whatsappAssistEnabled && registry && registry.size > 0 && officialWhatsAppProvider) {
           const firebaseApiKey = env.CONNECT_FIREBASE_API_KEY?.trim();
-          const linkRootSecret = env.CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+          // The Meta webhook verify token is an operator-chosen challenge value and
+          // is not guaranteed to have cryptographic length/entropy. Use the Meta
+          // app secret as the root material; downstream HMAC purposes separate
+          // channel identity, link signing and binding encryption keys.
+          const linkRootSecret = env.CONNECT_WHATSAPP_APP_SECRET?.trim();
           const publicOrigin = env.CONNECT_PUBLIC_ORIGIN?.trim() || 'https://connect.millionsnest.com';
 
           if (!hubOrigin || !firebaseApiKey || !linkRootSecret) {

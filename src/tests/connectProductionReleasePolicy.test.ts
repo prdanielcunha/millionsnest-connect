@@ -419,6 +419,26 @@ assert.match(
 );
 assert.match(
   whatsappActivation,
+  /--revision-suffix "\$ACTIVATION_SUFFIX"/,
+  'WhatsApp activation must create a deterministic revision unique to the activation run',
+);
+assert.match(
+  whatsappActivation,
+  /CONNECT_WHATSAPP_ACTIVATION_RUN_ID=\$GITHUB_RUN_ID/,
+  'WhatsApp activation must force a new template revision and stamp the activation run',
+);
+assert.match(
+  whatsappActivation,
+  /Number\(v\.percent\)===100/,
+  'WhatsApp rollback must capture the revision actually serving 100% traffic, not a stale tagged target',
+);
+assert.doesNotMatch(
+  whatsappActivation,
+  /status\.latestReadyRevisionName/,
+  'WhatsApp activation must never select a stale latestReadyRevisionName',
+);
+assert.match(
+  whatsappActivation,
   /--to-revisions="\$ACTIVATED_REVISION=100"/,
   'WhatsApp activation must explicitly route traffic to the activated Assist revision before smoke tests',
 );

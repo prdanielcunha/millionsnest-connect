@@ -69,6 +69,7 @@ jobs:
             fi
           done
           test "$missing" = "0"
+          test "${#META_APP_SECRET}" -ge 16
 
           [[ "$META_PHONE_NUMBER_ID" =~ ^[0-9]{5,30}$ ]]
           [[ "$META_WABA_ID" =~ ^[0-9]{5,30}$ ]]
@@ -185,8 +186,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          PREVIOUS_REVISION="$(gcloud run services describe "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --format='value(status.traffic[0].revisionName)')"
+          gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format=json > /tmp/connect-whatsapp-service-before.json
+          PREVIOUS_REVISION="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-whatsapp-service-before.json','utf8'));const t=(x?.status?.traffic||[]).find(v=>Number(v.percent)===100&&v.revisionName);process.stdout.write(t?.revisionName||'')")"
           test -n "$PREVIOUS_REVISION"
+          echo "CONNECT_WHATSAPP_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_REVISION"
 
           BINDINGS="$(node -e 'process.stdout.write(JSON.stringify([{organizationId:process.env.CONNECT_ORGANIZATION_ID,phoneNumberId:process.env.META_PHONE_NUMBER_ID,connectionRef:process.env.CONNECT_CONNECTION_REF,enabled:true}]))')"
 
@@ -196,11 +202,46 @@ jobs:
           }
           trap rollback ERR
 
-          gcloud run services update "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --update-env-vars "^@^CONNECT_WHATSAPP_WEBHOOK_ENABLED=true@CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN=$META_VERIFY_TOKEN@CONNECT_WHATSAPP_APP_SECRET=$META_APP_SECRET@CONNECT_WHATSAPP_ACCESS_TOKEN=$META_ACCESS_TOKEN@CONNECT_WHATSAPP_GRAPH_API_VERSION=$META_GRAPH_VERSION@CONNECT_WHATSAPP_PHONE_NUMBER_ID=$META_PHONE_NUMBER_ID@CONNECT_WHATSAPP_CONNECTIONS_JSON=$BINDINGS@CONNECT_WHATSAPP_INGESTION_ENABLED=true@CONNECT_INBOX_HUMAN_REPLY_ENABLED=true@CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true@CONNECT_WHATSAPP_REPLY_POLICY_ACK=CONNECT_WHATSAPP_REPLY_POLICY_READY@CONNECT_WHATSAPP_ASSIST_ENABLED=true"             --quiet
+          ACTIVATION_SUFFIX="wa${GITHUB_RUN_ID}"
+          EXPECTED_ACTIVATED_REVISION="${SERVICE}-${ACTIVATION_SUFFIX}"
+          gcloud run services update "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --revision-suffix "$ACTIVATION_SUFFIX" \
+            --update-env-vars "^@^CONNECT_WHATSAPP_WEBHOOK_ENABLED=true@CONNECT_WHATSAPP_WEBHOOK_VERIFY_TOKEN=$META_VERIFY_TOKEN@CONNECT_WHATSAPP_APP_SECRET=$META_APP_SECRET@CONNECT_WHATSAPP_ACCESS_TOKEN=$META_ACCESS_TOKEN@CONNECT_WHATSAPP_GRAPH_API_VERSION=$META_GRAPH_VERSION@CONNECT_WHATSAPP_PHONE_NUMBER_ID=$META_PHONE_NUMBER_ID@CONNECT_WHATSAPP_CONNECTIONS_JSON=$BINDINGS@CONNECT_WHATSAPP_INGESTION_ENABLED=true@CONNECT_INBOX_HUMAN_REPLY_ENABLED=true@CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED=true@CONNECT_WHATSAPP_REPLY_POLICY_ACK=CONNECT_WHATSAPP_REPLY_POLICY_READY@CONNECT_WHATSAPP_ASSIST_ENABLED=true@CONNECT_WHATSAPP_ACTIVATION_RUN_ID=$GITHUB_RUN_ID" \
+            --quiet
 
-          ACTIVATED_REVISION="$(gcloud run services describe "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --format='value(status.latestReadyRevisionName)')"
-          test -n "$ACTIVATED_REVISION"
-          gcloud run services update-traffic "$SERVICE"             --project "$PROJECT_ID"             --region "$REGION"             --to-revisions="$ACTIVATED_REVISION=100"             --quiet
+          ACTIVATION_READY=false
+          for attempt in {1..60}; do
+            if gcloud run revisions describe "$EXPECTED_ACTIVATED_REVISION" \
+              --project "$PROJECT_ID" \
+              --region "$REGION" \
+              --format=json > /tmp/connect-whatsapp-activated-revision.json 2>/dev/null; then
+              if GITHUB_RUN_ID="$GITHUB_RUN_ID" node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/connect-whatsapp-activated-revision.json', 'utf8'));
+          const ready = (x?.status?.conditions || []).some((c) => c.type === 'Ready' && c.status === 'True');
+          const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map((e) => [e.name, e.value]));
+          if (!ready) process.exit(1);
+          if (env.CONNECT_WHATSAPP_ASSIST_ENABLED !== 'true') process.exit(1);
+          if (env.CONNECT_WHATSAPP_ACTIVATION_RUN_ID !== process.env.GITHUB_RUN_ID) process.exit(1);
+          NODE
+              then
+                ACTIVATION_READY=true
+                break
+              fi
+            fi
+            echo "CONNECT_WHATSAPP_ACTIVATION_REVISION_WAIT attempt=$attempt revision=$EXPECTED_ACTIVATED_REVISION"
+            sleep 2
+          done
+          test "$ACTIVATION_READY" = "true"
+
+          ACTIVATED_REVISION="$EXPECTED_ACTIVATED_REVISION"
+          gcloud run services update-traffic "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --to-revisions="$ACTIVATED_REVISION=100" \
+            --quiet
           echo "CONNECT_WHATSAPP_ACTIVATION_TRAFFIC_ROUTED=$ACTIVATED_REVISION"
 
           BASE="${PUBLIC_ORIGIN%/}"
@@ -217,7 +258,13 @@ jobs:
             -X POST -H 'Content-Type: application/json' \
             --data '{}' \
             "$BASE/api/core/channel-link/confirm")"
-          test "$LINK_STATUS" = "401"
+          if [ "$LINK_STATUS" != "401" ]; then
+            echo "::error::WhatsApp Assist link gate returned HTTP $LINK_STATUS"
+            if [ -s /tmp/connect-channel-link-auth.json ]; then
+              node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/connect-channel-link-auth.json','utf8'));console.error(JSON.stringify({success:x.success,status:x.status,code:x.code,humanSummary:x.humanSummary}))}catch{}"
+            fi
+            exit 1
+          fi
           echo "CONNECT_WHATSAPP_ASSIST_LINK_GATE_OK"
 
           printf '%s' '{"object":"whatsapp_business_account","entry":[]}' > /tmp/meta-webhook-smoke.json
