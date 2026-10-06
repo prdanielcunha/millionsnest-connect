@@ -41,6 +41,30 @@ jobs:
           echo "HOSTING_SITES:"
           npm install -g firebase-tools@15.26.0 >/dev/null 2>&1
           firebase hosting:sites:list --project millionsnest || true
+          echo "CONNECT_HOSTING_CUSTOM_DOMAINS:"
+          HOSTING_TOKEN="$(gcloud auth print-access-token)"
+          for site in millionsnest mn-connect-555464791734; do
+            echo "CONNECT_HOSTING_SITE=$site"
+            STATUS="$(curl --silent --show-error \
+              -o "/tmp/${site}-custom-domains.json" -w '%{http_code}' \
+              -H "Authorization: Bearer $HOSTING_TOKEN" \
+              "https://firebasehosting.googleapis.com/v1beta1/projects/millionsnest/sites/$site/customDomains")"
+            echo "CONNECT_HOSTING_CUSTOM_DOMAIN_HTTP=$site:$STATUS"
+            if [ "$STATUS" = "200" ]; then
+              SITE="$site" node - <<'NODE'
+          const fs = require('fs');
+          const site = process.env.SITE;
+          const payload = JSON.parse(fs.readFileSync(`/tmp/${site}-custom-domains.json`, 'utf8'));
+          for (const item of Array.isArray(payload.customDomains) ? payload.customDomains : []) {
+            const name = String(item.name || '').split('/').pop() || '';
+            const state = item.reconciling ? 'reconciling' : 'stable';
+            const certState = item.cert?.state || item.cert?.status || '';
+            console.log(`CONNECT_HOSTING_CUSTOM_DOMAIN=${site}:${name}:${state}:${certState}`);
+          }
+          NODE
+            fi
+          done
+          unset HOSTING_TOKEN
           echo "SECRET_NAMES_ONLY:"
           gcloud secrets list --project millionsnest --format='value(name)' || true
           echo "READ_ONLY_DISCOVERY_OK"
