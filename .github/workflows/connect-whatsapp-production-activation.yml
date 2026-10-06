@@ -12,7 +12,6 @@ on:
     branches: [ production ]
     paths:
       - ".github/whatsapp-production-activation.json"
-      - ".github/workflows/connect-whatsapp-production-activation.yml"
 
 permissions:
   contents: read
