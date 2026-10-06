@@ -1,5 +1,5 @@
 name: Connect Direct Official SSO Release
-# Connect Graphite certified release trigger — 2026-10-06
+# Canonical domain connect.millionsnest.com certified release trigger — 2026-10-06
 
 on:
   push:
