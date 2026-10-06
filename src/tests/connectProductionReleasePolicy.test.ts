@@ -94,6 +94,26 @@ assert.doesNotMatch(
 );
 assert.match(release, /--min-instances 0/, 'Core must preserve scale-to-zero policy');
 assert.match(release, /--allow-unauthenticated/, 'Firebase Hosting must be able to invoke the HTTP service');
+assert.match(
+  release,
+  /Capture current serving revision/,
+  'Release must capture the revision currently receiving production traffic before deployment',
+);
+assert.match(
+  release,
+  /--to-revisions="\$RELEASE_REVISION=100"/,
+  'Release must explicitly route traffic to the newly ready revision even after an earlier rollback pinned traffic',
+);
+assert.match(
+  release,
+  /--to-revisions="\$PREVIOUS_TRAFFIC_REVISION=100"/,
+  'Production smoke failure must be able to restore the previously serving revision',
+);
+assert.match(
+  release,
+  /trap rollback ERR/,
+  'Production smoke must fail closed with traffic rollback',
+);
 assert.match(release, /MILLIONSNEST_HUB_ORIGIN=https:\/\/www\.millionsnest\.com/);
 assert.match(release, /MUSICSCALE_ORIGIN=https:\/\/musicscale\.millionsnest\.com/);
 assert.match(

@@ -172,6 +172,18 @@ jobs:
       - name: Push immutable production image
         run: docker push "$IMAGE"
 
+      - name: Capture current serving revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREVIOUS_TRAFFIC_REVISION="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.traffic[0].revisionName)')"
+          test -n "$PREVIOUS_TRAFFIC_REVISION"
+          echo "PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION" >> "$GITHUB_ENV"
+          echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
+
       - name: Deploy Connect Core revision
         run: |
           gcloud run deploy "$SERVICE" \
@@ -190,6 +202,23 @@ jobs:
             --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
+      - name: Route traffic to released revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_REVISION="$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          test -n "$RELEASE_REVISION"
+          gcloud run services update-traffic "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --to-revisions="$RELEASE_REVISION=100" \
+            --quiet
+          echo "RELEASE_REVISION=$RELEASE_REVISION" >> "$GITHUB_ENV"
+          echo "CONNECT_RELEASE_TRAFFIC_ROUTED=$RELEASE_REVISION"
+
       - name: Verify Cloud Run readiness
         run: |
           gcloud run services describe "$SERVICE" \
@@ -206,6 +235,18 @@ jobs:
           set -euo pipefail
           BASE="$CONNECT_CANONICAL_ORIGIN"
           FALLBACK="$CONNECT_HOSTING_FALLBACK_ORIGIN"
+
+          rollback() {
+            if [ -n "${PREVIOUS_TRAFFIC_REVISION:-}" ]; then
+              echo "::warning::Production smoke failed; restoring traffic to $PREVIOUS_TRAFFIC_REVISION"
+              gcloud run services update-traffic "$SERVICE" \
+                --project "$PROJECT_ID" \
+                --region "$REGION" \
+                --to-revisions="$PREVIOUS_TRAFFIC_REVISION=100" \
+                --quiet || true
+            fi
+          }
+          trap rollback ERR
 
           # Prove the Firebase site itself is healthy, but never treat the
           # technical web.app hostname as the canonical production URL.
@@ -282,3 +323,4 @@ jobs:
           echo "CONNECT_CANONICAL_DOMAIN_OK=$BASE"
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ inputs.live_mode }}"
+          trap - ERR
