@@ -5,6 +5,7 @@ const release = fs.readFileSync('.github/workflows/connect-core-production-relea
 const hosting = fs.readFileSync('.github/workflows/firebase-hosting-deploy.yml', 'utf8');
 const whatsappActivation = fs.readFileSync('.github/workflows/connect-whatsapp-production-activation.yml', 'utf8');
 const whatsappActivationMarker = fs.readFileSync('.github/whatsapp-production-activation.json', 'utf8');
+const directReleaseTrigger = fs.readFileSync('.github/workflows/connect-direct-official-sso-release.yml', 'utf8');
 
 assert.match(release, /on:\s*\n\s*workflow_dispatch:/, 'Core production release must be manual-only');
 assert.doesNotMatch(release, /\n\s*push:/, 'Core production release must not auto-deploy on push');
@@ -123,8 +124,18 @@ assert.match(
 );
 assert.match(
   release,
+  /--revision-suffix "\$REVISION_SUFFIX"/,
+  'Production release must force a unique Cloud Run revision for each certified run',
+);
+assert.match(
+  release,
+  /EXPECTED_RELEASE_REVISION/,
+  'Production release must prove the ready revision is the exact revision created by this run',
+);
+assert.doesNotMatch(
+  release,
   /--to-latest/,
-  'Production release must explicitly restore traffic to the newly certified revision after a rollback pin',
+  'Production release must never route to an ambiguous latest revision while provider activation can create revisions',
 );
 assert.match(
   release,
@@ -367,8 +378,29 @@ assert.match(
 );
 assert.match(
   whatsappActivation,
+  /ACTIVATED_REVISION/,
+  'WhatsApp activation must identify the exact config revision created after enabling Assist',
+);
+assert.match(
+  whatsappActivation,
+  /--to-revisions="\$ACTIVATED_REVISION=100"/,
+  'WhatsApp activation must explicitly route traffic to the activated Assist revision before smoke tests',
+);
+assert.match(
+  whatsappActivation,
   /read_write_confirmed/,
   'WhatsApp activation must preserve the durable Firestore readiness gate',
+);
+
+assert.match(
+  directReleaseTrigger,
+  /paths:[\s\S]*connect-core-production-release\.yml[\s\S]*connect-whatsapp-production-activation\.yml/,
+  'Production workflow changes must dispatch the certified Core release before WhatsApp activation can proceed',
+);
+assert.match(
+  directReleaseTrigger,
+  /gh workflow run connect-core-production-release\.yml/,
+  'The coordinated trigger must dispatch the canonical Core production release',
 );
 
 console.log('Connect production release policy: OK');
