@@ -9,6 +9,14 @@ on:
       - .github/workflows/connect-direct-official-sso-release.yml
       - .github/workflows/connect-core-production-release.yml
       - .github/workflows/connect-whatsapp-production-activation.yml
+      - public/connect-auth.js
+      - src/core/client/connectDirectAuth.ts
+      - src/core/client/connectNestAiClient.ts
+      - src/features/inbox/LiveInboxPage.tsx
+      - src/tests/inboxMobile.test.ts
+      - package.json
+      - package-lock.json
+      - millionsnest.app.json
 
 permissions:
   contents: read
