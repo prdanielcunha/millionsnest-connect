@@ -9,8 +9,15 @@ import {
   signInWithRedirect,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js';
+import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  getToken as readAppCheckToken,
+} from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-app-check.js';
 
 let authPromise = null;
+let appCheckPromise = null;
+const APPCHECK_SITE_KEY = '6LcpY-EtAAAAAElqBbIL_K7nAkm2wpuF6fbhsggG';
 
 async function getConfig() {
   const response = await fetch('/__/firebase/init.json', {
@@ -34,6 +41,21 @@ async function getConnectAuth() {
     })();
   }
   return authPromise;
+}
+
+async function getAppCheckToken() {
+  if (!appCheckPromise) {
+    appCheckPromise = (async () => {
+      const config = await getConfig();
+      const app = getApps().find((candidate) => candidate.name === '[DEFAULT]') || initializeApp(config);
+      return initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+    })();
+  }
+  const appCheck = await appCheckPromise;
+  return (await readAppCheckToken(appCheck, false)).token;
 }
 
 function waitForUser(auth) {
@@ -78,4 +100,5 @@ window.ConnectFirebaseAuth = Object.freeze({
   restore,
   signInGoogle,
   signOut: signOutConnect,
+  getAppCheckToken,
 });
