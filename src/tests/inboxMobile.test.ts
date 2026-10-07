@@ -565,6 +565,25 @@ test('Structural: R2 remains conditioned to confirmation', () => {
   checkOk(content.includes('R2_REVERSIBLE_WRITE'));
 });
 
+test('Structural: live inbox uses the canonical NestAI reply client', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/LiveInboxPage.tsx'), 'utf8');
+  checkOk(content.includes('ConnectNestAiClient'));
+  checkOk(content.includes('nestAi.suggestReply'));
+});
+
+test('Structural: AI suggestion only fills the human draft', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/LiveInboxPage.tsx'), 'utf8');
+  checkOk(content.includes("[draftKey]: suggestion"));
+  checkOk(content.includes('Revise antes de enviar'));
+});
+
+test('Structural: Connect NestAI client explicitly disables automatic sending', () => {
+  const content = fs.readFileSync(path.join(process.cwd(), 'src/core/client/connectNestAiClient.ts'), 'utf8');
+  checkOk(content.includes("mode: 'suggestion_only'"));
+  checkOk(content.includes('sendMessage: false'));
+  checkOk(content.includes('humanReviewRequired: true'));
+});
+
 // 66-74: FOCUS TRAP TESTS (isElementFocusable, getNextFocusIndex, getPreviousFocusIndex)
 test('Focus Trap: Element disabled is excluded', () => {
   const descriptor: ElementFocusDescriptor = { disabled: true };

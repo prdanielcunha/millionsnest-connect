@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Sparkles,
   ShieldCheck,
   UserRound,
   X,
@@ -24,6 +25,7 @@ import {
   type LiveInboxReadiness,
 } from '../../core/client/liveInboxClient';
 import type { LanguageCode } from '../../types';
+import { ConnectNestAiClient } from '../../core/client/connectNestAiClient';
 
 interface Props {
   session: LiveConnectSession;
@@ -58,6 +60,9 @@ const copy = {
     sending: 'Enviando…',
     sent: 'Resposta enviada pelo canal oficial.',
     replyHint: 'Envio oficial · auditado · sem automação silenciosa',
+    suggest: 'Sugerir com IA',
+    suggesting: 'Pensando…',
+    suggested: 'Sugestão do NestAI inserida no rascunho. Revise antes de enviar.',
     replyLocked: 'Resposta indisponível',
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
     context: 'Contexto da conversa',
@@ -133,6 +138,9 @@ const copy = {
     sending: 'Sending…',
     sent: 'Reply sent through the official channel.',
     replyHint: 'Official delivery · audited · no silent automation',
+    suggest: 'Suggest with AI',
+    suggesting: 'Thinking…',
+    suggested: 'NestAI suggestion inserted into the draft. Review it before sending.',
     replyLocked: 'Reply unavailable',
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
     context: 'Conversation context',
@@ -208,6 +216,9 @@ const copy = {
     sending: 'Enviando…',
     sent: 'Respuesta enviada por el canal oficial.',
     replyHint: 'Envío oficial · auditado · sin automatización silenciosa',
+    suggest: 'Sugerir con IA',
+    suggesting: 'Pensando…',
+    suggested: 'Sugerencia de NestAI insertada en el borrador. Revísala antes de enviar.',
     replyLocked: 'Respuesta no disponible',
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
     context: 'Contexto de la conversación',
@@ -290,6 +301,7 @@ function readinessLabel(readiness: LiveInboxReadiness | null, t: typeof copy['pt
 export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigate }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveInboxClient(session), [session]);
+  const nestAi = useMemo(() => new ConnectNestAiClient(session, currentLang), [session, currentLang]);
   const [readiness, setReadiness] = useState<LiveInboxReadiness | null>(null);
   const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -300,6 +312,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
   const [showContext, setShowContext] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -390,6 +403,26 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       ].some((value) => value.toLocaleLowerCase(currentLang).includes(normalized));
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const suggestReply = async () => {
+    if (!selected || aiSuggesting || messages.length === 0) return;
+    setAiSuggesting(true);
+    setError('');
+    setNotice('');
+    try {
+      const suggestion = await nestAi.suggestReply({
+        conversationId: selected.conversationId,
+        messages,
+        currentDraft: replyText,
+      });
+      setDrafts((current) => ({ ...current, [draftKey]: suggestion }));
+      setNotice(t.suggested);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'NESTAI_REPLY_SUGGESTION_FAILED');
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
 
   const sendReply = async () => {
     if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
@@ -731,16 +764,27 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                         />
                         <div className="mt-1 flex items-center justify-between gap-3 border-t border-[#27394B] pt-2">
                           <span className="hidden text-[9px] text-[#5F7388] sm:block">{t.replyHint}</span>
-                          <span className="flex-1 sm:hidden" />
-                          <button
-                            type="button"
-                            onClick={() => void sendReply()}
-                            disabled={!replyText.trim() || replySending}
-                            className="connect-accent-button connect-focus inline-flex min-h-9 items-center justify-center gap-2 rounded-[9px] px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-35"
-                          >
-                            {replySending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                            {replySending ? t.sending : t.send}
-                          </button>
+                          <div className="ml-auto flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void suggestReply()}
+                              disabled={aiSuggesting || messages.length === 0}
+                              className="connect-focus inline-flex min-h-9 items-center justify-center gap-2 rounded-[9px] border border-[#315064] bg-[#163442]/55 px-3 text-xs font-semibold text-[#B6F1F9] transition hover:bg-[#163442]/80 disabled:cursor-not-allowed disabled:opacity-35"
+                              title={t.suggested}
+                            >
+                              {aiSuggesting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                              {aiSuggesting ? t.suggesting : t.suggest}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void sendReply()}
+                              disabled={!replyText.trim() || replySending}
+                              className="connect-accent-button connect-focus inline-flex min-h-9 items-center justify-center gap-2 rounded-[9px] px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-35"
+                            >
+                              {replySending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                              {replySending ? t.sending : t.send}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
