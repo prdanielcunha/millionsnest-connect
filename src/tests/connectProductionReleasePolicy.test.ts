@@ -7,8 +7,8 @@ const whatsappActivation = fs.readFileSync('.github/workflows/connect-whatsapp-p
 const whatsappActivationMarker = fs.readFileSync('.github/whatsapp-production-activation.json', 'utf8');
 const directReleaseTrigger = fs.readFileSync('.github/workflows/connect-direct-official-sso-release.yml', 'utf8');
 
-assert.match(release, /on:\s*\n\s*workflow_dispatch:/, 'Core production release must be manual-only');
-assert.doesNotMatch(release, /\n\s*push:/, 'Core production release must not auto-deploy on push');
+assert.match(release, /push:\s*\n\s*branches:\s*\[production\]/, 'Core production release must auto-run from production pushes');
+assert.match(release, /workflow_dispatch:/, 'Core production release must retain explicit manual dispatch');
 assert.doesNotMatch(release, /\n\s*pull_request:/, 'Core production release must not deploy from PR events');
 assert.match(
   release,
@@ -28,8 +28,13 @@ assert.match(
 );
 assert.match(
   release,
-  /if: inputs\.live_mode == true/,
-  'Live dependency probes must run only when live mode is explicitly requested',
+  /if: github\.event_name == 'push' \|\| inputs\.live_mode == true/,
+  'Live dependency probes must run for production pushes or explicit manual live releases',
+);
+assert.match(
+  release,
+  /CONNECT_LIVE_MODE_PRESERVED_ON_PRODUCTION_PUSH/,
+  'Production pushes must preserve the already activated live mode',
 );
 assert.match(
   release,
@@ -63,8 +68,8 @@ assert.match(
 );
 assert.match(
   release,
-  /VITE_CONNECT_LIVE_ENABLED: \$\{\{ inputs\.live_mode \}\}/,
-  'The live UI flag must come only from the manual release input',
+  /VITE_CONNECT_LIVE_ENABLED: \$\{\{ github\.event_name == 'push' \|\| inputs\.live_mode == true \}\}/,
+  'Production pushes must build the live UI while manual releases retain the explicit live input',
 );
 assert.match(release, /SERVICE:\s*connect-api/, 'Canonical Cloud Run service must remain connect-api');
 assert.match(release, /REPOSITORY:\s*millionsnest-web/, 'Canonical Artifact Registry repository must remain millionsnest-web');
