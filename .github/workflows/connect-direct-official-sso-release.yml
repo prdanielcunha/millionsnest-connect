@@ -1,5 +1,4 @@
 name: Connect Direct Official SSO Release
-# Cloud Run traffic recovery certified release trigger — 2026-10-06
 
 on:
   push:
@@ -20,18 +19,13 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  dispatch:
+  coordinate:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch certified Connect production release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Confirm native production release ownership
         run: |
-          gh workflow run connect-core-production-release.yml \
-            --repo "${{ github.repository }}" \
-            --ref production \
-            -f live_mode=true \
-            -f live_activation_ack=CONNECT_LIVE_READY
+          set -euo pipefail
+          echo "CONNECT_CORE_AUTO_RELEASE_NATIVE"
+          echo "The Core production workflow is triggered directly by this production push; no duplicate workflow dispatch is required."
