@@ -456,12 +456,17 @@ assert.match(
 assert.match(
   directReleaseTrigger,
   /paths:[\s\S]*connect-core-production-release\.yml[\s\S]*connect-whatsapp-production-activation\.yml/,
-  'Production workflow changes must dispatch the certified Core release before WhatsApp activation can proceed',
+  'Production coordination must still observe Core and WhatsApp workflow changes',
 );
 assert.match(
   directReleaseTrigger,
+  /CONNECT_CORE_AUTO_RELEASE_NATIVE/,
+  'The coordination workflow must acknowledge that Core now owns production push releases natively',
+);
+assert.doesNotMatch(
+  directReleaseTrigger,
   /gh workflow run connect-core-production-release\.yml/,
-  'The coordinated trigger must dispatch the canonical Core production release',
+  'The coordination workflow must not dispatch a duplicate Core release',
 );
 
 console.log('Connect production release policy: OK');
