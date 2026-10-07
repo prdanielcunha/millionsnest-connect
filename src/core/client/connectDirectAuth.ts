@@ -7,6 +7,7 @@ type ConnectFirebaseAuthBridge = {
   restore(): Promise<ConnectDirectIdentity | null>;
   signInGoogle(): Promise<void>;
   signOut(): Promise<void>;
+  getAppCheckToken(): Promise<string>;
 };
 
 declare global {
@@ -34,4 +35,9 @@ export async function startConnectGoogleSignIn(): Promise<void> {
 
 export async function signOutConnectDirectIdentity(): Promise<void> {
   await (await bridge()).signOut();
+}
+
+
+export async function getConnectAppCheckToken(): Promise<string> {
+  return (await bridge()).getAppCheckToken();
 }
