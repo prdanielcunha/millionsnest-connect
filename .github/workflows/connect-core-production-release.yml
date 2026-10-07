@@ -5,12 +5,16 @@ on:
     branches: [production]
     paths:
       - ".github/workflows/connect-core-production-release.yml"
+      - ".github/workflows/connect-direct-official-sso-release.yml"
+      - ".github/workflows/connect-whatsapp-production-activation.yml"
       - "src/**"
       - "server/**"
+      - "public/**"
       - "package.json"
       - "package-lock.json"
       - "Dockerfile.core"
       - "firebase.json"
+      - "millionsnest.app.json"
   workflow_dispatch:
     inputs:
       live_mode:
