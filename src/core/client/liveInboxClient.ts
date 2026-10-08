@@ -23,6 +23,8 @@ export type LiveInboxConversation = {
   schemaVersion: 1;
   organizationId: string;
   conversationId: string;
+  /** Optional, self-reported name from a scoped and expiring contact read model. */
+  contact?: { displayName: string; source: 'whatsapp_profile' };
   status: 'new' | 'in_progress' | 'waiting_person' | 'waiting_team' | 'resolved' | 'archived';
   mode: 'automatic' | 'approval' | 'human';
   automationPaused: boolean;
