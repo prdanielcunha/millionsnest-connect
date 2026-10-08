@@ -578,7 +578,7 @@ test('Structural: NestAI suggestion requires human approval before overwriting a
   checkOk(content.includes('t.applySuggestion'));
   checkOk(content.includes('t.discardSuggestion'));
   checkOk(content.includes('[draftKey]: activeSuggestion'));
-  checkNotMatch(content, /setDrafts\\(\\(current\\) => \\({ \\.\\.\\.current, \\[draftKey\\]: suggestion }\\)\\)/);
+  checkOk(!content.includes('[draftKey]: suggestion'));
 });
 
 test('Structural: Connect NestAI client explicitly disables automatic sending', () => {
