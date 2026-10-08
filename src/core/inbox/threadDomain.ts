@@ -303,5 +303,9 @@ export function sameConnectThreadEventIntent(a: ConnectThreadEvent, b: ConnectTh
     && a.evidenceRef === b.evidenceRef
     && a.sensitivity === b.sensitivity
     && a.version === b.version
-    && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+    && a.payload.channel === b.payload.channel
+    && a.payload.assigneeType === b.payload.assigneeType
+    && a.payload.assigneeRef === b.payload.assigneeRef
+    && a.payload.reasonCode === b.payload.reasonCode
+    && a.payload.resultingStatus === b.payload.resultingStatus;
 }
