@@ -2,6 +2,7 @@ import {
   ConnectThreadEvent,
   ConnectThreadProjection,
   projectConnectThread,
+  sameConnectThreadEventIntent,
 } from './threadDomain';
 
 export interface ConnectThreadScope {
@@ -44,10 +45,6 @@ function assertScope(scope: ConnectThreadScope): void {
 function keyOf(scope: ConnectThreadScope): string {
   assertScope(scope);
   return `${scope.organizationId}\u001f${scope.conversationId}`;
-}
-
-function eventFingerprint(event: ConnectThreadEvent): string {
-  return JSON.stringify(event);
 }
 
 /**
@@ -109,7 +106,7 @@ export class InMemoryConnectThreadStore implements ConnectThreadStore {
     const duplicate = current.find((candidate) => candidate.eventId === event.eventId);
 
     if (duplicate) {
-      if (eventFingerprint(duplicate) !== eventFingerprint(event)) {
+      if (!sameConnectThreadEventIntent(duplicate, event)) {
         throw new Error('EVENT_ID_COLLISION');
       }
       const projection = projectConnectThread(current);
