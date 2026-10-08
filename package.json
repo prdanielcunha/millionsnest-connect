@@ -24,7 +24,7 @@
     "test:mobile-layout": "tsx src/tests/mobileLayout.test.ts",
     "test:inbox-mobile": "tsx src/tests/inboxMobile.test.ts && npm run test:inbox-domain && npm run test:inbox-reply && npm run test:inbox-operations && npm run test:inbox-contacts",
     "test:inbox-operations": "tsx src/tests/liveInboxOperations.test.ts",
-    "test:inbox-contacts": "tsx src/tests/inboxContactProfile.test.ts",
+    "test:inbox-contacts": "tsx src/tests/inboxContactProfile.test.ts && tsx src/tests/firestoreInboxContactProfile.test.ts",
     "test:inbox-reply": "tsx src/tests/liveInboxReplySafety.test.ts",
     "test:inbox-domain": "tsx src/tests/inboxDomain.test.ts",
     "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
