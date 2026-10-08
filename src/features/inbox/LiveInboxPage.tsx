@@ -89,6 +89,9 @@ const copy = {
     channel: 'Canal',
     responsible: 'Responsável',
     unassigned: 'Não atribuído',
+    mine: 'Comigo',
+    anotherAgent: 'Atendente designado',
+    teamAssigned: 'Equipe designada',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo passo',
@@ -183,6 +186,9 @@ const copy = {
     channel: 'Channel',
     responsible: 'Owner',
     unassigned: 'Unassigned',
+    mine: 'Assigned to me',
+    anotherAgent: 'Assigned agent',
+    teamAssigned: 'Assigned team',
     state: 'State',
     mode: 'Mode',
     next: 'Next step',
@@ -277,6 +283,9 @@ const copy = {
     channel: 'Canal',
     responsible: 'Responsable',
     unassigned: 'Sin asignar',
+    mine: 'A mi cargo',
+    anotherAgent: 'Agente asignado',
+    teamAssigned: 'Equipo asignado',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo paso',
@@ -633,7 +642,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.responsible}</dt>
-            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{selected.assignedTo?.ref || t.unassigned}</dd>
+            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{!selected.assignedTo ? t.unassigned : selected.assignedTo.ref === session.context.user.uid ? session.context.user.name : selected.assignedTo.type === 'team' ? t.teamAssigned : t.anotherAgent}</dd>
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.state}</dt>
@@ -827,7 +836,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                               <span className="shrink-0 text-[11px] text-[#93A5B8]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
                             <span className="mt-1 block truncate text-[12px] text-[#8295AA]">
-                              {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.claim : conversation.assignedTo ? t.responsible : t.unassigned}
+                              {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.mine : conversation.assignedTo ? t.responsible : t.unassigned}
                             </span>
                           </span>
                         </div>
