@@ -267,8 +267,12 @@ equal(
   'existing snapshot uses updateTime optimistic precondition',
 );
 
-const duplicate = await store.append(assignEvent, 2);
-equal(duplicate.kind, 'duplicate', 'exact event retry is idempotent');
+const duplicate = await store.append({
+  ...assignEvent,
+  occurredAt: '2026-09-19T18:00:00.000Z',
+  recordedAt: '2026-09-19T18:00:00.000Z',
+}, 2);
+equal(duplicate.kind, 'duplicate', 'event retry with a different wall-clock time is idempotent');
 equal(fake.commits.length, 2, 'duplicate retry performs no new commit');
 
 const collidingEvent = {

@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   PanelRightOpen,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Sparkles,
@@ -26,7 +27,7 @@ import {
 } from '../../core/client/liveInboxClient';
 import type { LanguageCode } from '../../types';
 import { ConnectNestAiClient } from '../../core/client/connectNestAiClient';
-import { prepareInboxReplyAttempt, timelineDayKey, timelineDayLabel, type InboxReplyAttempt } from './liveInboxPresentation';
+import { availableInboxThreadActions, canShowInboxManagement, prepareInboxReplyAttempt, prepareInboxThreadActionAttempt, timelineDayKey, timelineDayLabel, type InboxReplyAttempt, type InboxThreadAction, type InboxThreadActionAttempt } from './liveInboxPresentation';
 
 interface Props {
   session: LiveConnectSession;
@@ -70,12 +71,27 @@ const copy = {
     discardSuggestion: 'Descartar',
     replyLocked: 'Resposta indisponível',
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
+    reopenForReply: 'Reabra a conversa antes de responder pelo canal oficial.',
     context: 'Contexto da conversa',
+    claim: 'Assumir atendimento',
+    waiting: 'Aguardar resposta',
+    resolve: 'Resolver',
+    reopen: 'Reabrir',
+    archive: 'Arquivar',
+    threadUpdated: 'Estado do atendimento atualizado e registrado.',
+    threadDuplicate: 'A alteração já estava registrada.',
+    threadRefreshFailed: 'Alteração salva, mas a lista não atualizou. Use Atualizar.',
+    actionProgress: 'Salvando alteração…',
+    actionsTitle: 'Gerenciar atendimento',
+    actionsHint: 'As ações são confirmadas pelo MillionsNest e auditadas no servidor.',
     close: 'Fechar',
     organization: 'Organização',
     channel: 'Canal',
     responsible: 'Responsável',
     unassigned: 'Não atribuído',
+    mine: 'Comigo',
+    anotherAgent: 'Atendente designado',
+    teamAssigned: 'Equipe designada',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo passo',
@@ -152,12 +168,27 @@ const copy = {
     discardSuggestion: 'Discard',
     replyLocked: 'Reply unavailable',
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
+    reopenForReply: 'Reopen the conversation before replying through the official channel.',
     context: 'Conversation context',
+    claim: 'Take ownership',
+    waiting: 'Wait for reply',
+    resolve: 'Resolve',
+    reopen: 'Reopen',
+    archive: 'Archive',
+    threadUpdated: 'Conversation state updated and recorded.',
+    threadDuplicate: 'This change was already recorded.',
+    threadRefreshFailed: 'Change saved, but the list did not refresh. Use Refresh.',
+    actionProgress: 'Saving change…',
+    actionsTitle: 'Manage conversation',
+    actionsHint: 'Changes are authorized by MillionsNest and audited by the server.',
     close: 'Close',
     organization: 'Organization',
     channel: 'Channel',
     responsible: 'Owner',
     unassigned: 'Unassigned',
+    mine: 'Assigned to me',
+    anotherAgent: 'Assigned agent',
+    teamAssigned: 'Assigned team',
     state: 'State',
     mode: 'Mode',
     next: 'Next step',
@@ -234,12 +265,27 @@ const copy = {
     discardSuggestion: 'Descartar',
     replyLocked: 'Respuesta no disponible',
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
+    reopenForReply: 'Reabre la conversación antes de responder por el canal oficial.',
     context: 'Contexto de la conversación',
+    claim: 'Tomar atención',
+    waiting: 'Esperar respuesta',
+    resolve: 'Resolver',
+    reopen: 'Reabrir',
+    archive: 'Archivar',
+    threadUpdated: 'Estado de la atención actualizado y registrado.',
+    threadDuplicate: 'Esta acción ya estaba registrada.',
+    threadRefreshFailed: 'Cambio guardado, pero la lista no se actualizó. Usa Actualizar.',
+    actionProgress: 'Guardando cambio…',
+    actionsTitle: 'Gestionar atención',
+    actionsHint: 'MillionsNest autoriza y audita las acciones en el servidor.',
     close: 'Cerrar',
     organization: 'Organización',
     channel: 'Canal',
     responsible: 'Responsable',
     unassigned: 'Sin asignar',
+    mine: 'A mi cargo',
+    anotherAgent: 'Agente asignado',
+    teamAssigned: 'Equipo asignado',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo paso',
@@ -318,12 +364,14 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
+  const [threadActing, setThreadActing] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<{ scopeKey: string; text: string } | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const pendingReplyRef = useRef<InboxReplyAttempt | null>(null);
+  const pendingThreadActionRef = useRef<InboxThreadActionAttempt | null>(null);
   const loadSequenceRef = useRef(0);
   const selectedScopeRef = useRef('');
   selectedScopeRef.current = `${session.expectedOrganizationId}:${selectedId}`;
@@ -380,6 +428,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     setDrafts({});
     setSuggestion(null);
     pendingReplyRef.current = null;
+    pendingThreadActionRef.current = null;
     setShowContext(false);
   }, [client]);
 
@@ -408,6 +457,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [showContext]);
 
+  const canManage = canShowInboxManagement(session.context);
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
   const replyText = draftKey ? drafts[draftKey] || '' : '';
@@ -429,7 +479,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const suggestReply = async () => {
-    if (!selected || aiSuggesting || messages.length === 0) return;
+    if (!selected || aiSuggesting || messages.length === 0 || !isOpenConversation(selected)) return;
     setAiSuggesting(true);
     setError('');
     setNotice('');
@@ -454,7 +504,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   };
 
   const sendReply = async () => {
-    if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
+    if (!selected || !isOpenConversation(selected) || !humanReplyReady || !replyText.trim() || replySending) return;
     const submittedConversationId = selected.conversationId;
     const submittedOrgId = session.expectedOrganizationId;
     const attempt = prepareInboxReplyAttempt(
@@ -500,6 +550,57 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       setReplySending(false);
     }
   };
+  const runThreadAction = async (action: InboxThreadAction) => {
+    if (!selected || !canManage || threadActing || replySending || !availableInboxThreadActions(selected.status).includes(action)) return;
+    const scopeKey = draftKey;
+    const attempt = prepareInboxThreadActionAttempt(
+      pendingThreadActionRef.current,
+      scopeKey,
+      action,
+      action === 'assign' ? session.context.user.uid : '',
+      () => globalThis.crypto?.randomUUID?.() || `thread-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    pendingThreadActionRef.current = attempt;
+    setThreadActing(true);
+    setNotice('');
+    setError('');
+    try {
+      const result = await client.manageThread({
+        conversationId: selected.conversationId,
+        action,
+        requestId: attempt.requestId,
+        evidenceRef: selected.lastEvidenceRef,
+        ...(action === 'assign' ? { assigneeRef: session.context.user.uid } : {}),
+      });
+      pendingThreadActionRef.current = null;
+      if (selectedScopeRef.current !== scopeKey) return;
+      setConversations((current) => current.map((item) =>
+        item.conversationId === result.thread.conversationId ? result.thread : item));
+      setNotice(result.outcome === 'duplicate' ? t.threadDuplicate : t.threadUpdated);
+      try {
+        const updated = await client.listConversations();
+        if (selectedScopeRef.current === scopeKey) setConversations(updated);
+      } catch {
+        if (selectedScopeRef.current === scopeKey) setError(t.threadRefreshFailed);
+      }
+    } catch (e) {
+      // Retry the same requestId after a transient failure; the event store is idempotent.
+      if (selectedScopeRef.current === scopeKey) {
+        setError(e instanceof Error ? e.message : 'INBOX_COMMAND_FAILED');
+      }
+    } finally {
+      setThreadActing(false);
+    }
+  };
+
+  const actionLabel: Record<InboxThreadAction, string> = {
+    assign: t.claim,
+    wait_for_person: t.waiting,
+    resolve: t.resolve,
+    reopen: t.reopen,
+    archive: t.archive,
+  };
+
   const contextPanel = selected ? (
     <div className="flex h-full flex-col">
       <div className="border-b connect-divider px-4 py-4">
@@ -541,7 +642,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.responsible}</dt>
-            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{selected.assignedTo?.ref || t.unassigned}</dd>
+            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{!selected.assignedTo ? t.unassigned : selected.assignedTo.ref === session.context.user.uid ? session.context.user.name : selected.assignedTo.type === 'team' ? t.teamAssigned : t.anotherAgent}</dd>
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.state}</dt>
@@ -557,6 +658,28 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#6A7E93]">{t.next}</div>
           <p className="mt-2 text-xs leading-5 text-[#A7B5C3]">{nextStep(selected.status, t)}</p>
         </div>
+
+        {canManage && selected.status !== 'archived' && (
+          <section className="mt-5" aria-label={t.actionsTitle}>
+            <h3 className="text-xs font-semibold text-[#E8EFF5]">{t.actionsTitle}</h3>
+            <p className="mt-1.5 text-[12px] leading-5 text-[#8DA1B5]">{t.actionsHint}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {availableInboxThreadActions(selected.status).map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => void runThreadAction(action)}
+                  disabled={threadActing || replySending || (action === 'assign' && selected.assignedTo?.ref === session.context.user.uid)}
+                  className={`connect-focus min-h-11 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${action === 'resolve'
+                    ? 'border-[#66D9EF]/25 bg-[#163442]/60 text-[#BBF2F9] hover:bg-[#163442]'
+                    : 'border-[#2B3A4D] bg-[#111A27] text-[#C4D2DF] hover:border-[#395369] hover:bg-[#182433]'}`}
+                >
+                  {threadActing ? t.actionProgress : actionLabel[action]}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {onNavigate && session.context.appAccess.some((item) => item.access) && (
           <button
@@ -713,7 +836,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                               <span className="shrink-0 text-[11px] text-[#93A5B8]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
                             <span className="mt-1 block truncate text-[12px] text-[#8295AA]">
-                              {t.status[conversation.status]} · {t.modes[conversation.mode]}
+                              {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.mine : conversation.assignedTo ? t.responsible : t.unassigned}
                             </span>
                           </span>
                         </div>
@@ -752,6 +875,17 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                     <div className="truncate text-xs font-semibold text-[#EEF4F8]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
                     <div className="mt-0.5 text-[9px] text-[#6A7E93]">{t.status[selected.status]} · {t.modes[selected.mode]}</div>
                   </div>
+                  {canManage && selected.status !== 'archived' && (
+                    <button
+                      type="button"
+                      onClick={() => void runThreadAction(selected.status === 'resolved' ? 'reopen' : 'resolve')}
+                      disabled={threadActing || replySending}
+                      className="connect-focus inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[#315064] bg-[#163442]/45 px-2.5 text-xs font-semibold text-[#B7EDF5] disabled:opacity-40"
+                    >
+                      {selected.status === 'resolved' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+                      <span className="hidden sm:inline">{selected.status === 'resolved' ? t.reopen : t.resolve}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowContext(true)}
@@ -801,7 +935,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 </div>
 
                 <div className="border-t connect-divider bg-[#0B121B]/80 p-3 sm:p-4">
-                  {humanReplyReady ? (
+                  {humanReplyReady && isOpenConversation(selected) ? (
                     <div className="mx-auto max-w-3xl">
                       {activeSuggestion && (
                         <div className="mb-3 rounded-[12px] border border-[#315064] bg-[#122334] p-3" aria-live="polite">
@@ -877,7 +1011,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                   ) : (
                     <div className="mx-auto flex max-w-3xl items-start gap-2 rounded-[10px] border border-[#F1C77A]/15 bg-[#F1C77A]/[0.045] p-3 text-[10px] leading-4 text-[#B9A47B]">
                       <LockKeyhole size={13} className="mt-0.5 shrink-0 text-[#F1C77A]" />
-                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {!isOpenConversation(selected) ? t.reopenForReply : t.replyLockedDesc}</span>
                     </div>
                   )}
                 </div>

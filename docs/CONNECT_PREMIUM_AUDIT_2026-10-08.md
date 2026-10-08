@@ -112,3 +112,39 @@ PR draft: https://github.com/prdanielcunha/millionsnest-connect/pull/208
 Arquivos alterados: LiveInboxPage.tsx, liveInboxPresentation.ts, liveInboxReplySafety.test.ts e package.json; documentação nesta pasta. Escopo intencionalmente limitado a uma fatia vertical real. O PR não autoriza merge nem deploy; seus gates continuam obrigatórios.
 
 **Pendente de comprovação:** lint/build da aplicação completa, QA responsivo real, timeout do provider, revisão humana do visual, execução E2E do WhatsApp em homologação e ativação/observação em produção. Não declarar todas as capacidades completas porque há rotas e módulos em estágio controlado.
+
+---
+
+## 7. Registro de execução — incremento P1 da Inbox (08/10/2026)
+
+**Base:** PR #208 (safe delivery, NestAI revisável, calendário, UX).  
+**Incremento:** PR #209, branch `feat/connect-inbox-operations-20261008`.
+
+### Implementado em código e sujeito aos gates da PR
+
+- Cliente LiveInboxClient passa a chamar o endpoint oficial já existente `POST /api/core/inbox/threads/:conversationId/actions`.
+- A UI mostra as transições que a máquina de estados permite: assumir para o próprio usuário, aguardar pessoa, resolver, reabrir e arquivar.
+- Botões são condicionados ao estado e às permissões declaradas na sessão; o **backend sempre revalida** identidade, organização e capability. A prévia de perfil não concede privilégios.
+- O retorno do servidor atualiza a projeção local apenas quando a conversa original continua ativa. Erro no refresh é tratado separadamente de erro na mutação.
+- `requestId` por ação permanece estável após falhas transitórias.
+- Correção adicional no event store: confirmação duplicada preserva o primeiro evento quando somente `occurredAt`/`recordedAt` mudaram, sem tolerar mudança de alvo, motivo, escopo ou evidência. Isso vale para Firestore e memória.
+- Resposta humana só permanece habilitada enquanto a thread estiver aberta. Arquivada/resolvida exige reabertura.
+- Testes de regressão para UI, isolamento de tenant, permissão de gerenciamento, máquina de estados e duplicidade persistente.
+
+### Conscientemente NÃO implementado nesta fatia
+
+- Nome e alias de contato organizacional: requerem read model com armazenamento sensível separado, retenção, origem autorizada e design de busca sem vazamento de telefone.
+- Busca por conteúdo e paginação real: precisam de API autenticada e desenho de índice/cursor; busca atual continua limitada ao conjunto carregado.
+- Handoff para equipe: a API aceita um `assigneeRef`, mas não há catálogo validado de usuários/equipes na UI; não usar IDs inventados.
+- Notas internas/anexos: criar contrato separado do canal oficial para impedir vazamento.
+- Magic Moment WhatsApp-MusicScale: manter como gate funcional prioritário e testar com autenticação real; este trabalho UX não o declara concluído.
+- Deploy e migração: PR não deve ser integrada/publicada sem testes e homologação de segurança.
+
+### Plano de continuação
+
+1. Homologar PR #208 e depois PR #209, com smoke de conflito/idempotência e perfis sem manage.
+2. Criar `InboxContactReadModel` organizacional, opcional e auditável, sem telefone cru no browser e sem mesclar Cofre Pessoal.
+3. Adicionar catálogo válido de atendentes/equipes + handoff seguro + notas internas com autorização.
+4. Implementar busca/paginação server-side, priorização da fila e indicadores de novas mensagens sem forçar scroll.
+5. Validar por coorte o fluxo oficial WhatsApp -> vínculo Hub -> Magic Moment MusicScale, com logs mínimos, rollback e medição de custo.
+6. Executar auditoria UX visual em 320/390/430/768/1024/1440, PT/EN/ES e acessibilidade antes do release.

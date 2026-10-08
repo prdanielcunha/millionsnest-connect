@@ -120,6 +120,35 @@ export class LiveInboxClient {
     return await parse(response);
   }
 
+  async manageThread(input: {
+    conversationId: string;
+    action: 'assign' | 'wait_for_person' | 'resolve' | 'reopen' | 'archive';
+    requestId: string;
+    evidenceRef: string;
+    assigneeRef?: string;
+  }): Promise<{ outcome: 'appended' | 'duplicate'; thread: LiveInboxConversation }> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(input.conversationId)}/actions`,
+      {
+        method: 'POST',
+        headers: {
+          ...this.headers(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organizationId: this.session.expectedOrganizationId,
+          action: input.action,
+          requestId: input.requestId,
+          evidenceRef: input.evidenceRef,
+          ...(input.action === 'assign'
+            ? { assigneeType: 'user', assigneeRef: input.assigneeRef }
+            : {}),
+        }),
+      },
+    );
+    return await parse(response);
+  }
+
   async getReadiness(): Promise<LiveInboxReadiness> {
     const response = await fetch(
       `/api/core/inbox/readiness?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`,
