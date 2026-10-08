@@ -81,6 +81,21 @@ export class LiveInboxClient {
     return Array.isArray(body.conversations) ? body.conversations : [];
   }
 
+  async searchConversations(
+    query: string,
+    limit = 20,
+  ): Promise<{ enabled: boolean; conversations: LiveInboxConversation[] }> {
+    const response = await fetch(
+      `/api/core/inbox/conversations/search?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.min(limit, 30))}`,
+      { method: 'GET', headers: this.headers(), cache: 'no-store' },
+    );
+    const body = await parse(response);
+    return {
+      enabled: body.enabled === true,
+      conversations: Array.isArray(body.conversations) ? body.conversations : [],
+    };
+  }
+
   async listMessages(conversationId: string, limit = 100): Promise<LiveInboxMessage[]> {
     const response = await fetch(
       `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}`,
