@@ -571,10 +571,14 @@ test('Structural: live inbox uses the canonical NestAI reply client', () => {
   checkOk(content.includes('nestAi.suggestReply'));
 });
 
-test('Structural: AI suggestion only fills the human draft', () => {
+test('Structural: NestAI suggestion requires human approval before overwriting any draft', () => {
   const content = fs.readFileSync(path.join(process.cwd(), 'src/features/inbox/LiveInboxPage.tsx'), 'utf8');
-  checkOk(content.includes("[draftKey]: suggestion"));
-  checkOk(content.includes('Revise antes de enviar'));
+  checkOk(content.includes('setSuggestion({ scopeKey: requestedScope, text })'));
+  checkOk(content.includes('activeSuggestion && ('));
+  checkOk(content.includes('t.applySuggestion'));
+  checkOk(content.includes('t.discardSuggestion'));
+  checkOk(content.includes('[draftKey]: activeSuggestion'));
+  checkNotMatch(content, /setDrafts\\(\\(current\\) => \\({ \\.\\.\\.current, \\[draftKey\\]: suggestion }\\)\\)/);
 });
 
 test('Structural: Connect NestAI client explicitly disables automatic sending', () => {
