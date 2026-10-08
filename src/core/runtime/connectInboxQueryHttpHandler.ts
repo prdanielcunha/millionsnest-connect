@@ -7,6 +7,7 @@ import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
 import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { ConnectMessageContentStore } from '../inbox/messageContentStore';
 import type { InboxContactProfileStore } from '../inbox/inboxContactProfileStore';
+import { filterAuthorizedInboxContactProfiles } from '../inbox/inboxContactProfileStore';
 
 export interface ConnectInboxQueryHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
@@ -173,11 +174,11 @@ export function createConnectInboxConversationListHttpHandler(
         }
       }
       const profileById = new Map(
-        profiles.filter(profile =>
-          profile.organizationId === context.organizationId &&
-          conversations.some(thread => thread.conversationId === profile.conversationId) &&
-          new Date(profile.expiresAt).getTime() > Date.now())
-          .map(profile => [profile.conversationId, profile]),
+        filterAuthorizedInboxContactProfiles(
+          profiles,
+          context.organizationId,
+          conversations.map(thread => thread.conversationId),
+        ).map(profile => [profile.conversationId, profile]),
       );
       return res.status(200).json({
         success: true,
