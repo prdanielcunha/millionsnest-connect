@@ -71,6 +71,7 @@ const copy = {
     discardSuggestion: 'Descartar',
     replyLocked: 'Resposta indisponível',
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
+    reopenForReply: 'Reabra a conversa antes de responder pelo canal oficial.',
     context: 'Contexto da conversa',
     claim: 'Assumir atendimento',
     waiting: 'Aguardar resposta',
@@ -164,6 +165,7 @@ const copy = {
     discardSuggestion: 'Discard',
     replyLocked: 'Reply unavailable',
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
+    reopenForReply: 'Reopen the conversation before replying through the official channel.',
     context: 'Conversation context',
     claim: 'Take ownership',
     waiting: 'Wait for reply',
@@ -257,6 +259,7 @@ const copy = {
     discardSuggestion: 'Descartar',
     replyLocked: 'Respuesta no disponible',
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
+    reopenForReply: 'Reabre la conversación antes de responder por el canal oficial.',
     context: 'Contexto de la conversación',
     claim: 'Tomar atención',
     waiting: 'Esperar respuesta',
@@ -467,7 +470,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const suggestReply = async () => {
-    if (!selected || aiSuggesting || messages.length === 0) return;
+    if (!selected || aiSuggesting || messages.length === 0 || !isOpenConversation(selected)) return;
     setAiSuggesting(true);
     setError('');
     setNotice('');
@@ -492,7 +495,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   };
 
   const sendReply = async () => {
-    if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
+    if (!selected || !isOpenConversation(selected) || !humanReplyReady || !replyText.trim() || replySending) return;
     const submittedConversationId = selected.conversationId;
     const submittedOrgId = session.expectedOrganizationId;
     const attempt = prepareInboxReplyAttempt(
@@ -923,7 +926,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 </div>
 
                 <div className="border-t connect-divider bg-[#0B121B]/80 p-3 sm:p-4">
-                  {humanReplyReady ? (
+                  {humanReplyReady && isOpenConversation(selected) ? (
                     <div className="mx-auto max-w-3xl">
                       {activeSuggestion && (
                         <div className="mb-3 rounded-[12px] border border-[#315064] bg-[#122334] p-3" aria-live="polite">
@@ -999,7 +1002,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                   ) : (
                     <div className="mx-auto flex max-w-3xl items-start gap-2 rounded-[10px] border border-[#F1C77A]/15 bg-[#F1C77A]/[0.045] p-3 text-[10px] leading-4 text-[#B9A47B]">
                       <LockKeyhole size={13} className="mt-0.5 shrink-0 text-[#F1C77A]" />
-                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {!isOpenConversation(selected) ? t.reopenForReply : t.replyLockedDesc}</span>
                     </div>
                   )}
                 </div>
