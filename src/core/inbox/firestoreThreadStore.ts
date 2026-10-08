@@ -3,6 +3,7 @@ import {
   ConnectThreadEvent,
   ConnectThreadProjection,
   projectConnectThread,
+  sameConnectThreadEventIntent,
 } from './threadDomain';
 import type {
   ConnectThreadAppendResult,
@@ -447,7 +448,7 @@ export class FirestoreConnectThreadStore implements ConnectThreadStore {
 
     const existing = events.find((candidate) => candidate.eventId === event.eventId);
     if (existing) {
-      if (fingerprint(existing) !== fingerprint(event)) {
+      if (!sameConnectThreadEventIntent(existing, event)) {
         throw new Error('EVENT_ID_COLLISION');
       }
       if (!rebuilt) throw new Error('THREAD_PROJECTION_MISSING');
@@ -582,7 +583,7 @@ export class FirestoreConnectThreadStore implements ConnectThreadStore {
     try {
       const existing = await this.getEvent(event);
       if (!existing) return null;
-      if (fingerprint(existing) !== fingerprint(event)) {
+      if (!sameConnectThreadEventIntent(existing, event)) {
         throw new Error('EVENT_ID_COLLISION');
       }
       const projection = await this.load({
