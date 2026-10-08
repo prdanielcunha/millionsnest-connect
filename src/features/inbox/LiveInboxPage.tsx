@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  Archive,
   CheckCircle2,
-  Clock3,
   ChevronRight,
   CircleAlert,
   Inbox,
