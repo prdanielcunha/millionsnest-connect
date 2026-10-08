@@ -364,12 +364,16 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   }, [client]);
 
   useEffect(() => {
+    // A previous principal/tenant must never leave cached conversations visible
+    // while the new session is loading or when its backend is unavailable.
+    setReadiness(null);
+    setConversations([]);
     setSelectedId('');
     setMessages([]);
     setDrafts({});
     pendingReplyRef.current = null;
     setShowContext(false);
-  }, [session.expectedOrganizationId]);
+  }, [client]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -458,7 +462,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       // A successful provider request is different from refreshing the timeline.
       pendingReplyRef.current = null;
       setDrafts((current) => current[draftKey]?.trim() === attempt.text ? { ...current, [draftKey]: '' } : current);
-      if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) {
+      if (selectedScopeRef.current === draftKey) {
         setNotice(result.kind === 'duplicate' ? t.alreadySent : t.sent);
       }
       try {
@@ -469,12 +473,12 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
         if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) setConversations(nextConversations);
         if (selectedScopeRef.current === draftKey) setMessages(nextMessages);
       } catch {
-        if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) setError(t.refreshFailed);
+        if (selectedScopeRef.current === draftKey) setError(t.refreshFailed);
       }
     } catch (e) {
       // Preserve requestId after uncertain network outcomes; backend idempotency
       // can reconcile a retry without sending the same text a second time.
-      if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) {
+      if (selectedScopeRef.current === draftKey) {
         setError(e instanceof Error ? e.message : 'HUMAN_REPLY_UNAVAILABLE');
       }
     } finally {
