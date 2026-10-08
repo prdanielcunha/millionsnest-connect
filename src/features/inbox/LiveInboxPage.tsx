@@ -65,7 +65,9 @@ const copy = {
     replyHint: 'Envio oficial · auditado · sem automação silenciosa',
     suggest: 'Sugerir com IA',
     suggesting: 'Pensando…',
-    suggested: 'Sugestão do NestAI inserida no rascunho. Revise antes de enviar.',
+    suggested: 'Sugestão do NestAI pronta para revisão. Seu rascunho foi preservado.',
+    applySuggestion: 'Usar sugestão',
+    discardSuggestion: 'Descartar',
     replyLocked: 'Resposta indisponível',
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
     context: 'Contexto da conversa',
@@ -145,7 +147,9 @@ const copy = {
     replyHint: 'Official delivery · audited · no silent automation',
     suggest: 'Suggest with AI',
     suggesting: 'Thinking…',
-    suggested: 'NestAI suggestion inserted into the draft. Review it before sending.',
+    suggested: 'NestAI suggestion ready for review. Your draft is unchanged.',
+    applySuggestion: 'Use suggestion',
+    discardSuggestion: 'Discard',
     replyLocked: 'Reply unavailable',
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
     context: 'Conversation context',
@@ -225,7 +229,9 @@ const copy = {
     replyHint: 'Envío oficial · auditado · sin automatización silenciosa',
     suggest: 'Sugerir con IA',
     suggesting: 'Pensando…',
-    suggested: 'Sugerencia de NestAI insertada en el borrador. Revísala antes de enviar.',
+    suggested: 'Sugerencia de NestAI lista para revisar. Tu borrador se conserva.',
+    applySuggestion: 'Usar sugerencia',
+    discardSuggestion: 'Descartar',
     replyLocked: 'Respuesta no disponible',
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
     context: 'Contexto de la conversación',
@@ -313,6 +319,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<{ scopeKey: string; text: string } | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -371,6 +378,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     setSelectedId('');
     setMessages([]);
     setDrafts({});
+    setSuggestion(null);
     pendingReplyRef.current = null;
     setShowContext(false);
   }, [client]);
@@ -403,6 +411,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
   const replyText = draftKey ? drafts[draftKey] || '' : '';
+  const activeSuggestion = suggestion?.scopeKey === draftKey ? suggestion.text : '';
 
   const visibleConversations = conversations
     .filter((conversation) => {
@@ -424,16 +433,21 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     setAiSuggesting(true);
     setError('');
     setNotice('');
+    const requestedScope = draftKey;
     try {
-      const suggestion = await nestAi.suggestReply({
+      const text = await nestAi.suggestReply({
         conversationId: selected.conversationId,
         messages,
         currentDraft: replyText,
       });
-      setDrafts((current) => ({ ...current, [draftKey]: suggestion }));
-      setNotice(t.suggested);
+      if (selectedScopeRef.current === requestedScope) {
+        setSuggestion({ scopeKey: requestedScope, text });
+        setNotice(t.suggested);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'NESTAI_REPLY_SUGGESTION_FAILED');
+      if (selectedScopeRef.current === requestedScope) {
+        setError(e instanceof Error ? e.message : 'NESTAI_REPLY_SUGGESTION_FAILED');
+      }
     } finally {
       setAiSuggesting(false);
     }
@@ -461,6 +475,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       });
       // A successful provider request is different from refreshing the timeline.
       pendingReplyRef.current = null;
+      setSuggestion((current) => current?.scopeKey === draftKey ? null : current);
       setDrafts((current) => current[draftKey]?.trim() === attempt.text ? { ...current, [draftKey]: '' } : current);
       if (selectedScopeRef.current === draftKey) {
         setNotice(result.kind === 'duplicate' ? t.alreadySent : t.sent);
@@ -788,6 +803,36 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 <div className="border-t connect-divider bg-[#0B121B]/80 p-3 sm:p-4">
                   {humanReplyReady ? (
                     <div className="mx-auto max-w-3xl">
+                      {activeSuggestion && (
+                        <div className="mb-3 rounded-[12px] border border-[#315064] bg-[#122334] p-3" aria-live="polite">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-[#B6F1F9]">
+                            <Sparkles size={14} aria-hidden="true" /> {t.suggested}
+                          </div>
+                          <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-6 text-[#E8EFF5]">{activeSuggestion}</p>
+                          <div className="mt-3 flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSuggestion(null)}
+                              className="connect-focus min-h-10 rounded-lg border border-[#365064] px-3 text-xs font-semibold text-[#AAB8C9] hover:text-white"
+                            >
+                              {t.discardSuggestion}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={replySending}
+                              onClick={() => {
+                                setDrafts((current) => ({ ...current, [draftKey]: activeSuggestion }));
+                                pendingReplyRef.current = null;
+                                setSuggestion(null);
+                                setNotice('');
+                              }}
+                              className="connect-accent-button connect-focus min-h-10 rounded-lg px-4 text-xs font-semibold disabled:opacity-40"
+                            >
+                              {t.applySuggestion}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="rounded-[12px] border border-[#31465A] bg-[#101A27] p-2 focus-within:border-[#66D9EF]/35">
                         <textarea
                           value={replyText}
