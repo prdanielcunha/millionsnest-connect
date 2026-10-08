@@ -36,6 +36,8 @@ import {
   FirestoreMessageContentStore,
 } from '../core/inbox/firestoreMessageContentStore';
 import type { ConnectMessageContentStore } from '../core/inbox/messageContentStore';
+import type { InboxContactProfileStore } from '../core/inbox/inboxContactProfileStore';
+import { FirestoreInboxContactProfileStore } from '../core/inbox/firestoreInboxContactProfileStore';
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
 import { HumanReplyService } from '../core/inbox/humanReplyService';
 import { FirestoreHumanReplyDispatchStore } from '../core/inbox/firestoreHumanReplyDispatchStore';
@@ -73,6 +75,7 @@ export interface CreateConnectServerOptions {
   inboxContextProvider?: CanonicalContextProvider;
   inboxStore?: ConnectThreadStore;
   inboxMessageContentStore?: ConnectMessageContentStore;
+  inboxContactProfileStore?: InboxContactProfileStore;
   whatsappConnectionRegistry?: WhatsAppConnectionRegistry;
   inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
@@ -249,10 +252,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         : null;
 
       if (messageStore) {
+        // Default-off privacy gate. The operator must first configure Firestore
+        // TTL on expiresAt and explicitly confirm retention before enabling.
+        const contactProfilesEnabled =
+          env.CONNECT_INBOX_CONTACT_PROFILE_ENABLED?.trim().toLowerCase() === 'true' &&
+          env.CONNECT_INBOX_CONTACT_TTL_CONFIRMED?.trim().toLowerCase() === 'true';
+        const contactProfileStore = contactProfilesEnabled
+          ? options.inboxContactProfileStore
+            ?? new FirestoreInboxContactProfileStore({
+              projectId,
+              fetchImpl: options.fetchImpl,
+            })
+          : undefined;
         inboxConversationListHandler = createConnectInboxConversationListHttpHandler({
           contextProvider: inboxContextProvider,
           threadStore: gatedStore,
           messageStore,
+          contactProfileStore,
         });
         inboxMessageListHandler = createConnectInboxMessageListHttpHandler({
           contextProvider: inboxContextProvider,
@@ -272,6 +288,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               registry,
               messageStore,
               gatedStore,
+              undefined,
+              contactProfileStore,
             );
           } else {
             logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
