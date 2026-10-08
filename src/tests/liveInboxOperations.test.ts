@@ -6,6 +6,9 @@ import {
 } from '../features/inbox/liveInboxPresentation';
 import type { EffectiveEcosystemContext } from '../types';
 import fs from 'node:fs';
+import { createConnectThreadEvent, sameConnectThreadEventIntent } from '../core/inbox/threadDomain';
+import { InMemoryConnectThreadStore } from '../core/inbox/threadStore';
+import { ConnectThreadCommandService } from '../core/inbox/threadService';
 
 function effectiveContext(role: string | null, grants: string[] = []): EffectiveEcosystemContext {
   return {
@@ -56,5 +59,52 @@ assert.ok(inbox.includes('if (!selected || !canManage || threadActing'));
 assert.ok(client.includes('/api/core/inbox/threads/'));
 assert.ok(client.includes('/actions'));
 assert.ok(!client.includes('connectSensitiveOrganizations'), 'no direct sensitive Firestore writes');
+
+const event = createConnectThreadEvent({
+  eventType: 'THREAD_ASSIGNED',
+  requestId: 'retry-action-1',
+  organizationId: 'org-1',
+  conversationId: 'thread-1',
+  evidenceRef: 'evidence:source',
+  assigneeType: 'user',
+  assigneeRef: 'user-1',
+  occurredAt: new Date('2026-10-08T09:00:00.000Z'),
+});
+const laterRetry = createConnectThreadEvent({
+  eventType: 'THREAD_ASSIGNED',
+  requestId: 'retry-action-1',
+  organizationId: 'org-1',
+  conversationId: 'thread-1',
+  evidenceRef: 'evidence:source',
+  assigneeType: 'user',
+  assigneeRef: 'user-1',
+  occurredAt: new Date('2026-10-08T09:01:00.000Z'),
+});
+assert.equal(sameConnectThreadEventIntent(event, laterRetry), true);
+assert.equal(sameConnectThreadEventIntent(event, {
+  ...laterRetry,
+  payload: { ...laterRetry.payload, assigneeRef: 'another-user' },
+}), false, 'changed payload must fail closed');
+
+const store = new InMemoryConnectThreadStore();
+let time = 0;
+const service = new ConnectThreadCommandService(store, () => new Date(1760000000000 + time++ * 1000));
+await service.open({
+  requestId: 'open-operation-1', organizationId: 'org-1',
+  conversationId: 'thread-1', evidenceRef: 'source:1', channel: 'whatsapp',
+});
+const firstAction = await service.assign({
+  requestId: 'retry-action-1', organizationId: 'org-1',
+  conversationId: 'thread-1', evidenceRef: 'evidence:source',
+  assigneeType: 'user', assigneeRef: 'user-1',
+});
+const repeated = await service.assign({
+  requestId: 'retry-action-1', organizationId: 'org-1',
+  conversationId: 'thread-1', evidenceRef: 'evidence:source',
+  assigneeType: 'user', assigneeRef: 'user-1',
+});
+assert.equal(firstAction.kind, 'appended');
+assert.equal(repeated.kind, 'duplicate');
+assert.equal(repeated.projection.sourceEventCount, 2);
 
 console.log('Live Inbox management affordances, tenant scope and action idempotency: passed');
