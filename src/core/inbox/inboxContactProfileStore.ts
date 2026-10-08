@@ -33,6 +33,9 @@ export function sanitizeInboxContactName(value: unknown): string {
   const clean = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
     .replace(/\s+/g, ' ').trim().slice(0, 80);
   if (clean.length < 2 || !/[\p{L}]/u.test(clean)) return '';
+  // A self-reported name is not a channel address. Never render a long
+  // phone-like sequence as a contact label, even if it includes a first name.
+  if (/\d(?:[\s().-]*\d){9,}/.test(clean)) return '';
   return clean;
 }
 
