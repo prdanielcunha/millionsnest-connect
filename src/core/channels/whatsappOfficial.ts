@@ -8,6 +8,8 @@ export type WhatsAppInboundMessage = {
   timestamp: string;
   messageType: string;
   text?: string;
+  /** Self-reported profile label, not a verified legal identity. */
+  senderDisplayName?: string;
 };
 
 export type WhatsAppInboundStatus = {
@@ -86,6 +88,7 @@ export function normalizeWhatsAppWebhookEnvelope(payload: unknown): WhatsAppNorm
       const phoneNumberId = clean(value?.metadata?.phone_number_id, 128);
 
       const messages = Array.isArray(value.messages) ? value.messages : [];
+      const contacts = Array.isArray(value.contacts) ? value.contacts : [];
       for (const rawMessage of messages) {
         if (!rawMessage || typeof rawMessage !== 'object') continue;
         const message = rawMessage as any;
@@ -96,6 +99,12 @@ export function normalizeWhatsAppWebhookEnvelope(payload: unknown): WhatsAppNorm
         if (!providerMessageId || !from || !phoneNumberId) continue;
 
         const text = messageType === 'text' ? clean(message?.text?.body, 4096) : '';
+        // Only trust the contact object whose wa_id matches this actual sender.
+        // Do not transfer a label from another contact in the same envelope.
+        const matchingContact = contacts.find((contact: any) =>
+          contact && clean(contact.wa_id, 64) === from);
+        const senderDisplayName = typeof matchingContact?.profile?.name === 'string'
+          ? matchingContact.profile.name : '';
         events.push({
           kind: 'message',
           providerMessageId,
@@ -104,6 +113,7 @@ export function normalizeWhatsAppWebhookEnvelope(payload: unknown): WhatsAppNorm
           timestamp,
           messageType,
           ...(text ? { text } : {}),
+          ...(senderDisplayName ? { senderDisplayName } : {}),
         });
       }
 

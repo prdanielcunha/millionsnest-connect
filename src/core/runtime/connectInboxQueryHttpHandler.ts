@@ -6,11 +6,14 @@ import type {
 import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
 import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { ConnectMessageContentStore } from '../inbox/messageContentStore';
+import type { InboxContactProfileStore } from '../inbox/inboxContactProfileStore';
+import { filterAuthorizedInboxContactProfiles } from '../inbox/inboxContactProfileStore';
 
 export interface ConnectInboxQueryHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
   threadStore: ConnectThreadStore;
   messageStore: ConnectMessageContentStore;
+  contactProfileStore?: InboxContactProfileStore;
 }
 
 function bearer(req: express.Request): string {
@@ -157,10 +160,41 @@ export function createConnectInboxConversationListHttpHandler(
         organizationId: context.organizationId,
         limit,
       });
+      // Identity enrichment is derived only from these authorized threads.
+      // No caller-supplied phone number or arbitrary profile ID is accepted.
+      let profiles: Awaited<ReturnType<InboxContactProfileStore['list']>> = [];
+      if (options.contactProfileStore && conversations.length) {
+        try {
+          profiles = await options.contactProfileStore.list({
+            organizationId: context.organizationId,
+            conversationIds: conversations.map(thread => thread.conversationId),
+          });
+        } catch {
+          // Contact display labels are optional; remain functional without them.
+        }
+      }
+      const profileById = new Map(
+        filterAuthorizedInboxContactProfiles(
+          profiles,
+          context.organizationId,
+          conversations.map(thread => thread.conversationId),
+        ).map(profile => [profile.conversationId, profile]),
+      );
       return res.status(200).json({
         success: true,
         organizationId: context.organizationId,
-        conversations,
+        conversations: conversations.map(conversation => {
+          const profile = profileById.get(conversation.conversationId);
+          return {
+            ...conversation,
+            ...(profile ? {
+              contact: {
+                displayName: profile.displayName,
+                source: 'whatsapp_profile',
+              },
+            } : {}),
+          };
+        }),
       });
     } catch (error) {
       const mapped = storageFailure(error);

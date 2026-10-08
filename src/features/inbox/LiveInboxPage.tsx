@@ -48,6 +48,8 @@ const copy = {
     resolved: 'Resolvidas',
     search: 'Buscar conversas…',
     conversation: 'Conversa',
+    unidentified: 'Pessoa sem identificação',
+    profileLabel: 'Nome do perfil do WhatsApp',
     conversations: 'Conversas',
     noConversation: 'Nenhuma conversa neste filtro',
     noConversationDesc: 'A Inbox só mostra registros reais e autorizados. Revise o filtro ou aguarde a entrada de uma conversa.',
@@ -145,6 +147,8 @@ const copy = {
     resolved: 'Resolved',
     search: 'Search conversations…',
     conversation: 'Conversation',
+    unidentified: 'Unidentified contact',
+    profileLabel: 'WhatsApp profile name',
     conversations: 'Conversations',
     noConversation: 'No conversations in this filter',
     noConversationDesc: 'Inbox only shows real, authorized records. Review the filter or wait for a conversation to arrive.',
@@ -242,6 +246,8 @@ const copy = {
     resolved: 'Resueltas',
     search: 'Buscar conversaciones…',
     conversation: 'Conversación',
+    unidentified: 'Contacto sin identificar',
+    profileLabel: 'Nombre del perfil de WhatsApp',
     conversations: 'Conversaciones',
     noConversation: 'No hay conversaciones en este filtro',
     noConversationDesc: 'La bandeja solo muestra registros reales y autorizados. Revisa el filtro o espera la llegada de una conversación.',
@@ -471,6 +477,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       if (!normalized) return true;
       return [
         conversation.conversationId,
+        conversation.contact?.displayName || '',
         conversation.status,
         conversation.mode,
         conversation.assignedTo?.ref || '',
@@ -626,8 +633,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
             <UserRound size={17} />
           </span>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-[#EAF1F6]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
-            <div className="mt-1 text-[10px] text-[#708398]">{session.context.activeOrganization.name}</div>
+            <div className="truncate text-sm font-semibold text-[#EAF1F6]">{selected.contact?.displayName || t.unidentified}</div>
+            <div className="mt-1 text-[11px] text-[#8096AA]">{selected.contact ? t.profileLabel : session.context.activeOrganization.name}</div>
           </div>
         </div>
 
@@ -832,11 +839,14 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center justify-between gap-2">
-                              <span className="truncate text-[13px] font-semibold text-[#E8EFF5]">{t.conversation} {shortConversationId(conversation.conversationId)}</span>
+                              <span className="truncate text-[13px] font-semibold text-[#E8EFF5]">{conversation.contact?.displayName || t.unidentified}</span>
                               <span className="shrink-0 text-[11px] text-[#93A5B8]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
                             <span className="mt-1 block truncate text-[12px] text-[#8295AA]">
                               {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.mine : conversation.assignedTo ? t.responsible : t.unassigned}
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] text-[#64788D]">
+                              {conversation.contact ? t.profileLabel : shortConversationId(conversation.conversationId)}
                             </span>
                           </span>
                         </div>
@@ -872,8 +882,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                     <MessageSquareText size={14} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-[#EEF4F8]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
-                    <div className="mt-0.5 text-[9px] text-[#6A7E93]">{t.status[selected.status]} · {t.modes[selected.mode]}</div>
+                    <div className="truncate text-sm font-semibold text-[#EEF4F8]">{selected.contact?.displayName || t.unidentified}</div>
+                    <div className="mt-0.5 text-[11px] text-[#899AAF]">{t.status[selected.status]} · {t.modes[selected.mode]}{selected.contact ? ` · ${t.profileLabel}` : ''}</div>
                   </div>
                   {canManage && selected.status !== 'archived' && (
                     <button
