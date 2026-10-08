@@ -287,3 +287,21 @@ export function projectConnectThread(
 
   return state;
 }
+
+/**
+ * A retry may arrive after an uncertain network response with the same
+ * requestId, but a later wall-clock time. Compare the immutable operation
+ * and its scope, not the timestamps assigned by the accepting server.
+ * A different target/reason/evidence with the same eventId still collides.
+ */
+export function sameConnectThreadEventIntent(a: ConnectThreadEvent, b: ConnectThreadEvent): boolean {
+  return a.eventId === b.eventId
+    && a.eventType === b.eventType
+    && a.organizationId === b.organizationId
+    && a.conversationId === b.conversationId
+    && a.sourceApp === b.sourceApp
+    && a.evidenceRef === b.evidenceRef
+    && a.sensitivity === b.sensitivity
+    && a.version === b.version
+    && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+}
