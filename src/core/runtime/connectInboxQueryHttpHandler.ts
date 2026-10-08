@@ -7,7 +7,7 @@ import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
 import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { ConnectMessageContentStore } from '../inbox/messageContentStore';
 import type { InboxContactProfileStore } from '../inbox/inboxContactProfileStore';
-import { filterAuthorizedInboxContactProfiles } from '../inbox/inboxContactProfileStore';
+import { filterAuthorizedInboxContactProfiles, inboxContactSearchTerm } from '../inbox/inboxContactProfileStore';
 
 export interface ConnectInboxQueryHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
@@ -281,6 +281,71 @@ export function createConnectInboxMessageListHttpHandler(
         success: false,
         code: 'MESSAGE_CONTENT_UNAVAILABLE',
       });
+    }
+  };
+}
+
+/**
+ * Scoped Inbox contact search. Only index-backed, expiring, self-reported
+ * display labels are searched. A matching label cannot bypass canonical
+ * thread membership or Hub's read authority.
+ */
+export function createConnectInboxContactSearchHttpHandler(
+  options: ConnectInboxQueryHttpHandlerOptions,
+) {
+  return async function inboxContactSearchHttpHandler(
+    req: express.Request,
+    res: express.Response,
+  ) {
+    setPrivateHeaders(res);
+    const organizationId = safeId(req.query.organizationId);
+    const term = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const limit = limitOf(req.query.limit, 20, 30);
+    if (!organizationId || term.length < 2 || term.length > 80 || !inboxContactSearchTerm(term)) {
+      return res.status(400).json({ success: false, code: 'INBOX_SEARCH_INVALID' });
+    }
+    const context = await resolveReadContext(req, res, options, organizationId);
+    if (!context) return;
+
+    if (!options.contactProfileStore?.search) {
+      return res.status(200).json({
+        success: true,
+        organizationId: context.organizationId,
+        enabled: false,
+        conversations: [],
+      });
+    }
+    try {
+      const candidates = await options.contactProfileStore.search({
+        organizationId: context.organizationId,
+        term,
+        limit,
+      });
+      const profiles = filterAuthorizedInboxContactProfiles(
+        candidates,
+        context.organizationId,
+        candidates.map(item => item.conversationId),
+      ).slice(0, limit);
+      const conversations = await Promise.all(profiles.map(async profile => {
+        const projection = await options.threadStore.load({
+          organizationId: context.organizationId,
+          conversationId: profile.conversationId,
+        });
+        if (!projection) return null;
+        return {
+          ...projection,
+          contact: { displayName: profile.displayName, source: 'whatsapp_profile' as const },
+        };
+      }));
+      return res.status(200).json({
+        success: true,
+        organizationId: context.organizationId,
+        enabled: true,
+        conversations: conversations.filter(Boolean),
+      });
+    } catch (error) {
+      const mapped = storageFailure(error);
+      return res.status(mapped.status).json({ success: false, code: mapped.code });
     }
   };
 }
