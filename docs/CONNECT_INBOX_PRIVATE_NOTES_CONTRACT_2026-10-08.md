@@ -8,7 +8,7 @@ Registrar observações da equipe dentro da conversa **sem jamais enviá-las por
 
 ## Implementação
 
-- Persistência isolada: `connectSensitiveOrganizations/{organizationId}/inboxInternalNotes/{conversationId}/notes/{noteId}`.
+- Persistência isolada: `connectSensitiveOrganizations/{organizationId}/inboxInternalNotes/{conversationId}/inboxOperatorNotes/{noteId}`.
 - Nota contém autor `actorUid` resolvido **no servidor**, corpo de até 2000 caracteres, data do registro, referência de conversa e `expiresAt` (30 dias). Não contém número de WhatsApp, provider ID ou acesso externo.
 - `noteId` é determinístico a partir de organização + conversa + ator + `requestId`; Firestore grava com precondition create-only e verifica colisão/retry. Alterar texto mantendo requestId falha.
 - Rota `GET /api/core/inbox/threads/:conversationId/notes`: Hub `inbox.read` + thread existente; retorna só notas autorizadas.
@@ -24,7 +24,7 @@ As duas condições precisam estar explicitamente verdadeiras:
 - `CONNECT_INBOX_INTERNAL_NOTES_ENABLED=true`
 - `CONNECT_INBOX_INTERNAL_NOTES_TTL_CONFIRMED=true`
 
-**A segunda flag NÃO deve ser ligada sem configurar e comprovar o Firestore TTL na collection group `notes`, campo `expiresAt`, além de revisar escopo e outros possíveis usos da collection group no projeto.** Como nomes de coleção `notes` podem colidir com módulos existentes, o recomendado antes da implantação é dar à coleção um ID globalmente único ou comprovar com auditoria que o TTL pretendido não afetará nenhuma coleção de terceiros. Se não for possível comprovar, manter desativado. Verificar também IAM, custos, LGPD e exclusão física.
+**A segunda flag NÃO deve ser ligada sem configurar e comprovar o Firestore TTL na collection group `inboxOperatorNotes`, campo `expiresAt`, além de revisar escopo e outros possíveis usos da collection group no projeto.** O nome específico da collection group evita aplicar a regra a outras coleções genéricas de notas. Conferir a configuração real do TTL antes de ligar as flags. Verificar também IAM, custos, LGPD e exclusão física.
 
 A consulta omite notas expiradas imediatamente; exclusão física depende do TTL. Não há importação automática nem retroatividade.
 
