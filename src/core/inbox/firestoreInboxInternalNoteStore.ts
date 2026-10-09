@@ -88,7 +88,7 @@ export class FirestoreInboxInternalNoteStore implements InboxInternalNoteStore {
     body: string;
   }): Promise<{ kind: 'created' | 'duplicate'; note: InboxInternalNote }> {
     const note = makeInboxInternalNote(input, this.now(), this.retentionDays);
-    const path = `${this.collection(input.organizationId, input.conversationId)}/notes/${id(note.noteId)}`;
+    const path = `${this.collection(input.organizationId, input.conversationId)}/inboxOperatorNotes/${id(note.noteId)}`;
     const token = await this.tokenProvider.getAccessToken();
     let successful = false;
     try {
@@ -151,7 +151,7 @@ export class FirestoreInboxInternalNoteStore implements InboxInternalNoteStore {
       },
       body: JSON.stringify({
         structuredQuery: {
-          from: [{ collectionId: 'notes' }],
+          from: [{ collectionId: 'inboxOperatorNotes' }],
           orderBy: [{ field: { fieldPath: 'recordedAt' }, direction: 'DESCENDING' }],
           limit,
         },
