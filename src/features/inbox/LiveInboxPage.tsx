@@ -43,6 +43,8 @@ const copy = {
     title: 'Atendimento',
     subtitle: 'Converse, entenda e resolva com contexto — sem transformar a Inbox em painel técnico.',
     refresh: 'Atualizar',
+    loadMore: 'Carregar mais conversas',
+    loadingMore: 'Carregando…',
     all: 'Todas',
     open: 'Abertas',
     resolved: 'Resolvidas',
@@ -144,6 +146,8 @@ const copy = {
     title: 'Support',
     subtitle: 'Talk, understand and resolve with context — without turning Inbox into a technical dashboard.',
     refresh: 'Refresh',
+    loadMore: 'Load more conversations',
+    loadingMore: 'Loading…',
     all: 'All',
     open: 'Open',
     resolved: 'Resolved',
@@ -245,6 +249,8 @@ const copy = {
     title: 'Atención',
     subtitle: 'Conversa, entiende y resuelve con contexto — sin convertir la bandeja en un panel técnico.',
     refresh: 'Actualizar',
+    loadMore: 'Cargar más conversaciones',
+    loadingMore: 'Cargando…',
     all: 'Todas',
     open: 'Abiertas',
     resolved: 'Resueltas',
@@ -378,6 +384,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [searchEnabled, setSearchEnabled] = useState<boolean | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [replySending, setReplySending] = useState(false);
   const [threadActing, setThreadActing] = useState(false);
@@ -402,6 +410,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const load = async () => {
     const sequence = ++loadSequenceRef.current;
     setLoading(true);
+    setLoadingMore(false);
     setError('');
     try {
       const nextReadiness = await client.getReadiness();
@@ -413,19 +422,42 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
 
       if (!canRead) {
         setConversations([]);
+        setNextCursor(null);
         setSelectedId('');
         setMessages([]);
         return;
       }
 
-      const next = await client.listConversations();
+      const page = await client.listConversationsPage();
       if (sequence !== loadSequenceRef.current) return;
-      setConversations(next);
-      setSelectedId((current) => current && next.some((item) => item.conversationId === current) ? current : '');
+      setConversations(page.conversations);
+      setNextCursor(page.nextCursor);
+      setSelectedId((current) => current && page.conversations.some((item) => item.conversationId === current) ? current : '');
     } catch (e) {
       if (sequence === loadSequenceRef.current) setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
     } finally {
       if (sequence === loadSequenceRef.current) setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!nextCursor || loading || loadingMore) return;
+    const sequence = loadSequenceRef.current;
+    setLoadingMore(true);
+    try {
+      const page = await client.listConversationsPage(50, nextCursor);
+      if (sequence !== loadSequenceRef.current) return;
+      setConversations(current => [
+        ...current,
+        ...page.conversations.filter(item => !current.some(old => old.conversationId === item.conversationId)),
+      ]);
+      setNextCursor(page.nextCursor);
+    } catch (e) {
+      if (sequence === loadSequenceRef.current) {
+        setError(e instanceof Error ? e.message : 'INBOX_PAGINATION_UNAVAILABLE');
+      }
+    } finally {
+      if (sequence === loadSequenceRef.current) setLoadingMore(false);
     }
   };
 
@@ -439,6 +471,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     // while the new session is loading or when its backend is unavailable.
     setReadiness(null);
     setConversations([]);
+    setNextCursor(null);
     setRemoteConversations([]);
     setOpenedRemote(null);
     setSearchEnabled(null);
@@ -906,6 +939,19 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                       </button>
                     );
                   })}
+                </div>
+              )}
+              {!loading && !query.trim() && nextCursor && (
+                <div className="border-t border-[#263648] p-3">
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    disabled={loadingMore}
+                    className="connect-focus flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#31475A] bg-[#122031] px-3 text-xs font-semibold text-[#B8D8E8] hover:bg-[#182B3F] disabled:opacity-40"
+                  >
+                    {loadingMore && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+                    {loadingMore ? t.loadingMore : t.loadMore}
+                  </button>
                 </div>
               )}
             </div>

@@ -15,12 +15,25 @@ export type ConnectThreadAppendResult = {
   projection: ConnectThreadProjection;
 };
 
+export type ConnectThreadPage = {
+  threads: readonly ConnectThreadProjection[];
+  nextCursor: string | null;
+};
+
+export type ConnectThreadPageQuery = {
+  organizationId: string;
+  limit?: number;
+  cursor?: string;
+};
+
 export interface ConnectThreadStore {
   load(scope: ConnectThreadScope): Promise<ConnectThreadProjection | null>;
   listByOrganization(input: {
     organizationId: string;
     limit?: number;
   }): Promise<readonly ConnectThreadProjection[]>;
+  /** Optional adapter method; no breaking change to existing stores. */
+  listPageByOrganization?(input: ConnectThreadPageQuery): Promise<ConnectThreadPage>;
   readEvents(scope: ConnectThreadScope): Promise<readonly ConnectThreadEvent[]>;
   append(
     event: ConnectThreadEvent,

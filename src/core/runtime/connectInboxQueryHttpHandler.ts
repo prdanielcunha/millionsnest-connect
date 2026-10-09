@@ -145,7 +145,8 @@ export function createConnectInboxConversationListHttpHandler(
 
     const organizationId = safeId(req.query.organizationId);
     const limit = limitOf(req.query.limit, 50, 100);
-    if (!organizationId) {
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : '';
+    if (!organizationId || cursor.length > 1024) {
       return res.status(400).json({
         success: false,
         code: 'INBOX_SCOPE_REQUIRED',
@@ -156,10 +157,23 @@ export function createConnectInboxConversationListHttpHandler(
     if (!context) return;
 
     try {
-      const conversations = await options.threadStore.listByOrganization({
-        organizationId: context.organizationId,
-        limit,
-      });
+      if (cursor && !options.threadStore.listPageByOrganization) {
+        return res.status(400).json({ success: false, code: 'INBOX_CURSOR_INVALID' });
+      }
+      const page = options.threadStore.listPageByOrganization
+        ? await options.threadStore.listPageByOrganization({
+            organizationId: context.organizationId,
+            limit,
+            ...(cursor ? { cursor } : {}),
+          })
+        : {
+            threads: await options.threadStore.listByOrganization({
+              organizationId: context.organizationId,
+              limit,
+            }),
+            nextCursor: null,
+          };
+      const conversations = page.threads;
       // Identity enrichment is derived only from these authorized threads.
       // No caller-supplied phone number or arbitrary profile ID is accepted.
       let profiles: Awaited<ReturnType<InboxContactProfileStore['list']>> = [];
@@ -183,6 +197,7 @@ export function createConnectInboxConversationListHttpHandler(
       return res.status(200).json({
         success: true,
         organizationId: context.organizationId,
+        nextCursor: page.nextCursor,
         conversations: conversations.map(conversation => {
           const profile = profileById.get(conversation.conversationId);
           return {
@@ -197,6 +212,9 @@ export function createConnectInboxConversationListHttpHandler(
         }),
       });
     } catch (error) {
+      if (error instanceof Error && (error.message === 'INBOX_CURSOR_INVALID' || error.message === 'INBOX_PAGINATION_UNAVAILABLE')) {
+        return res.status(400).json({ success: false, code: 'INBOX_CURSOR_INVALID' });
+      }
       const mapped = storageFailure(error);
       return res.status(mapped.status).json({
         success: false,
