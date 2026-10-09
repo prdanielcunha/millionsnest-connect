@@ -46,7 +46,9 @@ const copy = {
     all: 'Todas',
     open: 'Abertas',
     resolved: 'Resolvidas',
-    search: 'Buscar conversas…',
+    search: 'Buscar conversas ou pessoas…',
+    searchIndex: 'Buscando nomes com segurança…',
+    searchLocal: 'Busca nesta lista; índice de nomes ainda não ativado.',
     conversation: 'Conversa',
     unidentified: 'Pessoa sem identificação',
     profileLabel: 'Nome do perfil do WhatsApp',
@@ -145,7 +147,9 @@ const copy = {
     all: 'All',
     open: 'Open',
     resolved: 'Resolved',
-    search: 'Search conversations…',
+    search: 'Search conversations or people…',
+    searchIndex: 'Searching names securely…',
+    searchLocal: 'Searching this list; the name index is not enabled yet.',
     conversation: 'Conversation',
     unidentified: 'Unidentified contact',
     profileLabel: 'WhatsApp profile name',
@@ -244,7 +248,9 @@ const copy = {
     all: 'Todas',
     open: 'Abiertas',
     resolved: 'Resueltas',
-    search: 'Buscar conversaciones…',
+    search: 'Buscar conversaciones o personas…',
+    searchIndex: 'Buscando nombres de forma segura…',
+    searchLocal: 'Buscando en esta lista; el índice de nombres aún no está activo.',
     conversation: 'Conversación',
     unidentified: 'Contacto sin identificar',
     profileLabel: 'Nombre del perfil de WhatsApp',
@@ -366,6 +372,10 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
   const [filter, setFilter] = useState<ConversationFilter>('all');
   const [query, setQuery] = useState('');
+  const [remoteConversations, setRemoteConversations] = useState<LiveInboxConversation[]>([]);
+  const [openedRemote, setOpenedRemote] = useState<LiveInboxConversation | null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchEnabled, setSearchEnabled] = useState<boolean | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -429,6 +439,9 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     // while the new session is loading or when its backend is unavailable.
     setReadiness(null);
     setConversations([]);
+    setRemoteConversations([]);
+    setOpenedRemote(null);
+    setSearchEnabled(null);
     setSelectedId('');
     setMessages([]);
     setDrafts({});
@@ -437,6 +450,33 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     pendingThreadActionRef.current = null;
     setShowContext(false);
   }, [client]);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setRemoteConversations([]);
+      setSearchEnabled(null);
+      setSearchBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchBusy(true);
+    const timer = setTimeout(() => {
+      void client.searchConversations(trimmed)
+        .then(result => {
+          if (cancelled) return;
+          setRemoteConversations(result.conversations);
+          setSearchEnabled(result.enabled);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setRemoteConversations([]);
+          setSearchEnabled(false);
+        })
+        .finally(() => { if (!cancelled) setSearchBusy(false); });
+    }, 360);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [client, query]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -464,12 +504,18 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   }, [showContext]);
 
   const canManage = canShowInboxManagement(session.context);
-  const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
+  const selected = conversations.find((conversation) => conversation.conversationId === selectedId)
+    ?? (openedRemote?.conversationId === selectedId ? openedRemote : null);
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
   const replyText = draftKey ? drafts[draftKey] || '' : '';
   const activeSuggestion = suggestion?.scopeKey === draftKey ? suggestion.text : '';
 
-  const visibleConversations = conversations
+  const searchPool = query.trim().length >= 2
+    ? [...conversations, ...remoteConversations.filter(remote =>
+        !conversations.some(local => local.conversationId === remote.conversationId))]
+    : conversations;
+
+  const visibleConversations = searchPool
     .filter((conversation) => {
       if (filter === 'open' && !isOpenConversation(conversation)) return false;
       if (filter === 'resolved' && !['resolved', 'archived'].includes(conversation.status)) return false;
@@ -801,6 +847,12 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                   className="min-w-0 flex-1 bg-transparent text-base text-[#D9E2EA] outline-none placeholder:text-[#526579] md:text-sm"
                 />
               </label>
+              {query.trim().length >= 2 && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-[#8295AA]" role="status">
+                  {searchBusy && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
+                  {searchBusy ? t.searchIndex : searchEnabled === false ? t.searchLocal : ''}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -828,6 +880,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                         key={conversation.conversationId}
                         type="button"
                         onClick={() => {
+                          setOpenedRemote(conversation);
                           setSelectedId(conversation.conversationId);
                           setShowContext(false);
                         }}

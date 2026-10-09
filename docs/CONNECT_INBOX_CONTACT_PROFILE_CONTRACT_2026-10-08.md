@@ -38,3 +38,14 @@ A escrita pode gerar cobrança Firestore. Medir custo por conversa, especialment
 ## Próximo incremento
 
 Busca org-scoped com paginação/cursor server-side, transferência a equipe com catálogo de alvos autorizado, notas internas em store separado e prova do Magic Moment WhatsApp → Hub → MusicScale. Evitar promover contatos privados do Radar para a organização automaticamente.
+
+
+## Incremento de busca indexada — 08/10/2026
+
+- A escrita de `inboxContactProfiles` passa a incluir `searchKeys` (prefixos normalizados de palavras do próprio nome), no **mesmo documento sensível e sujeito ao mesmo TTL**; não indexa telefone ou conteúdo das mensagens.
+- A consulta usa Firestore `runQuery` sob `connectSensitiveOrganizations/{organizationId}`, `array_contains` e limite estrito. Nenhum `collectionGroup` global de pessoas é pesquisado.
+- Novo endpoint `GET /api/core/inbox/conversations/search?organizationId=...&q=...` revalida Hub `connect.inbox.read` antes do índice. Cada resultado é novamente confrontado com o thread store canônico, com expiração e organização.
+- Busca por nome com ao menos 2 caracteres; normalização de maiúsculas/acentos; termos de pesquisa são enviados apenas em requisição autenticada sem cache.
+- A UI faz debounce de 360ms e combina resultados remotos com os já carregados; mostra busca local quando o índice está desligado ou indisponível. Busca de telefone, tags, conteúdo das mensagens e históricos antigos sem perfil não está disponível.
+- Manter `CONNECT_INBOX_CONTACT_PROFILE_ENABLED` e `CONNECT_INBOX_CONTACT_TTL_CONFIRMED` desligados até validar TTL, IAM, custo e uso na homologação. Nenhum backfill acontece automaticamente.
+- Testes de query restrita, tenant divergente, perfil expirado, autorização negada, retorno quando desativado, normalização e cobertura de adapter.

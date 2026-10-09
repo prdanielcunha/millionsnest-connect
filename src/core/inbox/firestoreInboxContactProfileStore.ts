@@ -1,5 +1,5 @@
 import type { InboxContactProfile, InboxContactProfileStore } from './inboxContactProfileStore';
-import { filterAuthorizedInboxContactProfiles, makeInboxContactProfile } from './inboxContactProfileStore';
+import { filterAuthorizedInboxContactProfiles, inboxContactMatchesSearch, inboxContactSearchKeys, inboxContactSearchTerm, makeInboxContactProfile } from './inboxContactProfileStore';
 import {
   GoogleMetadataAccessTokenProvider,
   type ConnectRuntimeAccessTokenProvider,
@@ -83,6 +83,7 @@ export class FirestoreInboxContactProfileStore implements InboxContactProfileSto
             source: fieldString(record.source),
             observedAt: fieldString(record.observedAt),
             expiresAt: { timestampValue: record.expiresAt },
+            searchKeys: { arrayValue: { values: inboxContactSearchKeys(record.displayName).map(fieldString) } },
           },
         }),
         cache: 'no-store',
@@ -138,4 +139,70 @@ export class FirestoreInboxContactProfileStore implements InboxContactProfileSto
     }
     return filterAuthorizedInboxContactProfiles(records, input.organizationId, ids, this.now());
   }
+  async search(input: {
+    organizationId: string;
+    term: string;
+    limit?: number;
+  }): Promise<readonly InboxContactProfile[]> {
+    const term = inboxContactSearchTerm(input.term);
+    if (!term) return [];
+    const safeOrg = safePathSegment(input.organizationId);
+    const limit = Math.max(1, Math.min(input.limit ?? 20, 30));
+    const token = await this.tokenProvider.getAccessToken();
+    const response = await this.fetchImpl(
+      `${this.base}/connectSensitiveOrganizations/${safeOrg}:runQuery`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: 'inboxContactProfiles' }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: 'searchKeys' },
+                op: 'ARRAY_CONTAINS',
+                value: fieldString(term),
+              },
+            },
+            limit,
+          },
+        }),
+        cache: 'no-store',
+      },
+    );
+    if (!response.ok) throw new Error('INBOX_CONTACT_SEARCH_UNAVAILABLE');
+    const raw = await response.text();
+    if (!raw.trim()) return [];
+    let values: any[];
+    try {
+      const parsed = JSON.parse(raw);
+      values = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      try { values = raw.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)); }
+      catch { throw new Error('INBOX_CONTACT_SEARCH_INVALID'); }
+    }
+    const profiles: InboxContactProfile[] = [];
+    for (const item of values) {
+      const doc = item?.document;
+      if (!doc) continue;
+      profiles.push({
+        organizationId: readField(doc, 'organizationId'),
+        conversationId: readField(doc, 'conversationId'),
+        displayName: readField(doc, 'displayName'),
+        source: readField(doc, 'source') as 'whatsapp_profile',
+        observedAt: readField(doc, 'observedAt'),
+        expiresAt: typeof doc.fields?.expiresAt?.timestampValue === 'string'
+          ? doc.fields.expiresAt.timestampValue : '',
+      });
+    }
+    const candidates = profiles.filter(record => record.organizationId === input.organizationId &&
+      inboxContactMatchesSearch(record.displayName, input.term));
+    return filterAuthorizedInboxContactProfiles(
+      candidates, input.organizationId, candidates.map(record => record.conversationId), this.now(),
+    ).slice(0, limit);
+  }
+
 }

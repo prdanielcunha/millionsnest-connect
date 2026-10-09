@@ -26,6 +26,13 @@ export interface InboxContactProfileStore {
     organizationId: string;
     conversationIds: readonly string[];
   }): Promise<readonly InboxContactProfile[]>;
+
+  /** Optional provider-specific indexed lookup, always scoped to one tenant. */
+  search?(input: {
+    organizationId: string;
+    term: string;
+    limit?: number;
+  }): Promise<readonly InboxContactProfile[]>;
 }
 
 export function sanitizeInboxContactName(value: unknown): string {
@@ -76,4 +83,32 @@ export function filterAuthorizedInboxContactProfiles(
     record.source === 'whatsapp_profile' &&
     !!sanitizeInboxContactName(record.displayName) &&
     new Date(record.expiresAt).getTime() > now.getTime());
+}
+
+
+/** Privacy-sensitive search tokens live only with the expiring contact record. */
+export function normalizeInboxContactSearch(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+}
+
+export function inboxContactSearchKeys(displayName: string): string[] {
+  const tokens = normalizeInboxContactSearch(displayName).split(' ').filter(Boolean);
+  const keys = new Set<string>();
+  for (const token of tokens.slice(0, 8)) {
+    for (let n = 2; n <= Math.min(token.length, 20); n++) keys.add(token.slice(0, n));
+  }
+  return [...keys].slice(0, 96);
+}
+
+export function inboxContactSearchTerm(query: string): string {
+  const parts = normalizeInboxContactSearch(query).split(' ').filter(Boolean);
+  const term = parts.at(-1) || '';
+  return term.length >= 2 && term.length <= 20 ? term : '';
+}
+
+export function inboxContactMatchesSearch(displayName: string, query: string): boolean {
+  const words = normalizeInboxContactSearch(displayName).split(' ');
+  const terms = normalizeInboxContactSearch(query).split(' ').filter(Boolean);
+  return terms.length > 0 && terms.every(term => words.some(word => word.startsWith(term)));
 }

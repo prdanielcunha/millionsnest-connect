@@ -8,6 +8,20 @@ const fetched: typeof fetch = async (url, init) => {
   const body = JSON.parse(String(init?.body || '{}'));
   calls.push({ url: target, method, body });
   if (method === 'PATCH') return new Response('{}', { status: 200 });
+  if (method === 'POST' && target.endsWith(':runQuery')) {
+    return new Response(JSON.stringify([{
+      document: {
+        fields: {
+          organizationId: { stringValue: 'org-a' },
+          conversationId: { stringValue: 'conversation-1' },
+          displayName: { stringValue: 'Ana Maria' },
+          source: { stringValue: 'whatsapp_profile' },
+          observedAt: { stringValue: '2026-10-08T12:00:00.000Z' },
+          expiresAt: { timestampValue: '2027-01-06T12:00:00.000Z' },
+        },
+      },
+    }]), { status: 200 });
+  }
   if (method === 'POST' && target.endsWith(':batchGet')) {
     const requested = body.documents[0];
     return new Response(JSON.stringify([{
@@ -52,6 +66,7 @@ const write = calls[0];
 assert.equal(write.method, 'PATCH');
 assert.ok(write.url.includes('/connectSensitiveOrganizations/org-a/inboxContactProfiles/conversation-1'));
 assert.equal(write.body.fields.displayName.stringValue, 'Ana Maria');
+assert.ok(write.body.fields.searchKeys.arrayValue.values.some((key: any) => key.stringValue === 'mar'), 'indexed prefix enables search');
 assert.ok(write.body.fields.expiresAt.timestampValue, 'Firestore TTL timestamp must be typed');
 assert.ok(!JSON.stringify(write.body).includes('5543999999999'));
 const profiles = await store.list({ organizationId: 'org-a', conversationIds: ['conversation-1'] });
@@ -69,4 +84,12 @@ await assert.rejects(
   () => store.list({ organizationId: 'org-a', conversationIds: ['../other'] }),
   /INBOX_CONTACT_SCOPE_INVALID/,
 );
+const found = await store.search({ organizationId: 'org-a', term: 'MaR', limit: 20 });
+assert.equal(found.length, 1, 'accent and case independent indexed lookup returns authorized contact');
+assert.equal(found[0].conversationId, 'conversation-1');
+const searchCall = calls.find(call => call.url.endsWith(':runQuery'))!;
+assert.equal(searchCall.body.structuredQuery.where.fieldFilter.op, 'ARRAY_CONTAINS');
+assert.equal(searchCall.body.structuredQuery.where.fieldFilter.value.stringValue, 'mar');
+assert.ok(searchCall.url.includes('/connectSensitiveOrganizations/org-a:runQuery'));
+assert.deepEqual(await store.search({ organizationId: 'org-a', term: 'x' }), [], 'one-letter queries do not reach database');
 console.log('Firestore contact identity: scoped path, typed TTL, batchGet and tenant isolation PASS');

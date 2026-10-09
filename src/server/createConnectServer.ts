@@ -25,6 +25,7 @@ import {
 import { createConnectInboxReadinessHttpHandler } from '../core/runtime/connectInboxReadinessHttpHandler';
 import {
   createConnectInboxConversationListHttpHandler,
+  createConnectInboxContactSearchHttpHandler,
   createConnectInboxMessageListHttpHandler,
 } from '../core/runtime/connectInboxQueryHttpHandler';
 import { createConnectInboxHumanReplyHttpHandler } from '../core/runtime/connectInboxHumanReplyHttpHandler';
@@ -129,6 +130,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
   let inboxConversationListHandler: ReturnType<typeof createConnectInboxConversationListHttpHandler> | null = null;
+  let inboxContactSearchHandler: ReturnType<typeof createConnectInboxContactSearchHttpHandler> | null = null;
   let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
   let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
@@ -265,6 +267,12 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             })
           : undefined;
         inboxConversationListHandler = createConnectInboxConversationListHttpHandler({
+          contextProvider: inboxContextProvider,
+          threadStore: gatedStore,
+          messageStore,
+          contactProfileStore,
+        });
+        inboxContactSearchHandler = createConnectInboxContactSearchHttpHandler({
           contextProvider: inboxContextProvider,
           threadStore: gatedStore,
           messageStore,
@@ -507,6 +515,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxReadinessHandler(req, res);
+  });
+
+  app.get('/api/core/inbox/conversations/search', async (req, res) => {
+    if (!inboxContactSearchHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({ success: false, code: 'INBOX_SEARCH_UNAVAILABLE' });
+    }
+    return inboxContactSearchHandler(req, res);
   });
 
   app.get('/api/core/inbox/conversations', async (req, res) => {
