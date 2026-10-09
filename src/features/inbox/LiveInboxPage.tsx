@@ -24,6 +24,7 @@ import {
   type LiveInboxConversation,
   type LiveInboxMessage,
   type LiveInboxReadiness,
+  type LiveInboxInternalNote,
 } from '../../core/client/liveInboxClient';
 import type { LanguageCode } from '../../types';
 import { ConnectNestAiClient } from '../../core/client/connectNestAiClient';
@@ -81,6 +82,13 @@ const copy = {
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
     reopenForReply: 'Reabra a conversa antes de responder pelo canal oficial.',
     context: 'Contexto da conversa',
+    noteTitle: 'Notas internas',
+    noteDesc: 'Visível apenas para a equipe. Nunca enviada ao cliente.',
+    notePlaceholder: 'Escreva uma nota interna…',
+    noteSave: 'Salvar nota',
+    noteSaving: 'Salvando nota…',
+    noteSaved: 'Nota interna registrada.',
+    noteDuplicate: 'Esta nota já havia sido registrada.',
     claim: 'Assumir atendimento',
     waiting: 'Aguardar resposta',
     resolve: 'Resolver',
@@ -186,6 +194,13 @@ const copy = {
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
     reopenForReply: 'Reopen the conversation before replying through the official channel.',
     context: 'Conversation context',
+    noteTitle: 'Internal notes',
+    noteDesc: 'Visible only to your team. Never sent to the contact.',
+    notePlaceholder: 'Write an internal note…',
+    noteSave: 'Save note',
+    noteSaving: 'Saving note…',
+    noteSaved: 'Internal note saved.',
+    noteDuplicate: 'This note was already recorded.',
     claim: 'Take ownership',
     waiting: 'Wait for reply',
     resolve: 'Resolve',
@@ -291,6 +306,13 @@ const copy = {
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
     reopenForReply: 'Reabre la conversación antes de responder por el canal oficial.',
     context: 'Contexto de la conversación',
+    noteTitle: 'Notas internas',
+    noteDesc: 'Solo tu equipo puede verlas. Nunca se envían al contacto.',
+    notePlaceholder: 'Escribe una nota interna…',
+    noteSave: 'Guardar nota',
+    noteSaving: 'Guardando nota…',
+    noteSaved: 'Nota interna guardada.',
+    noteDuplicate: 'Esta nota ya estaba registrada.',
     claim: 'Tomar atención',
     waiting: 'Esperar respuesta',
     resolve: 'Resolver',
@@ -401,9 +423,15 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<{ scopeKey: string; text: string } | null>(null);
   const [showContext, setShowContext] = useState(false);
+  const [internalNotes, setInternalNotes] = useState<LiveInboxInternalNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [noteSending, setNoteSending] = useState(false);
+  const [noteError, setNoteError] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const pendingReplyRef = useRef<InboxReplyAttempt | null>(null);
+  const pendingNoteAttemptRef = useRef<{ scope: string; text: string; id: string } | null>(null);
   const pendingThreadActionRef = useRef<InboxThreadActionAttempt | null>(null);
   const loadSequenceRef = useRef(0);
   const selectedScopeRef = useRef('');
@@ -412,6 +440,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const contentReady = readiness?.foundations.some(
     (item) => item.id === 'message_content_store' && item.status === 'ready',
   ) ?? false;
+  const internalNotesEnabled = readiness?.internalNotesEnabled === true;
   const humanReplyReady = readiness?.foundations.some(
     (item) => item.id === 'human_reply' && item.status === 'ready',
   ) ?? false;
@@ -486,6 +515,10 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     setSearchEnabled(null);
     setSelectedId('');
     setMessages([]);
+    setInternalNotes([]);
+    setNoteDraft('');
+    setNoteError('');
+    pendingNoteAttemptRef.current = null;
     setDrafts({});
     setSuggestion(null);
     pendingReplyRef.current = null;
@@ -549,6 +582,21 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       });
     return () => { cancelled = true; timelineSequenceRef.current += 1; };
   }, [client, selectedId]);
+
+  useEffect(() => {
+    setInternalNotes([]);
+    setNoteDraft('');
+    setNoteError('');
+    pendingNoteAttemptRef.current = null;
+    if (!selectedId || !internalNotesEnabled) return;
+    let cancelled = false;
+    setNotesLoading(true);
+    void client.listInternalNotes(selectedId)
+      .then(items => { if (!cancelled) setInternalNotes(items); })
+      .catch(() => { if (!cancelled) setNoteError('INBOX_NOTE_READ_UNAVAILABLE'); })
+      .finally(() => { if (!cancelled) setNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [client, selectedId, internalNotesEnabled]);
 
   useEffect(() => {
     if (!showContext) return;
@@ -737,6 +785,38 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     archive: t.archive,
   };
 
+  const saveInternalNote = async () => {
+    if (!selected || !canManage || !internalNotesEnabled || noteSending || !noteDraft.trim()) return;
+    const scope = draftKey, body = noteDraft.trim();
+    let attempt = pendingNoteAttemptRef.current;
+    if (!attempt || attempt.scope !== scope || attempt.text !== body) {
+      attempt = {
+        scope, text: body,
+        id: globalThis.crypto?.randomUUID?.() || `note-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
+      pendingNoteAttemptRef.current = attempt;
+    }
+    setNoteSending(true);
+    setNoteError('');
+    try {
+      const result = await client.addInternalNote({
+        conversationId: selected.conversationId, requestId: attempt.id, body,
+      });
+      if (selectedScopeRef.current !== scope) return;
+      pendingNoteAttemptRef.current = null;
+      setNoteDraft('');
+      setInternalNotes(current =>
+        current.some(item => item.noteId === result.note.noteId) ? current : [result.note, ...current]);
+      setNotice(result.outcome === 'duplicate' ? t.noteDuplicate : t.noteSaved);
+    } catch (error) {
+      if (selectedScopeRef.current === scope) {
+        setNoteError(error instanceof Error ? error.message : 'INBOX_NOTE_WRITE_UNAVAILABLE');
+      }
+    } finally {
+      setNoteSending(false);
+    }
+  };
+
   const contextPanel = selected ? (
     <div className="flex h-full flex-col">
       <div className="border-b connect-divider px-4 py-4">
@@ -794,6 +874,49 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#6A7E93]">{t.next}</div>
           <p className="mt-2 text-xs leading-5 text-[#A7B5C3]">{nextStep(selected.status, t)}</p>
         </div>
+
+        {internalNotesEnabled && (
+          <section className="mt-5 border-t border-[#2B3A4D] pt-5" aria-label={t.noteTitle}>
+            <h3 className="text-xs font-semibold text-[#EAF1F6]">{t.noteTitle}</h3>
+            <p className="mt-1.5 text-[11px] leading-5 text-[#94A7BB]">{t.noteDesc}</p>
+            {notesLoading && <Loader2 size={15} className="mt-3 animate-spin text-[#7EABC4]" aria-label={t.loadingMore} />}
+            {noteError && <p className="mt-3 break-words text-xs text-[#FFB7C0]" role="alert">{noteError}</p>}
+            <div className="mt-3 max-h-[210px] space-y-2 overflow-y-auto">
+              {internalNotes.map(note => (
+                <article key={note.noteId} className="rounded-lg border border-[#2C3D4F] bg-[#0D1825] p-3">
+                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#D9E5EF]">{note.body}</p>
+                  <time className="mt-2 block text-[11px] text-[#8095A9]" dateTime={note.recordedAt}>
+                    {new Date(note.recordedAt).toLocaleString(currentLang, { dateStyle: 'short', timeStyle: 'short' })}
+                  </time>
+                </article>
+              ))}
+            </div>
+            {canManage && (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  aria-label={t.notePlaceholder}
+                  value={noteDraft}
+                  onChange={(event) => {
+                    const next = event.target.value.slice(0, 2000);
+                    if (pendingNoteAttemptRef.current?.text !== next.trim()) pendingNoteAttemptRef.current = null;
+                    setNoteDraft(next);
+                  }}
+                  rows={3}
+                  placeholder={t.notePlaceholder}
+                  className="connect-focus min-h-[86px] w-full resize-y rounded-lg border border-[#344A5E] bg-[#101C29] p-3 text-base leading-6 text-[#E9F1F8] outline-none placeholder:text-[#71879C] md:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveInternalNote()}
+                  disabled={!noteDraft.trim() || noteSending}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#315064] bg-[#163442] px-3 text-xs font-semibold text-[#C8F2FA] disabled:opacity-40"
+                >
+                  {noteSending ? t.noteSaving : t.noteSave}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {canManage && selected.status !== 'archived' && (
           <section className="mt-5" aria-label={t.actionsTitle}>

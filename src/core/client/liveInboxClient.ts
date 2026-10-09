@@ -5,6 +5,7 @@ export type LiveInboxReadiness = {
   authoritySource: string;
   state: 'available' | 'controlled' | 'blocked';
   durableInboxEnabled: boolean;
+  internalNotesEnabled?: boolean;
   storageState: 'read_write_confirmed' | 'read_only' | 'denied_or_missing' | 'unknown';
   foundations: Array<{
     id:
@@ -34,6 +35,14 @@ export type LiveInboxConversation = {
   lastEventId: string;
   sourceEventCount: number;
   lastEvidenceRef: string;
+};
+
+export type LiveInboxInternalNote = {
+  noteId: string;
+  actorUid: string;
+  body: string;
+  recordedAt: string;
+  internalOnly: true;
 };
 
 export type LiveInboxMessage = {
@@ -203,6 +212,37 @@ export class LiveInboxClient {
     return await parse(response);
   }
 
+  async listInternalNotes(conversationId: string): Promise<LiveInboxInternalNote[]> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/notes?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`, {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.notes) ? body.notes : [];
+  }
+
+  async addInternalNote(input: {
+    conversationId: string;
+    requestId: string;
+    body: string;
+  }): Promise<{ outcome: 'created' | 'duplicate'; note: LiveInboxInternalNote }> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(input.conversationId)}/notes`, {
+        method: 'POST',
+        headers: { ...this.headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: this.session.expectedOrganizationId,
+          requestId: input.requestId,
+          body: input.body,
+        }),
+      },
+    );
+    return await parse(response);
+  }
+
   async getReadiness(): Promise<LiveInboxReadiness> {
     const response = await fetch(
       `/api/core/inbox/readiness?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`,
@@ -218,6 +258,7 @@ export class LiveInboxClient {
       authoritySource: String(body.authoritySource || ''),
       state: body.state || 'blocked',
       durableInboxEnabled: body.durableInboxEnabled === true,
+      internalNotesEnabled: body.internalNotesEnabled === true,
       storageState: body.storageState || 'unknown',
       foundations: Array.isArray(body.foundations) ? body.foundations : [],
       blockers: Array.isArray(body.blockers) ? body.blockers : [],

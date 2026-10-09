@@ -120,6 +120,12 @@ export function createConnectInboxReadinessHttpHandler(
       organizationId: requestedOrganizationId,
       authoritySource: authority.source,
       ...evaluateConnectInboxReadiness(env, storage.state),
+      internalNotesEnabled:
+        storage.state === 'read_write_confirmed' &&
+        env.CONNECT_INBOX_DURABLE_ENABLED?.trim().toLowerCase() === 'true' &&
+        env.CONNECT_INBOX_MESSAGE_CONTENT_ENABLED?.trim().toLowerCase() === 'true' &&
+        env.CONNECT_INBOX_INTERNAL_NOTES_ENABLED?.trim().toLowerCase() === 'true' &&
+        env.CONNECT_INBOX_INTERNAL_NOTES_TTL_CONFIRMED?.trim().toLowerCase() === 'true',
     });
   };
 }
