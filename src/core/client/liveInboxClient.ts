@@ -96,6 +96,24 @@ export class LiveInboxClient {
     };
   }
 
+  async listConversationsPage(
+    limit = 50,
+    cursor = '',
+  ): Promise<{ conversations: LiveInboxConversation[]; nextCursor: string | null }> {
+    const url = `/api/core/inbox/conversations?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 100))}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      cache: 'no-store',
+    });
+    const body = await parse(response);
+    return {
+      conversations: Array.isArray(body.conversations) ? body.conversations : [],
+      nextCursor: typeof body.nextCursor === 'string' && body.nextCursor.length <= 1024
+        ? body.nextCursor : null,
+    };
+  }
+
   async listMessages(conversationId: string, limit = 100): Promise<LiveInboxMessage[]> {
     const response = await fetch(
       `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}`,
