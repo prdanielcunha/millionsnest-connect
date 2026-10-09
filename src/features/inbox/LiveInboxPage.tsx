@@ -44,6 +44,8 @@ const copy = {
     subtitle: 'Converse, entenda e resolva com contexto — sem transformar a Inbox em painel técnico.',
     refresh: 'Atualizar',
     loadMore: 'Carregar mais conversas',
+    olderMessages: 'Ver mensagens anteriores',
+    olderMessagesLoading: 'Carregando histórico…',
     loadingMore: 'Carregando…',
     all: 'Todas',
     open: 'Abertas',
@@ -147,6 +149,8 @@ const copy = {
     subtitle: 'Talk, understand and resolve with context — without turning Inbox into a technical dashboard.',
     refresh: 'Refresh',
     loadMore: 'Load more conversations',
+    olderMessages: 'View earlier messages',
+    olderMessagesLoading: 'Loading history…',
     loadingMore: 'Loading…',
     all: 'All',
     open: 'Open',
@@ -250,6 +254,8 @@ const copy = {
     subtitle: 'Conversa, entiende y resuelve con contexto — sin convertir la bandeja en un panel técnico.',
     refresh: 'Actualizar',
     loadMore: 'Cargar más conversaciones',
+    olderMessages: 'Ver mensajes anteriores',
+    olderMessagesLoading: 'Cargando historial…',
     loadingMore: 'Cargando…',
     all: 'Todas',
     open: 'Abiertas',
@@ -387,6 +393,9 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [olderLoading, setOlderLoading] = useState(false);
+  const timelineSequenceRef = useRef(0);
   const [replySending, setReplySending] = useState(false);
   const [threadActing, setThreadActing] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
@@ -512,19 +521,33 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   }, [client, query]);
 
   useEffect(() => {
+    const sequence = ++timelineSequenceRef.current;
+    setOlderCursor(null);
+    setOlderLoading(false);
+    setMessages([]);
     if (!selectedId) {
-      setMessages([]);
+      setTimelineLoading(false);
       return;
     }
 
     let cancelled = false;
     setTimelineLoading(true);
     setError('');
-    void client.listMessages(selectedId)
-      .then((next) => { if (!cancelled) setMessages(next); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'INBOX_MESSAGES_FAILED'); })
-      .finally(() => { if (!cancelled) setTimelineLoading(false); });
-    return () => { cancelled = true; };
+    void client.listMessagesPage(selectedId)
+      .then((page) => {
+        if (cancelled || sequence !== timelineSequenceRef.current) return;
+        setMessages(page.messages);
+        setOlderCursor(page.olderCursor);
+      })
+      .catch((e) => {
+        if (!cancelled && sequence === timelineSequenceRef.current) {
+          setError(e instanceof Error ? e.message : 'INBOX_MESSAGES_FAILED');
+        }
+      })
+      .finally(() => {
+        if (!cancelled && sequence === timelineSequenceRef.current) setTimelineLoading(false);
+      });
+    return () => { cancelled = true; timelineSequenceRef.current += 1; };
   }, [client, selectedId]);
 
   useEffect(() => {
@@ -535,6 +558,29 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [showContext]);
+
+  const loadOlderMessages = async () => {
+    if (!selectedId || !olderCursor || olderLoading || timelineLoading) return;
+    const scope = selectedScopeRef.current;
+    const sequence = timelineSequenceRef.current;
+    setOlderLoading(true);
+    setError('');
+    try {
+      const page = await client.listMessagesPage(selectedId, 100, olderCursor);
+      if (sequence !== timelineSequenceRef.current || selectedScopeRef.current !== scope) return;
+      setMessages((current) => [
+        ...page.messages.filter(message => !current.some(existing => existing.messageId === message.messageId)),
+        ...current,
+      ]);
+      setOlderCursor(page.olderCursor);
+    } catch (e) {
+      if (sequence === timelineSequenceRef.current && selectedScopeRef.current === scope) {
+        setError(e instanceof Error ? e.message : 'INBOX_MESSAGE_PAGE_UNAVAILABLE');
+      }
+    } finally {
+      if (sequence === timelineSequenceRef.current && selectedScopeRef.current === scope) setOlderLoading(false);
+    }
+  };
 
   const canManage = canShowInboxManagement(session.context);
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId)
@@ -617,12 +663,16 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
         setNotice(result.kind === 'duplicate' ? t.alreadySent : t.sent);
       }
       try {
-        const [nextMessages, nextConversations] = await Promise.all([
-          client.listMessages(submittedConversationId),
+        const [timeline, nextConversations] = await Promise.all([
+          client.listMessagesPage(submittedConversationId),
           client.listConversations(),
         ]);
         if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) setConversations(nextConversations);
-        if (selectedScopeRef.current === draftKey) setMessages(nextMessages);
+        if (selectedScopeRef.current === draftKey) {
+          timelineSequenceRef.current += 1;
+          setMessages(timeline.messages);
+          setOlderCursor(timeline.olderCursor);
+        }
       } catch {
         if (selectedScopeRef.current === draftKey) setError(t.refreshFailed);
       }
@@ -1012,6 +1062,19 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                     <div className="grid min-h-[300px] place-items-center px-6 text-center text-xs text-[#667A90]">{t.noMessages}</div>
                   ) : (
                     <div className="mx-auto max-w-3xl space-y-3">
+                      {olderCursor && (
+                        <div className="flex justify-center pb-4">
+                          <button
+                            type="button"
+                            onClick={() => void loadOlderMessages()}
+                            disabled={olderLoading}
+                            className="connect-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#31475A] bg-[#122031] px-4 text-xs font-semibold text-[#B8D8E8] hover:bg-[#182B3F] disabled:opacity-40"
+                          >
+                            {olderLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+                            {olderLoading ? t.olderMessagesLoading : t.olderMessages}
+                          </button>
+                        </div>
+                      )}
                       {messages.map((message, index) => {
                         const outbound = message.direction === 'outbound';
                         const previous = messages[index - 1];

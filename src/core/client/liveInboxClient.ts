@@ -127,6 +127,25 @@ export class LiveInboxClient {
     return Array.isArray(body.messages) ? body.messages : [];
   }
 
+  async listMessagesPage(
+    conversationId: string,
+    limit = 100,
+    cursor = '',
+  ): Promise<{ messages: LiveInboxMessage[]; olderCursor: string | null }> {
+    const url = `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      cache: 'no-store',
+    });
+    const payload = await parse(response);
+    return {
+      messages: Array.isArray(payload.messages) ? payload.messages : [],
+      olderCursor: typeof payload.olderCursor === 'string' && payload.olderCursor.length <= 2048
+        ? payload.olderCursor : null,
+    };
+  }
+
   async sendReply(input: {
     conversationId: string;
     requestId: string;
