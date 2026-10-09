@@ -410,6 +410,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const load = async () => {
     const sequence = ++loadSequenceRef.current;
     setLoading(true);
+    setLoadingMore(false);
     setError('');
     try {
       const nextReadiness = await client.getReadiness();
