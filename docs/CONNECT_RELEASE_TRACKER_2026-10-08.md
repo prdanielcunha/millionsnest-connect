@@ -4,8 +4,8 @@
 
 ## Estado verificado via GitHub
 
-- Branch `main` (desenvolvimento): `cedfef0f8f6db8c282c1dbb6987325955ba9d14e`.
-- Connect Quality no HEAD de `main`: **success**, PR #212: workflow https://github.com/prdanielcunha/millionsnest-connect/actions/runs/37863014174. Executar novamente CI na main consolidada.
+- Branch `main` (desenvolvimento): `2f08932e30dcebba02bf4be08bce232ca8fd9df1`.
+- PR #214: suite Connect Quality aprovada em https://github.com/prdanielcunha/millionsnest-connect/actions/runs/37863899762. HEAD de `main` após merge #214 está sob CI; verificar conclusão antes de release.
 - Branch `production` ainda no commit `573d7d043ea2f3180a0edc20cd30cb70a85856b4` quando conferida. Portanto, **as novas features não estão publicadas aos clientes**.
 - `main` aciona Connect Quality; release Cloud Run é ligado a `production`, e deploy Firebase Hosting requer acionamento manual em `production`.
 
@@ -18,6 +18,8 @@
 | #210 | Read model PII separado com nome autodeclarado do WhatsApp, por tenant, expiração e gate de ativação | Merge `main`; Quality passou |
 | #211 | Índice de prefixo, busca server-side autorizada de nomes, revalidação de threads, fallback local | Merge `main`; Quality passou |
 | #212 | Listagem newest-first via Firestore runQuery, cursor org-bound e carregamento incremental | Merge `main`; Quality individual passou |
+| #213 | Timeline newest-first com paginação por cursor org/thread, carregamento de mensagens anteriores | Merge `main`; Quality individual passou |
+| #214 | Notas internas com API separada do WhatsApp, RBAC, TTL 30 dias e flag default-off | Merge `main`; Quality individual passou |
 
 ### Gating da identidade e busca
 
@@ -36,11 +38,13 @@ Criar no Hub um contrato read-only, autenticado e filtrado para operadores/equip
 
 ### B — Notas internas e histórico completo
 
-Definir modelo separado de mensagem enviada e evento canônico, autorização por organização, retenção, finalidade e auditoria. Nunca permitir que nota interna seja enviada ao provider ou usada automaticamente em IA sem política explícita. Projetar timeline unificada e estados claros (pessoa/equipe/IA).
+Notas internas já foram implementadas e mantidas **desligadas por padrão** na #214, com contrato `CONNECT_INBOX_PRIVATE_NOTES_CONTRACT_2026-10-08.md`. Precisa validar em homologação o TTL da collection group exclusiva `inboxOperatorNotes` (campo `expiresAt`) e as flags:
+`CONNECT_INBOX_INTERNAL_NOTES_ENABLED=true` e `CONNECT_INBOX_INTERNAL_NOTES_TTL_CONFIRMED=true`.
+Ainda falta integrar a nota, o handoff e as ações de IA em uma timeline colaborativa auditável, sem confundir notas internas com mensagens externas.
 
 ### C — Paginação e fila operacional
 
-A paginação de **conversas** já foi implementada na #212. Implementar agora paginação do **histórico de mensagens** (atualmente até 100/200) e testes com dataset grande. Filas por responsável, status, data e prioridade baseada em dados, sem IA fictícia. Adicionar indicadores de novas mensagens e preservação de posição do scroll. Buscar conteúdo somente com índice e política LGPD adequados.
+A paginação de **conversas** (#212) e **histórico de mensagens** (#213) já foi implementada. Validar ambas com datasets reais grandes, índices e cursors concorrentes no Firestore de homologação. Implementar filas por responsável, status, data e prioridade baseada em dados, sem IA fictícia. Adicionar indicadores de novas mensagens e preservação de posição do scroll. Buscar conteúdo somente com índice e política LGPD adequados.
 
 ### D — Magic Moment WhatsApp × Hub × MusicScale
 
@@ -56,6 +60,6 @@ Somente depois dos gates funcionais e visuais, obter baseline e backup para roll
 
 ## Definição de concluído
 
-Não marcar Connect como «implantado integralmente» porque algumas superfícies continuam controladas e não houve QA visual real, prova completa de WhatsApp Assist nem liberação de produção das PRs #208–#212. O merge para desenvolvimento e testes automatizados são **marcos reais**, não sinônimos de publicação.
+Não marcar Connect como «implantado integralmente» porque algumas superfícies continuam controladas e não houve QA visual real, prova completa de WhatsApp Assist nem liberação de produção das PRs #208–#214. O merge para desenvolvimento e testes automatizados são **marcos reais**, não sinônimos de publicação.
 
 Estas etapas devem ser executadas com branches isoladas, testes de contrato/tenant, PR, CI e acompanhamento até o release seguro.
