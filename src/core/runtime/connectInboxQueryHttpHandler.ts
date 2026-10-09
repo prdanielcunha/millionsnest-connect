@@ -236,7 +236,8 @@ export function createConnectInboxMessageListHttpHandler(
     const organizationId = safeId(req.query.organizationId);
     const conversationId = safeId(req.params.conversationId);
     const limit = limitOf(req.query.limit, 100, 200);
-    if (!organizationId || !conversationId) {
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : '';
+    if (!organizationId || !conversationId || cursor.length > 2048) {
       return res.status(400).json({
         success: false,
         code: 'INBOX_SCOPE_REQUIRED',
@@ -268,11 +269,23 @@ export function createConnectInboxMessageListHttpHandler(
     }
 
     try {
-      const records = await options.messageStore.listConversation({
-        organizationId: context.organizationId,
-        conversationId,
-        limit,
-      });
+      if (cursor && !options.messageStore.listHistoryPage) {
+        return res.status(400).json({ success: false, code: 'INBOX_MESSAGE_CURSOR_INVALID' });
+      }
+      const page = options.messageStore.listHistoryPage
+        ? await options.messageStore.listHistoryPage({
+            organizationId: context.organizationId,
+            conversationId,
+            limit,
+            ...(cursor ? { cursor } : {}),
+          })
+        : {
+            messages: await options.messageStore.listConversation({
+              organizationId: context.organizationId, conversationId, limit,
+            }),
+            olderCursor: null,
+          };
+      const records = page.messages;
 
       // Deliberately omit senderRef, recipientRef and providerMessageId from
       // the browser contract. Authorized operators get the conversation body
@@ -292,9 +305,13 @@ export function createConnectInboxMessageListHttpHandler(
         success: true,
         organizationId: context.organizationId,
         conversationId,
+        olderCursor: page.olderCursor,
         messages,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'INBOX_MESSAGE_CURSOR_INVALID') {
+        return res.status(400).json({ success: false, code: error.message });
+      }
       return res.status(503).json({
         success: false,
         code: 'MESSAGE_CONTENT_UNAVAILABLE',
