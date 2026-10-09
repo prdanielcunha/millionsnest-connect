@@ -39,6 +39,9 @@ import {
 import type { ConnectMessageContentStore } from '../core/inbox/messageContentStore';
 import type { InboxContactProfileStore } from '../core/inbox/inboxContactProfileStore';
 import { FirestoreInboxContactProfileStore } from '../core/inbox/firestoreInboxContactProfileStore';
+import type { InboxInternalNoteStore } from '../core/inbox/inboxInternalNoteStore';
+import { FirestoreInboxInternalNoteStore } from '../core/inbox/firestoreInboxInternalNoteStore';
+import { createInboxInternalNoteHttpHandler } from '../core/runtime/connectInboxInternalNoteHttpHandler';
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
 import { HumanReplyService } from '../core/inbox/humanReplyService';
 import { FirestoreHumanReplyDispatchStore } from '../core/inbox/firestoreHumanReplyDispatchStore';
@@ -77,6 +80,7 @@ export interface CreateConnectServerOptions {
   inboxStore?: ConnectThreadStore;
   inboxMessageContentStore?: ConnectMessageContentStore;
   inboxContactProfileStore?: InboxContactProfileStore;
+  inboxInternalNoteStore?: InboxInternalNoteStore;
   whatsappConnectionRegistry?: WhatsAppConnectionRegistry;
   inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
@@ -133,6 +137,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxContactSearchHandler: ReturnType<typeof createConnectInboxContactSearchHttpHandler> | null = null;
   let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
   let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
+  let inboxNoteHandler: ReturnType<typeof createInboxInternalNoteHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
@@ -259,6 +264,18 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         const contactProfilesEnabled =
           env.CONNECT_INBOX_CONTACT_PROFILE_ENABLED?.trim().toLowerCase() === 'true' &&
           env.CONNECT_INBOX_CONTACT_TTL_CONFIRMED?.trim().toLowerCase() === 'true';
+        const internalNotesEnabled =
+          env.CONNECT_INBOX_INTERNAL_NOTES_ENABLED?.trim().toLowerCase() === 'true' &&
+          env.CONNECT_INBOX_INTERNAL_NOTES_TTL_CONFIRMED?.trim().toLowerCase() === 'true';
+        inboxNoteHandler = internalNotesEnabled
+          ? createInboxInternalNoteHttpHandler({
+              contextProvider: inboxContextProvider,
+              threadStore: gatedStore,
+              noteStore: options.inboxInternalNoteStore
+                ?? new FirestoreInboxInternalNoteStore({ projectId, fetchImpl: options.fetchImpl }),
+            })
+          : null;
+
         const contactProfileStore = contactProfilesEnabled
           ? options.inboxContactProfileStore
             ?? new FirestoreInboxContactProfileStore({
@@ -540,6 +557,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxConversationListHandler(req, res);
+  });
+
+  // Private notes have no provider dispatch path, ever. Both IAM and
+  // retention gates must be explicitly activated before these routes exist.
+  app.get('/api/core/inbox/threads/:conversationId/notes', async (req, res) => {
+    if (!inboxNoteHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(404).json({ success: false, code: 'INBOX_INTERNAL_NOTES_DISABLED' });
+    }
+    return inboxNoteHandler(req, res);
+  });
+  app.post('/api/core/inbox/threads/:conversationId/notes', async (req, res) => {
+    if (!inboxNoteHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(404).json({ success: false, code: 'INBOX_INTERNAL_NOTES_DISABLED' });
+    }
+    return inboxNoteHandler(req, res);
   });
 
   app.post('/api/core/inbox/threads/:conversationId/reply', async (req, res) => {
