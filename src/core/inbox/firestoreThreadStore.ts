@@ -7,9 +7,12 @@ import {
 } from './threadDomain';
 import type {
   ConnectThreadAppendResult,
+  ConnectThreadPage,
+  ConnectThreadPageQuery,
   ConnectThreadScope,
   ConnectThreadStore,
 } from './threadStore';
+import { decodeInboxPageCursor, encodeInboxPageCursor } from './inboxThreadPagination';
 
 const DEFAULT_PROJECT_ID = 'millionsnest';
 const DEFAULT_METADATA_TOKEN_URL =
@@ -370,6 +373,77 @@ export class FirestoreConnectThreadStore implements ConnectThreadStore {
     return projections
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.conversationId.localeCompare(b.conversationId))
       .slice(0, limit);
+  }
+
+  async listPageByOrganization(input: ConnectThreadPageQuery): Promise<ConnectThreadPage> {
+    const organizationId = safeSegment(input.organizationId, 180);
+    const limit = Math.max(1, Math.min(input.limit ?? 50, 100));
+    const cursor = input.cursor
+      ? decodeInboxPageCursor(input.cursor, organizationId)
+      : null;
+    const parentPath = ['connectOrganizations', organizationId];
+    const referenceRoot = `projects/${this.projectId}/databases/(default)/documents`;
+    const structuredQuery: Record<string, unknown> = {
+      from: [{ collectionId: 'inboxThreads' }],
+      orderBy: [
+        { field: { fieldPath: 'updatedAt' }, direction: 'DESCENDING' },
+        { field: { fieldPath: '__name__' }, direction: 'DESCENDING' },
+      ],
+      limit: limit + 1,
+    };
+    if (cursor) {
+      structuredQuery.startAt = {
+        before: false,
+        values: [
+          { stringValue: cursor.updatedAt },
+          { referenceValue: `${referenceRoot}/connectOrganizations/${organizationId}/inboxThreads/${cursor.conversationId}` },
+        ],
+      };
+    }
+    const token = await this.tokenProvider.getAccessToken();
+    const response = await this.fetchImpl(
+      `${this.documentsBase}/${encodedPath(parentPath)}:runQuery`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ structuredQuery }),
+        cache: 'no-store',
+      },
+    );
+    if (!response.ok) throw new Error(`FIRESTORE_PAGE_THREADS_${response.status}`);
+    const raw = await response.text();
+    if (!raw.trim()) return { threads: [], nextCursor: null };
+    let rows: any[];
+    try {
+      const parsed = JSON.parse(raw);
+      rows = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      try { rows = raw.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)); }
+      catch { throw new Error('INBOX_PAGE_FORMAT_INVALID'); }
+    }
+    const projections: ConnectThreadProjection[] = [];
+    for (const row of rows) {
+      const document = row?.document;
+      if (!document) continue;
+      const conversationId = readStringField(document, 'conversationId');
+      if (!conversationId) throw new Error('THREAD_SNAPSHOT_INVALID');
+      projections.push(parseProjection(document, { organizationId, conversationId }));
+    }
+    const visible = projections.slice(0, limit);
+    const tail = visible.at(-1);
+    return {
+      threads: visible,
+      nextCursor: projections.length > limit && tail
+        ? encodeInboxPageCursor({
+            organizationId,
+            updatedAt: tail.updatedAt,
+            conversationId: tail.conversationId,
+          })
+        : null,
+    };
   }
 
   async readEvents(
