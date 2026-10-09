@@ -157,6 +157,9 @@ export function createConnectInboxConversationListHttpHandler(
     if (!context) return;
 
     try {
+      if (cursor && !options.threadStore.listPageByOrganization) {
+        return res.status(400).json({ success: false, code: 'INBOX_CURSOR_INVALID' });
+      }
       const page = options.threadStore.listPageByOrganization
         ? await options.threadStore.listPageByOrganization({
             organizationId: context.organizationId,
