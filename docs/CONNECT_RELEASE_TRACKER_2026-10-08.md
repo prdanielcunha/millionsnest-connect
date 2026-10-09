@@ -4,8 +4,8 @@
 
 ## Estado verificado via GitHub
 
-- Branch `main` (desenvolvimento): `0f44ae6c2edaa8a4618a5f614655b5f9c76d1f5e`.
-- Connect Quality no HEAD de `main`: **success**, workflow https://github.com/prdanielcunha/millionsnest-connect/actions/runs/37862519489.
+- Branch `main` (desenvolvimento): `cedfef0f8f6db8c282c1dbb6987325955ba9d14e`.
+- Connect Quality no HEAD de `main`: **success**, PR #212: workflow https://github.com/prdanielcunha/millionsnest-connect/actions/runs/37863014174. Executar novamente CI na main consolidada.
 - Branch `production` ainda no commit `573d7d043ea2f3180a0edc20cd30cb70a85856b4` quando conferida. Portanto, **as novas features não estão publicadas aos clientes**.
 - `main` aciona Connect Quality; release Cloud Run é ligado a `production`, e deploy Firebase Hosting requer acionamento manual em `production`.
 
@@ -17,6 +17,7 @@
 | #209 | Transições reais de atendimento (assumir, aguardar, resolver, reabrir, arquivar); retry sem colisão temporal | Merge `main`; Quality passou |
 | #210 | Read model PII separado com nome autodeclarado do WhatsApp, por tenant, expiração e gate de ativação | Merge `main`; Quality passou |
 | #211 | Índice de prefixo, busca server-side autorizada de nomes, revalidação de threads, fallback local | Merge `main`; Quality passou |
+| #212 | Listagem newest-first via Firestore runQuery, cursor org-bound e carregamento incremental | Merge `main`; Quality individual passou |
 
 ### Gating da identidade e busca
 
@@ -39,7 +40,7 @@ Definir modelo separado de mensagem enviada e evento canônico, autorização po
 
 ### C — Paginação e fila operacional
 
-Substituir o limite de 50 conversas/100 mensagens por cursores server-side ordenados pelo tempo real. Filas por responsável, status, data e prioridade baseada em dados, sem IA fictícia. Adicionar indicadores de novas mensagens e preservação de posição do scroll. Buscar conteúdo somente com índice e política LGPD adequados.
+A paginação de **conversas** já foi implementada na #212. Implementar agora paginação do **histórico de mensagens** (atualmente até 100/200) e testes com dataset grande. Filas por responsável, status, data e prioridade baseada em dados, sem IA fictícia. Adicionar indicadores de novas mensagens e preservação de posição do scroll. Buscar conteúdo somente com índice e política LGPD adequados.
 
 ### D — Magic Moment WhatsApp × Hub × MusicScale
 
@@ -55,6 +56,6 @@ Somente depois dos gates funcionais e visuais, obter baseline e backup para roll
 
 ## Definição de concluído
 
-Não marcar Connect como «implantado integralmente» porque algumas superfícies continuam controladas e não houve QA visual real, prova completa de WhatsApp Assist nem liberação de produção das PRs #208–#211. O merge para desenvolvimento e testes automatizados são **marcos reais**, não sinônimos de publicação.
+Não marcar Connect como «implantado integralmente» porque algumas superfícies continuam controladas e não houve QA visual real, prova completa de WhatsApp Assist nem liberação de produção das PRs #208–#212. O merge para desenvolvimento e testes automatizados são **marcos reais**, não sinônimos de publicação.
 
 Estas etapas devem ser executadas com branches isoladas, testes de contrato/tenant, PR, CI e acompanhamento até o release seguro.
