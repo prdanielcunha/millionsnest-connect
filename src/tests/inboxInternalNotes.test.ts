@@ -29,7 +29,7 @@ const fetchImpl: typeof fetch = async (url, init) => {
   if (init?.body) body = JSON.parse(String(init.body));
   writes.push({ url: target, method, body });
   if (method === 'PATCH') {
-    assert.ok(target.includes('/connectSensitiveOrganizations/org-a/inboxInternalNotes/thread-1/notes/in_'));
+    assert.ok(target.includes('/connectSensitiveOrganizations/org-a/inboxInternalNotes/thread-1/inboxOperatorNotes/in_'));
     assert.ok(target.endsWith('currentDocument.exists=false'));
     if (saved) return new Response('{}', { status: 412 });
     saved = body.fields;
