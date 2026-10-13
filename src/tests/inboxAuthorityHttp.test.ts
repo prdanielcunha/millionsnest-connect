@@ -228,6 +228,10 @@ await commands.open({
       context: context({ organizationRole: 'admin' }),
     }),
     store,
+    operatorDirectory: {
+      async list() { return [{ uid: 'user-2', displayName: 'Other authorized operator', role: 'admin' }]; },
+      async verify({ organizationId, uid }) { return organizationId === 'org-1' && uid === 'user-2'; },
+    },
   });
   const response = res();
   await handler(req({
@@ -237,12 +241,12 @@ await commands.open({
       action: 'handoff',
       requestId: 'handoff-http',
       evidenceRef: 'connect-request:handoff-http',
-      assigneeType: 'team',
-      assigneeRef: 'care-team',
+      assigneeType: 'user',
+      assigneeRef: 'user-2',
       reasonCode: 'human_requested',
     },
   }), response);
-  equal(response.statusCode, 200, 'canonical admin can handoff');
+  equal(response.statusCode, 200, 'canonical admin can handoff only to verified member');
   equal(response.body.thread.status, 'waiting_team', 'handoff produces waiting team state');
   equal(response.body.thread.mode, 'human', 'handoff pauses automation into human mode');
 }

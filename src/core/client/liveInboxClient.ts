@@ -37,6 +37,8 @@ export type LiveInboxConversation = {
   lastEvidenceRef: string;
 };
 
+export type LiveInboxOperator = { uid: string; displayName: string; role: string };
+
 export type LiveInboxInternalNote = {
   noteId: string;
   actorUid: string;
@@ -183,9 +185,21 @@ export class LiveInboxClient {
     return await parse(response);
   }
 
+  async listOperators(): Promise<LiveInboxOperator[]> {
+    const response = await fetch(
+      `/api/core/inbox/operators?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`, {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.operators) ? body.operators : [];
+  }
+
   async manageThread(input: {
     conversationId: string;
-    action: 'assign' | 'wait_for_person' | 'resolve' | 'reopen' | 'archive';
+    action: 'assign' | 'handoff' | 'wait_for_person' | 'resolve' | 'reopen' | 'archive';
     requestId: string;
     evidenceRef: string;
     assigneeRef?: string;
@@ -203,7 +217,7 @@ export class LiveInboxClient {
           action: input.action,
           requestId: input.requestId,
           evidenceRef: input.evidenceRef,
-          ...(input.action === 'assign'
+          ...((input.action === 'assign' || input.action === 'handoff')
             ? { assigneeType: 'user', assigneeRef: input.assigneeRef }
             : {}),
         }),
