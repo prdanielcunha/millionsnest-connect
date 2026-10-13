@@ -25,6 +25,7 @@ import {
   type LiveInboxMessage,
   type LiveInboxReadiness,
   type LiveInboxInternalNote,
+  type LiveInboxOperator,
 } from '../../core/client/liveInboxClient';
 import type { LanguageCode } from '../../types';
 import { ConnectNestAiClient } from '../../core/client/connectNestAiClient';
@@ -90,6 +91,12 @@ const copy = {
     noteSaved: 'Nota interna registrada.',
     noteDuplicate: 'Esta nota já havia sido registrada.',
     claim: 'Assumir atendimento',
+    handoff: 'Transferir atendimento',
+    chooseOperator: 'Selecione um atendente autorizado',
+    transfer: 'Transferir agora',
+    transferring: 'Validando transferência…',
+    noOperators: 'Sem atendentes autorizados',
+    directoryUnavailable: 'Não foi possível consultar a equipe. A transferência está indisponível.',
     waiting: 'Aguardar resposta',
     resolve: 'Resolver',
     reopen: 'Reabrir',
@@ -202,6 +209,12 @@ const copy = {
     noteSaved: 'Internal note saved.',
     noteDuplicate: 'This note was already recorded.',
     claim: 'Take ownership',
+    handoff: 'Transfer conversation',
+    chooseOperator: 'Choose an authorized operator',
+    transfer: 'Transfer now',
+    transferring: 'Verifying transfer…',
+    noOperators: 'No authorized operators',
+    directoryUnavailable: 'Team directory is unavailable. Transfer is blocked.',
     waiting: 'Wait for reply',
     resolve: 'Resolve',
     reopen: 'Reopen',
@@ -420,6 +433,10 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const timelineSequenceRef = useRef(0);
   const [replySending, setReplySending] = useState(false);
   const [threadActing, setThreadActing] = useState(false);
+  const [operators, setOperators] = useState<LiveInboxOperator[]>([]);
+  const [operatorChoice, setOperatorChoice] = useState('');
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [suggestion, setSuggestion] = useState<{ scopeKey: string; text: string } | null>(null);
   const [showContext, setShowContext] = useState(false);
@@ -433,6 +450,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const pendingReplyRef = useRef<InboxReplyAttempt | null>(null);
   const pendingNoteAttemptRef = useRef<{ scope: string; text: string; id: string } | null>(null);
   const pendingThreadActionRef = useRef<InboxThreadActionAttempt | null>(null);
+  const pendingHandoffRef = useRef<{ scope: string; uid: string; requestId: string } | null>(null);
   const loadSequenceRef = useRef(0);
   const selectedScopeRef = useRef('');
   selectedScopeRef.current = `${session.expectedOrganizationId}:${selectedId}`;
@@ -607,6 +625,22 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [showContext]);
 
+  const canManage = canShowInboxManagement(session.context);
+  useEffect(() => {
+    setOperators([]);
+    setOperatorChoice('');
+    setDirectoryError(false);
+    pendingHandoffRef.current = null;
+    if (!canManage) return;
+    let cancelled = false;
+    setDirectoryLoading(true);
+    void client.listOperators()
+      .then(items => { if (!cancelled) setOperators(items); })
+      .catch(() => { if (!cancelled) setDirectoryError(true); })
+      .finally(() => { if (!cancelled) setDirectoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [client, canManage]);
+
   const loadOlderMessages = async () => {
     if (!selectedId || !olderCursor || olderLoading || timelineLoading) return;
     const scope = selectedScopeRef.current;
@@ -630,7 +664,6 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     }
   };
 
-  const canManage = canShowInboxManagement(session.context);
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId)
     ?? (openedRemote?.conversationId === selectedId ? openedRemote : null);
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
@@ -777,6 +810,45 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     }
   };
 
+  const transferConversation = async () => {
+    if (!selected || !canManage || !isOpenConversation(selected) ||
+        threadActing || replySending || !operatorChoice ||
+        !operators.some(operator => operator.uid === operatorChoice)) return;
+    const scope = draftKey;
+    let attempt = pendingHandoffRef.current;
+    if (!attempt || attempt.scope !== scope || attempt.uid !== operatorChoice) {
+      attempt = {
+        scope, uid: operatorChoice,
+        requestId: globalThis.crypto?.randomUUID?.() || `handoff-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
+      pendingHandoffRef.current = attempt;
+    }
+    setThreadActing(true);
+    setError('');
+    setNotice('');
+    try {
+      const result = await client.manageThread({
+        conversationId: selected.conversationId,
+        action: 'handoff',
+        requestId: attempt.requestId,
+        evidenceRef: selected.lastEvidenceRef,
+        assigneeRef: attempt.uid,
+      });
+      pendingHandoffRef.current = null;
+      if (selectedScopeRef.current !== scope) return;
+      setConversations(current => current.map(item =>
+        item.conversationId === result.thread.conversationId ? result.thread : item));
+      setOpenedRemote(current => current?.conversationId === result.thread.conversationId ? result.thread : current);
+      setNotice(result.outcome === 'duplicate' ? t.threadDuplicate : t.threadUpdated);
+    } catch (e) {
+      if (selectedScopeRef.current === scope) {
+        setError(e instanceof Error ? e.message : 'INBOX_TRANSFER_UNAVAILABLE');
+      }
+    } finally {
+      setThreadActing(false);
+    }
+  };
+
   const actionLabel: Record<InboxThreadAction, string> = {
     assign: t.claim,
     wait_for_person: t.waiting,
@@ -874,6 +946,44 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#6A7E93]">{t.next}</div>
           <p className="mt-2 text-xs leading-5 text-[#A7B5C3]">{nextStep(selected.status, t)}</p>
         </div>
+
+        {canManage && isOpenConversation(selected) && (
+          <section className="mt-5 border-t border-[#2B3A4D] pt-5" aria-label={t.handoff}>
+            <h3 className="text-xs font-semibold text-[#EAF1F6]">{t.handoff}</h3>
+            {directoryLoading ? (
+              <p className="mt-3 text-xs text-[#91A9BE]">{t.transferring}</p>
+            ) : directoryError ? (
+              <p role="status" className="mt-3 text-xs text-[#E7B891]">{t.directoryUnavailable}</p>
+            ) : operators.length === 0 ? (
+              <p className="mt-3 text-xs text-[#8CA0B5]">{t.noOperators}</p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <select
+                  aria-label={t.chooseOperator}
+                  value={operatorChoice}
+                  onChange={event => {
+                    setOperatorChoice(event.target.value);
+                    pendingHandoffRef.current = null;
+                  }}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#344A5E] bg-[#101C29] px-3 text-base text-[#E9F1F8] md:text-sm"
+                >
+                  <option value="">{t.chooseOperator}</option>
+                  {operators.filter(operator => operator.uid !== session.context.user.uid)
+                    .map(operator => <option key={operator.uid} value={operator.uid}>{operator.displayName}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void transferConversation()}
+                  disabled={!operatorChoice || threadActing || replySending ||
+                    operatorChoice === selected.assignedTo?.ref}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#345365] bg-[#153440] px-3 text-xs font-semibold text-[#C9EDF4] disabled:opacity-40"
+                >
+                  {threadActing ? t.transferring : t.transfer}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {internalNotesEnabled && (
           <section className="mt-5 border-t border-[#2B3A4D] pt-5" aria-label={t.noteTitle}>
