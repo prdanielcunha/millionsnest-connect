@@ -99,6 +99,8 @@ jobs:
             local status
             status="$(curl --silent --show-error --location \
               --retry 6 --retry-delay 2 --retry-all-errors \
+              --header 'X-Organization-Id: release-smoke' \
+              --header 'X-Connect-Channel: inapp' \
               -o "/tmp/${name}.json" -w '%{http_code}' \
               "$url")"
             test "$status" = "401"
