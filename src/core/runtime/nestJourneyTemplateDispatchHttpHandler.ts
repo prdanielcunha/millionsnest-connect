@@ -146,6 +146,32 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       const failure=toPublicError(e);
       return res.status(failure.status).json({success:false,code:failure.code});
     }
+    // Revalidate consent/assignment once more AFTER reserving the durable
+    // dispatch, immediately before the external Meta send.
+    try{
+      const currentUrl=new URL('/api/ecosystem/connect/nestjourney/followup-context',hubOrigin);
+      currentUrl.searchParams.set('organizationId',organizationId);
+      currentUrl.searchParams.set('followupId',followupId);
+      const current=await fetchImpl(currentUrl.toString(),{
+        method:'GET',
+        headers:{Authorization:authorization,Accept:'application/json','Cache-Control':'no-store'},
+        cache:'no-store',signal:AbortSignal.timeout(8000),
+      });
+      const payload=current.ok?await current.json().catch(()=>null):null;
+      if(!current.ok||payload?.success!==true
+        ||payload?.organization?.id!==organizationId
+        ||payload?.followup?.id!==followupId
+        ||normalizeWhatsAppPhone(payload?.person?.phone)!==phone)
+        throw new Error('FOLLOWUP_FRESH_AUTH_REJECTED');
+    }catch{
+      // No Meta call was made, but retain the consumed request ID. A new
+      // authorization requires a reviewed new follow-up, never a second send.
+      try{await options.dispatchStore.markFailed({
+        record:dispatch,errorCode:'FRESH_AUTH_REJECTED',
+        now:new Date().toISOString(),
+      })}catch{/* dispatching status still blocks accidental retry */ }
+      return res.status(403).json({success:false,code:'FOLLOWUP_NOT_AUTHORIZED'});
+    }
     // A dispatching record exists before calling Meta. Ambiguous acceptance
     // never gets an automatic retry; requests with this followup ID are blocked.
     try{
