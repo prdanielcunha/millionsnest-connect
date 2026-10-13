@@ -85,12 +85,14 @@ jobs:
             --retry 6 --retry-delay 2 --retry-all-errors \
             -o /tmp/hub-connect-session.json -w '%{http_code}' \
             'https://www.millionsnest.com/api/ecosystem/connect/session-context')"
+          echo "CONNECT_UPSTREAM_HUB_SESSION_STATUS=$HUB_STATUS"
           test "$HUB_STATUS" = "401"
 
           HUB_JOURNEY_STATUS="$(curl --silent --show-error --location \
             --retry 6 --retry-delay 2 --retry-all-errors \
             -o /tmp/hub-nestjourney-followup.json -w '%{http_code}' \
             'https://www.millionsnest.com/api/ecosystem/connect/nestjourney/followup-context?organizationId=release-smoke&followupId=release-smoke')"
+          echo "CONNECT_UPSTREAM_HUB_JOURNEY_STATUS=$HUB_JOURNEY_STATUS"
           test "$HUB_JOURNEY_STATUS" = "401"
 
           probe_unauthenticated_route() {
@@ -101,6 +103,7 @@ jobs:
               --retry 6 --retry-delay 2 --retry-all-errors \
               -o "/tmp/${name}.json" -w '%{http_code}' \
               "$url")"
+            echo "CONNECT_UPSTREAM_ROUTE_STATUS=$name:$status"
             test "$status" = "401"
           }
 
