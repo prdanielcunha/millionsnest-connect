@@ -18,6 +18,7 @@ const removed = { ...adminMember, status: { stringValue: 'removed' } };
 const normal = { organizationRole: { stringValue: 'member' } };
 assert.equal(isEligibleInboxOperatorMembership(adminMember), true);
 assert.equal(isEligibleInboxOperatorMembership(removed), false);
+assert.equal(isEligibleInboxOperatorMembership({ ...adminMember, status: { stringValue: 'pending' } }), false);
 assert.equal(isEligibleInboxOperatorMembership(normal), false);
 assert.equal(isEligibleInboxOperatorMembership({
   ...normal, permissions: { mapValue: { fields: {
