@@ -339,6 +339,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               dispatchStore:new FirestoreHumanReplyDispatchStore({
                 projectId,fetchImpl:options.fetchImpl,
               }),
+              messageStore,
               env,fetchImpl:options.fetchImpl,
             };
             journeyTemplateHandler=createJourneyTemplateDispatchHandler(templateOptions);
