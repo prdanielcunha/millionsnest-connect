@@ -24,6 +24,12 @@ const copy = {
     editHint: 'Revise antes de abrir o WhatsApp. Você pode ajustar a saudação sem registrar detalhes íntimos no sistema.',
     openWhatsApp: 'Abrir conversa no WhatsApp',
     copied: 'Mensagem copiada',
+    official: 'Enviar primeiro contato pelo WhatsApp oficial',
+    officialConfirm: 'Este botão solicita à Meta o envio do TEMPLATE APROVADO da sua igreja, que pode ser diferente do texto exibido e gerar cobrança pela Meta. Confirma o envio único?',
+    officialAccepted: 'A Meta aceitou a solicitação. Isso NÃO confirma entrega. Aguarde o status no canal oficial e registre o resultado no NestJourney.',
+    officialDuplicate: 'Este acompanhamento já tem solicitação aceita pela Meta; nenhuma nova mensagem foi enviada.',
+    officialError: 'Não foi possível confirmar o envio oficial. Não tente novamente com outra tarefa ou ID; peça revisão do registro para evitar duplicação.',
+    officialTemplate: 'Template oficial aprovado:',
     copy: 'Copiar',
     return: 'Voltar e registrar resultado',
     ruleTitle: 'Envio não é resolução',
@@ -43,6 +49,12 @@ const copy = {
     editHint: 'Review it before opening WhatsApp. You may adjust the greeting without storing intimate details in the system.',
     openWhatsApp: 'Open WhatsApp conversation',
     copied: 'Message copied',
+    official: 'Send approved WhatsApp first-contact template',
+    officialConfirm: 'Meta will receive your church-approved TEMPLATE, which may differ from the draft shown and may incur provider charges. Confirm this one-time request?',
+    officialAccepted: 'Meta accepted the request. This does NOT confirm delivery. Check the official channel status and record the outcome in NestJourney.',
+    officialDuplicate: 'This follow-up was already accepted by Meta; no additional message was sent.',
+    officialError: 'Official send status cannot be confirmed. Do not retry using another task or ID; request a review to prevent duplicate messages.',
+    officialTemplate: 'Approved official template:',
     copy: 'Copy',
     return: 'Return and record outcome',
     ruleTitle: 'Opening a channel is not resolution',
@@ -62,6 +74,12 @@ const copy = {
     editHint: 'Revísalo antes de abrir WhatsApp. Puedes ajustar el saludo sin guardar detalles íntimos en el sistema.',
     openWhatsApp: 'Abrir conversación en WhatsApp',
     copied: 'Mensaje copiado',
+    official: 'Enviar primer contacto por WhatsApp oficial',
+    officialConfirm: 'Esta acción solicita a Meta enviar la PLANTILLA APROBADA de la iglesia, que puede diferir del borrador y tener cargos. ¿Confirmar envío único?',
+    officialAccepted: 'Meta aceptó la solicitud; NO significa entrega. Compruebe el estado oficial y registre el resultado en NestJourney.',
+    officialDuplicate: 'Meta ya aceptó esta solicitud; no se ha enviado otro mensaje.',
+    officialError: 'No se puede confirmar el envío. No repita con otra tarea o ID; solicite revisión para evitar duplicados.',
+    officialTemplate: 'Plantilla oficial aprobada:',
     copy: 'Copiar',
     return: 'Volver y registrar resultado',
     ruleTitle: 'Abrir el canal no es resolución',
@@ -91,6 +109,8 @@ export function JourneyFollowupConnectPage({
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
   const [authorizing,setAuthorizing]=useState(false);
+  const [templateInfo,setTemplateInfo]=useState<{ready:boolean;templateName?:string}>({ready:false});
+  const [officialResult,setOfficialResult]=useState<'accepted'|'duplicate'|'error'|null>(null);
   const actionGuard=useRef(false);
 
   useEffect(() => {
@@ -134,6 +154,53 @@ export function JourneyFollowupConnectPage({
       });
     return () => { mounted = false; };
   }, [currentLang, followupId, session]);
+
+  useEffect(()=>{
+    if(!context||!followupId){setTemplateInfo({ready:false});return}
+    let active=true
+    const url='/api/core/nestjourney/followup/template-readiness?'+
+      new URLSearchParams({organizationId:session.expectedOrganizationId}).toString()
+    void fetch(url,{
+      method:'GET',
+      headers:{Authorization:'Bearer '+session.idToken,Accept:'application/json'},
+      cache:'no-store',
+    }).then(r=>r.ok?r.json():null).then(result=>{
+      if(active)setTemplateInfo({
+        ready:result?.success===true&&result?.ready===true,
+        templateName:typeof result?.templateName==='string'?result.templateName:undefined,
+      })
+    }).catch(()=>{if(active)setTemplateInfo({ready:false})})
+    return()=>{active=false}
+  },[context,followupId,session.idToken,session.expectedOrganizationId])
+
+  async function sendOfficialTemplate(){
+    if(!templateInfo.ready||!followupId||!context||actionGuard.current)return
+    if(!window.confirm(t.officialConfirm))return
+    actionGuard.current=true;setAuthorizing(true);setOfficialResult(null)
+    try{
+      const language: 'pt_BR'|'en_US'|'es' =
+        currentLang==='en-US'?'en_US':currentLang==='es-ES'?'es':'pt_BR'
+      const r=await fetch('/api/core/nestjourney/followup/send-template',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',Accept:'application/json',
+          Authorization:'Bearer '+session.idToken,
+        },
+        cache:'no-store',
+        body:JSON.stringify({
+          organizationId:session.expectedOrganizationId,followupId,language,
+          acknowledgeTemplate:true,
+        }),
+      })
+      const result=await r.json().catch(()=>null)
+      if(!r.ok||result?.success!==true)throw new Error('TEMPLATE_NOT_CONFIRMED')
+      setOfficialResult(result.kind==='duplicate'?'duplicate':'accepted')
+    }catch{
+      setOfficialResult('error')
+    }finally{
+      actionGuard.current=false;setAuthorizing(false)
+    }
+  }
 
   async function authorizeAndPerform(action:'copy'|'whatsapp') {
     if(actionGuard.current||!followupId||!context||!message.trim())return;
@@ -235,6 +302,17 @@ export function JourneyFollowupConnectPage({
               <ArrowLeft size={16}/>{t.return}
             </button>
           </div>
+          {templateInfo.ready?<div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <p className="mb-2 text-xs text-slate-400">{t.officialTemplate} <strong>{templateInfo.templateName||'—'}</strong></p>
+            <button type="button" disabled={authorizing} onClick={()=>void sendOfficialTemplate()}
+              className="inline-flex w-full min-h-12 items-center justify-center gap-2 rounded-2xl border border-sky-300/30 bg-sky-300/10 px-4 py-3 text-sm font-semibold text-sky-100 disabled:opacity-50">
+              {authorizing?<Loader2 size={16} className="animate-spin"/>:<MessageCircle size={16}/>}
+              {t.official}
+            </button>
+            {officialResult?<p role="status" className="mt-3 text-xs leading-5 text-slate-200">
+              {officialResult==='accepted'?t.officialAccepted:officialResult==='duplicate'?t.officialDuplicate:t.officialError}
+            </p>:null}
+          </div>:null}
           <p className="mt-5 text-[11px] leading-5 text-slate-600">{t.source}</p>
         </div>
       </div>
