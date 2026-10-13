@@ -41,6 +41,8 @@ import type { InboxContactProfileStore } from '../core/inbox/inboxContactProfile
 import { FirestoreInboxContactProfileStore } from '../core/inbox/firestoreInboxContactProfileStore';
 import type { InboxInternalNoteStore } from '../core/inbox/inboxInternalNoteStore';
 import { FirestoreInboxInternalNoteStore } from '../core/inbox/firestoreInboxInternalNoteStore';
+import { HubFirestoreInboxOperatorDirectory, type ConnectInboxOperatorDirectory } from '../core/inbox/hubFirestoreInboxOperatorDirectory';
+import { createConnectInboxOperatorDirectoryHttpHandler } from '../core/runtime/connectInboxOperatorDirectoryHttpHandler';
 import { createInboxInternalNoteHttpHandler } from '../core/runtime/connectInboxInternalNoteHttpHandler';
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
 import { HumanReplyService } from '../core/inbox/humanReplyService';
@@ -81,6 +83,7 @@ export interface CreateConnectServerOptions {
   inboxMessageContentStore?: ConnectMessageContentStore;
   inboxContactProfileStore?: InboxContactProfileStore;
   inboxInternalNoteStore?: InboxInternalNoteStore;
+  inboxOperatorDirectory?: ConnectInboxOperatorDirectory;
   whatsappConnectionRegistry?: WhatsAppConnectionRegistry;
   inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
@@ -138,6 +141,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
   let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
   let inboxNoteHandler: ReturnType<typeof createInboxInternalNoteHttpHandler> | null = null;
+  let inboxOperatorDirectoryHandler: ReturnType<typeof createConnectInboxOperatorDirectoryHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
@@ -241,6 +245,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         durableStore,
         readinessProbe,
       );
+      const operatorDirectory = options.inboxOperatorDirectory
+        ?? new HubFirestoreInboxOperatorDirectory({ projectId, fetchImpl: options.fetchImpl });
+      inboxOperatorDirectoryHandler = createConnectInboxOperatorDirectoryHttpHandler({
+        contextProvider: inboxContextProvider, directory: operatorDirectory,
+      });
       inboxReadHandler = createConnectInboxThreadReadHttpHandler({
         contextProvider: inboxContextProvider,
         store: gatedStore,
@@ -248,6 +257,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       inboxCommandHandler = createConnectInboxThreadCommandHttpHandler({
         contextProvider: inboxContextProvider,
         store: gatedStore,
+        operatorDirectory,
       });
 
       const messageStore = messageContentEnabled
@@ -532,6 +542,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxReadinessHandler(req, res);
+  });
+
+  app.get('/api/core/inbox/operators', async (req, res) => {
+    if (!inboxOperatorDirectoryHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({ success: false, code: 'INBOX_DIRECTORY_UNAVAILABLE' });
+    }
+    return inboxOperatorDirectoryHandler(req, res);
   });
 
   app.get('/api/core/inbox/conversations/search', async (req, res) => {
