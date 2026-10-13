@@ -40,7 +40,7 @@ function res(){
 }
 const body={organizationId:'org-a',followupId:'followup-1',
   language:'pt_BR',acknowledgeTemplate:true};
-let providerCalls=0,hubCalls=0,dispatchCalls=0;
+let providerCalls=0,hubCalls=0,dispatchCalls=0,contentWrites=0;
 let stored:HumanReplyDispatchRecord|null=null;
 const dispatchStore:any={
   async begin(input:any){
@@ -54,6 +54,14 @@ const dispatchStore:any={
     providerMessageId:input.providerMessageId};return stored},
   async markAmbiguous(input:any){stored={...input.record,status:'ambiguous_after_provider_accept',
     providerMessageId:input.providerMessageId,errorCode:input.errorCode};return stored},
+};
+const messageStore:any={
+  async put(record:any){
+    contentWrites++;
+    equal(record.deliveryStatus,'sent','Meta accepted, not delivered yet');
+    equal(record.messageType,'template','webhook-indexed template');
+    return {kind:'created',record};
+  }
 };
 const meta:any={
   async sendApprovedTemplate(input:any){
@@ -75,7 +83,7 @@ const fetchImpl:typeof fetch=async(_url,init)=>{
 };
 const handler=createJourneyTemplateDispatchHandler({
   contextProvider:ctx,hubOrigin:'https://www.millionsnest.com',
-  registry:binding,dispatchStore,provider:meta,env,fetchImpl,
+  registry:binding,dispatchStore,messageStore,provider:meta,env,fetchImpl,
 });
 equal(isJourneyTemplateDispatchConfigured(env),true,'explicit opt-in config');
 equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
@@ -90,6 +98,7 @@ equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
   equal(r.body.deliveryStatus,'accepted_by_meta','never claims delivery');
   equal(providerCalls,1,'only one Meta message');
   equal(dispatchCalls,1,'durable attempt precedes provider call');
+  equal(contentWrites,1,'accepted template indexed for delivery/read webhook');
 }
 {
   const r=res();await handler(req(body),r);
