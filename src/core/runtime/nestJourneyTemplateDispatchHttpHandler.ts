@@ -5,6 +5,7 @@ import type {MetaWhatsAppProvider} from '../channels/metaWhatsAppProvider';
 import type {WhatsAppConnectionRegistry} from '../channels/whatsappConnectionRegistry';
 import type {HumanReplyDispatchStore} from '../inbox/humanReplyDispatchStore';
 import {normalizeWhatsAppPhone} from '../client/whatsappDelivery';
+import {createMessageEvidenceRef,createProviderMessageIndexId,type ConnectMessageContentStore} from '../inbox/messageContentStore';
 
 export type JourneyTemplateLanguage='pt_BR'|'en_US'|'es';
 export interface JourneyTemplateDispatchOptions {
@@ -13,6 +14,7 @@ export interface JourneyTemplateDispatchOptions {
   provider?:MetaWhatsAppProvider|null;
   registry?:WhatsAppConnectionRegistry|null;
   dispatchStore?:HumanReplyDispatchStore|null;
+  messageStore?:ConnectMessageContentStore|null;
   env?:NodeJS.ProcessEnv;
   fetchImpl?:typeof fetch;
 }
@@ -59,7 +61,7 @@ export function createJourneyTemplateReadinessHandler(options:JourneyTemplateDis
       return res.status(403).json({success:false,code:'CANONICAL_ACCESS_DENIED'});
     const sender=options.registry?.resolveOnlyForOrganization(organizationId);
     const ready=Boolean(isJourneyTemplateDispatchConfigured(env)
-      && options.provider&&options.dispatchStore&&sender);
+      && options.provider&&options.dispatchStore&&options.messageStore&&sender);
     return res.status(200).json({
       success:true,ready,
       // Template names are configuration metadata, not actual message content.
@@ -89,7 +91,7 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
     const language=req.body.language as JourneyTemplateLanguage;
     if(!organizationId||!followupId||!LANGUAGES.has(language)||req.body.acknowledgeTemplate!==true)
       return res.status(400).json({success:false,code:'INVALID_REQUEST'});
-    if(!isJourneyTemplateDispatchConfigured(env)||!options.provider||!options.registry||!options.dispatchStore)
+    if(!isJourneyTemplateDispatchConfigured(env)||!options.provider||!options.registry||!options.dispatchStore||!options.messageStore)
       return res.status(409).json({success:false,code:'OFFICIAL_TEMPLATE_NOT_CONFIGURED'});
     const sender=options.registry.resolveOnlyForOrganization(organizationId);
     if(!sender)return res.status(409).json({success:false,code:'SENDER_UNAVAILABLE_OR_AMBIGUOUS'});
@@ -151,8 +153,20 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
         phoneNumberId:sender.phoneNumberId,recipientPhone:phone,templateName,language,
       });
       try{
+        const at=new Date().toISOString();
+        const providerMessageId=providerResult.providerMessageId;
+        await options.messageStore.put({
+          schemaVersion:1,organizationId,conversationId:'journey-'+followupId,
+          messageId:createProviderMessageIndexId('whatsapp',providerMessageId),
+          channel:'whatsapp',direction:'outbound',providerMessageId,
+          senderRef:sender.phoneNumberId,recipientRef:phone,
+          messageType:'template',body:'Approved Meta template: '+templateName,
+          occurredAt:at,recordedAt:at,deliveryStatus:'sent',
+          deliveryUpdatedAt:at,
+          evidenceRef:createMessageEvidenceRef('whatsapp',providerMessageId),
+        });
         await options.dispatchStore.markSent({
-          record:dispatch,providerMessageId:providerResult.providerMessageId,
+          record:dispatch,providerMessageId,
           now:new Date().toISOString(),
         });
       }catch{
