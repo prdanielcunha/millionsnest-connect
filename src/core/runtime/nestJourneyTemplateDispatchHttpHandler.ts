@@ -22,11 +22,13 @@ const LANGUAGES=new Set<JourneyTemplateLanguage>(['pt_BR','en_US','es']);
 function validString(input:unknown):string{
   return typeof input==='string'&&SAFE_ID.test(input)?input:'';
 }
-function enabled(env:NodeJS.ProcessEnv){
+export function isJourneyTemplateDispatchConfigured(env:NodeJS.ProcessEnv){
   return env.CONNECT_NESTJOURNEY_TEMPLATE_SEND_ENABLED==='true'
     && env.CONNECT_NESTJOURNEY_TEMPLATE_POLICY_ACK==='APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED'
     && env.CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED==='true'
-    && SAFE_TEMPLATE.test(env.CONNECT_NESTJOURNEY_TEMPLATE_NAME||'');
+    && SAFE_TEMPLATE.test(env.CONNECT_NESTJOURNEY_TEMPLATE_NAME||'')
+    && Boolean(env.CONNECT_WHATSAPP_ACCESS_TOKEN?.trim())
+    && /^v\d{1,3}\.\d{1,3}$/.test(env.CONNECT_WHATSAPP_GRAPH_API_VERSION||'');
 }
 function toPublicError(e:unknown):{status:number;code:string}{
   const code=e instanceof Error?e.message:'UNKNOWN';
@@ -59,7 +61,7 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
     const language=req.body.language as JourneyTemplateLanguage;
     if(!organizationId||!followupId||!LANGUAGES.has(language)||req.body.acknowledgeTemplate!==true)
       return res.status(400).json({success:false,code:'INVALID_REQUEST'});
-    if(!enabled(env)||!options.provider||!options.registry||!options.dispatchStore)
+    if(!isJourneyTemplateDispatchConfigured(env)||!options.provider||!options.registry||!options.dispatchStore)
       return res.status(409).json({success:false,code:'OFFICIAL_TEMPLATE_NOT_CONFIGURED'});
     const sender=options.registry.resolveOnlyForOrganization(organizationId);
     if(!sender)return res.status(409).json({success:false,code:'SENDER_UNAVAILABLE_OR_AMBIGUOUS'});
