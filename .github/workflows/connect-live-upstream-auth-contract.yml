@@ -1,0 +1,44 @@
+name: Connect Live Upstream Auth Contract
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/connect-live-upstream-auth-contract.yml'
+      - '.github/workflows/connect-core-production-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate_upstream_auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Diagnose unauthenticated MusicScale route contracts safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://musicscale.millionsnest.com/api/v1/connect/next-schedule'
+          for resource in '' '/repertoire' '/presence' '/chart?title=release-smoke'; do
+            safe=$(printf '%s' "$resource" | tr -cd '[:alnum:]')
+            test -n "$safe" || safe='regular'
+            CODE=$(curl --silent --show-error --location --max-time 15 \
+              --header 'X-Organization-Id: release-smoke' \
+              --header 'X-Connect-Channel: inapp' \
+              --output "/tmp/connect-auth-$safe.json" --write-out '%{http_code}' \
+              "$API$resource")
+            CODE="$CODE" RESOURCE="$safe" node - <<'NODE'
+          const fs=require('fs');
+          const id=process.env.RESOURCE;
+          const raw=fs.readFileSync('/tmp/connect-auth-'+id+'.json','utf8');
+          let code='NON_JSON_RESPONSE';
+          try {
+            const result=JSON.parse(raw);
+            code=String(result.code||result.error||result.status||'UNKNOWN');
+          } catch {}
+          console.log('UPSTREAM_AUTH_STATUS='+id+':'+process.env.CODE+':'+code);
+          if(process.env.CODE!=='401')process.exitCode=1;
+          NODE
+          done
+          echo 'CONNECT_LIVE_UPSTREAM_AUTH_TEST_OK'
