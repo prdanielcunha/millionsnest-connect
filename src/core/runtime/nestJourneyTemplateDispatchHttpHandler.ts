@@ -40,6 +40,34 @@ function toPublicError(e:unknown):{status:number;code:string}{
   return{status:503,code:'DISPATCH_UNAVAILABLE'};
 }
 
+export function createJourneyTemplateReadinessHandler(options:JourneyTemplateDispatchOptions){
+  const env=options.env||process.env;
+  return async (req:express.Request,res:express.Response)=>{
+    res.setHeader('Cache-Control','no-store');
+    const token=req.headers.authorization;
+    const organizationId=validString(req.query.organizationId);
+    if(typeof token!=='string'||!/^Bearer\s+\S+$/i.test(token.trim()))
+      return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
+    if(!organizationId)return res.status(400).json({success:false,code:'INVALID_REQUEST'});
+    let canonical;
+    try{
+      canonical=await options.contextProvider.resolve({
+        authToken:token,requestedOrganizationId:organizationId,
+      });
+    }catch{return res.status(503).json({success:false,code:'CONTEXT_UNAVAILABLE'})}
+    if(canonical.status!=='resolved'||canonical.context.organizationId!==organizationId)
+      return res.status(403).json({success:false,code:'CANONICAL_ACCESS_DENIED'});
+    const sender=options.registry?.resolveOnlyForOrganization(organizationId);
+    const ready=Boolean(isJourneyTemplateDispatchConfigured(env)
+      && options.provider&&options.dispatchStore&&sender);
+    return res.status(200).json({
+      success:true,ready,
+      // Template names are configuration metadata, not actual message content.
+      ...(ready?{templateName:env.CONNECT_NESTJOURNEY_TEMPLATE_NAME}:{}),
+    });
+  };
+}
+
 /** Official, parameter-free, Meta-approved template only. Never dispatch client-supplied text.
  * Hub authorization is rechecked immediately before provider dispatch. One
  * durable ID per followup blocks repeats even after browser reload.
