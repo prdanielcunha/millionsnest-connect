@@ -12,10 +12,13 @@ import {
 import type {
   ConnectThreadStore,
 } from '../inbox/threadStore';
+import type { ConnectInboxOperatorDirectory } from '../inbox/hubFirestoreInboxOperatorDirectory';
 
 export interface ConnectInboxThreadHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
   store: ConnectThreadStore;
+  /** Canonical Hub members; fail-closed if not configured for transfer. */
+  operatorDirectory?: ConnectInboxOperatorDirectory;
 }
 
 type InboxCommandAction =
@@ -375,9 +378,33 @@ export function createConnectInboxThreadCommandHttpHandler(
           });
         }
 
-        result = action === 'assign'
-          ? await service.assign({ ...base, assigneeType, assigneeRef })
-          : await service.handoff({ ...base, assigneeType, assigneeRef });
+        if (action === 'assign') {
+          // A self-claim can only use the canonical Hub actor. Never accept an
+          // arbitrary client-selected uid or team under this action.
+          if (assigneeType !== 'user' || assigneeRef !== context.actorUid) {
+            return res.status(403).json({ success: false, code: 'ASSIGNEE_NOT_AUTHORIZED' });
+          }
+          result = await service.assign({ ...base, assigneeType, assigneeRef });
+        } else {
+          // Transfer is available only if Hub membership and the target's
+          // active account are checked again immediately before mutation.
+          if (assigneeType !== 'user' || !options.operatorDirectory) {
+            return res.status(503).json({ success: false, code: 'INBOX_DIRECTORY_UNAVAILABLE' });
+          }
+          let eligible = false;
+          try {
+            eligible = await options.operatorDirectory.verify({
+              organizationId: context.organizationId,
+              uid: assigneeRef,
+            });
+          } catch {
+            return res.status(503).json({ success: false, code: 'INBOX_DIRECTORY_UNAVAILABLE' });
+          }
+          if (!eligible) {
+            return res.status(403).json({ success: false, code: 'ASSIGNEE_NOT_AUTHORIZED' });
+          }
+          result = await service.handoff({ ...base, assigneeType, assigneeRef });
+        }
       } else if (action === 'wait_for_person') {
         result = await service.waitForPerson(base);
       } else if (action === 'resolve') {
