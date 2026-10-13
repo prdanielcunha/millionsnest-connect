@@ -34,7 +34,7 @@ function readStr(fields: Record<string, any> | undefined, name: string): string 
 
 function inactive(fields: Record<string, any> | undefined): boolean {
   const state = (readStr(fields, 'status') || readStr(fields, 'membershipStatus')).toLowerCase();
-  return ['inactive', 'disabled', 'removed', 'revoked', 'archived', 'suspended'].includes(state) ||
+  return ['inactive', 'disabled', 'removed', 'revoked', 'archived', 'suspended', 'pending', 'invited', 'requested'].includes(state) ||
     fields?.disabled?.booleanValue === true || fields?.isActive?.booleanValue === false;
 }
 
