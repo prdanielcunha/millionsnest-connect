@@ -9,6 +9,7 @@ import { createConnectSessionHttpHandler } from '../core/runtime/connectSessionH
 import { HubSessionContextHttpProvider } from '../core/runtime/hubSessionContextHttpProvider';
 import { createOutboundDeliveryHttpHandler } from '../core/runtime/outboundDeliveryHttpHandler';
 import { createNestJourneyFollowupContextHttpHandler } from '../core/runtime/nestJourneyFollowupContextHttpHandler';
+import { createJourneyTemplateDispatchHandler,isJourneyTemplateDispatchConfigured } from '../core/runtime/nestJourneyTemplateDispatchHttpHandler';
 import { createConnectChannelReadinessHttpHandler } from '../core/runtime/connectChannelReadinessHttpHandler';
 import {
   createWhatsAppWebhookIngressHandler,
@@ -121,6 +122,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let sessionHandler: ReturnType<typeof createConnectSessionHttpHandler> | null = null;
   let outboundValidationHandler: ReturnType<typeof createOutboundDeliveryHttpHandler> | null = null;
   let journeyFollowupHandler: ReturnType<typeof createNestJourneyFollowupContextHttpHandler> | null = null;
+  let journeyTemplateHandler: ReturnType<typeof createJourneyTemplateDispatchHandler> | null = null;
   let channelReadinessHandler: ReturnType<typeof createConnectChannelReadinessHttpHandler> | null = null;
   const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
   let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
@@ -302,7 +304,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         });
 
         let registry: WhatsAppConnectionRegistry | null = null;
-        if (whatsappIngestionEnabled || isWhatsAppHumanReplyConfigured(env)) {
+        if (whatsappIngestionEnabled || isWhatsAppHumanReplyConfigured(env) || isJourneyTemplateDispatchConfigured(env)) {
           registry = options.whatsappConnectionRegistry
             ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
         }
@@ -325,6 +327,26 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           registry && registry.size > 0 && isWhatsAppHumanReplyConfigured(env)
             ? createMetaWhatsAppProviderFromEnv(env, options.fetchImpl)
             : null;
+
+        if(hubOrigin && registry && registry.size>0 && inboxContextProvider
+          && isJourneyTemplateDispatchConfigured(env)){
+          try{
+            journeyTemplateHandler=createJourneyTemplateDispatchHandler({
+              contextProvider:inboxContextProvider,
+              hubOrigin,registry,
+              provider:createMetaWhatsAppProviderFromEnv(env,options.fetchImpl),
+              dispatchStore:new FirestoreHumanReplyDispatchStore({
+                projectId,fetchImpl:options.fetchImpl,
+              }),
+              env,fetchImpl:options.fetchImpl,
+            });
+          }catch(error){
+            logger.warn?.('NESTJOURNEY_TEMPLATE_DISPATCH_NOT_READY',{
+              code:error instanceof Error?error.message:'CONFIGURATION_ERROR',
+            });
+            journeyTemplateHandler=null;
+          }
+        }
 
         let humanReplyService: HumanReplyService | undefined;
         if (registry && registry.size > 0 && officialWhatsAppProvider) {
@@ -676,6 +698,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return journeyFollowupHandler(req, res);
+  });
+
+  app.post('/api/core/nestjourney/followup/send-template',async (req,res)=>{
+    if(!journeyTemplateHandler){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(409).json({success:false,code:'OFFICIAL_TEMPLATE_NOT_CONFIGURED'});
+    }
+    return journeyTemplateHandler(req,res);
   });
 
   app.post('/api/core/outbound/validate', async (req, res) => {
