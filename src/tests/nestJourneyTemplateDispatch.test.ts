@@ -52,6 +52,7 @@ const dispatchStore:any={
   },
   async markSent(input:any){stored={...input.record,status:'sent',
     providerMessageId:input.providerMessageId};return stored},
+  async markFailed(input:any){stored={...input.record,status:'failed',errorCode:input.errorCode};return stored},
   async markAmbiguous(input:any){stored={...input.record,status:'ambiguous_after_provider_accept',
     providerMessageId:input.providerMessageId,errorCode:input.errorCode};return stored},
 };
@@ -105,7 +106,7 @@ equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
   equal(r.statusCode,200,'repeat accepted');
   equal(r.body.kind,'duplicate','repeats do not send');
   equal(providerCalls,1,'still one external call');
-  equal(hubCalls,2,'Hub consent rechecked for each click');
+  equal(hubCalls,3,'Hub checked twice before Meta and once on repeat');
 }
 {
   allowed=false;
