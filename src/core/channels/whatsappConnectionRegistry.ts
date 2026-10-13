@@ -83,6 +83,14 @@ export class WhatsAppConnectionRegistry {
     return this.byPhoneNumberId.get(phoneNumberId.trim()) ?? null;
   }
 
+  resolveOnlyForOrganization(organizationId: string): WhatsAppConnectionBinding | null {
+    const active=[...this.byPhoneNumberId.values()].filter(
+      binding=>binding.organizationId===organizationId.trim()
+    );
+    // Multiple sender numbers are ambiguous: never silently choose a number.
+    return active.length===1 ? active[0] : null;
+  }
+
   get size(): number {
     return this.byPhoneNumberId.size;
   }
