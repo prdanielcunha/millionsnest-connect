@@ -13,6 +13,8 @@ import {
 } from './messageContentStore';
 import { ConnectThreadCommandService } from './threadService';
 import type { ConnectThreadStore } from './threadStore';
+import type { InboxContactProfileStore } from './inboxContactProfileStore';
+import { sanitizeInboxContactName } from './inboxContactProfileStore';
 
 function providerTimestampToIso(raw: string, fallback: Date): string {
   const seconds = Number(raw);
@@ -54,6 +56,7 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
     private readonly contentStore: ConnectMessageContentStore,
     threadStore: ConnectThreadStore,
     private readonly now: () => Date = () => new Date(),
+    private readonly contactProfiles?: InboxContactProfileStore,
   ) {
     this.threadService = new ConnectThreadCommandService(threadStore, now);
   }
@@ -101,6 +104,22 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
       deliveryStatus: 'received',
       evidenceRef,
     });
+
+    const displayName = sanitizeInboxContactName(event.senderDisplayName);
+    if (displayName && this.contactProfiles) {
+      // Optional identity enrichment must never block an actual WhatsApp
+      // message or force the provider into unnecessary duplicate retries.
+      try {
+        await this.contactProfiles.upsert({
+          organizationId: binding.organizationId,
+          conversationId,
+          displayName,
+          observedAt: occurredAt,
+        });
+      } catch {
+        // No fallback to personal CRM, raw sender reference or guessed name.
+      }
+    }
 
     const scope = {
       organizationId: binding.organizationId,

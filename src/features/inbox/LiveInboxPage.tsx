@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   PanelRightOpen,
   RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Sparkles,
@@ -23,9 +24,12 @@ import {
   type LiveInboxConversation,
   type LiveInboxMessage,
   type LiveInboxReadiness,
+  type LiveInboxInternalNote,
+  type LiveInboxOperator,
 } from '../../core/client/liveInboxClient';
 import type { LanguageCode } from '../../types';
 import { ConnectNestAiClient } from '../../core/client/connectNestAiClient';
+import { availableInboxThreadActions, canShowInboxManagement, prepareInboxReplyAttempt, prepareInboxThreadActionAttempt, timelineDayKey, timelineDayLabel, type InboxReplyAttempt, type InboxThreadAction, type InboxThreadActionAttempt } from './liveInboxPresentation';
 
 interface Props {
   session: LiveConnectSession;
@@ -41,11 +45,19 @@ const copy = {
     title: 'Atendimento',
     subtitle: 'Converse, entenda e resolva com contexto — sem transformar a Inbox em painel técnico.',
     refresh: 'Atualizar',
+    loadMore: 'Carregar mais conversas',
+    olderMessages: 'Ver mensagens anteriores',
+    olderMessagesLoading: 'Carregando histórico…',
+    loadingMore: 'Carregando…',
     all: 'Todas',
     open: 'Abertas',
     resolved: 'Resolvidas',
-    search: 'Buscar conversas…',
+    search: 'Buscar conversas ou pessoas…',
+    searchIndex: 'Buscando nomes com segurança…',
+    searchLocal: 'Busca nesta lista; índice de nomes ainda não ativado.',
     conversation: 'Conversa',
+    unidentified: 'Pessoa sem identificação',
+    profileLabel: 'Nome do perfil do WhatsApp',
     conversations: 'Conversas',
     noConversation: 'Nenhuma conversa neste filtro',
     noConversationDesc: 'A Inbox só mostra registros reais e autorizados. Revise o filtro ou aguarde a entrada de uma conversa.',
@@ -58,19 +70,51 @@ const copy = {
     replyPlaceholder: 'Escreva uma resposta…',
     send: 'Enviar',
     sending: 'Enviando…',
-    sent: 'Resposta enviada pelo canal oficial.',
+    sent: 'Resposta aceita pelo canal oficial. Acompanhe a entrega no histórico.',
+    alreadySent: 'Esta resposta já foi registrada; nenhum envio duplicado ocorreu.',
+    refreshFailed: 'Resposta aceita, mas não foi possível atualizar o histórico. Use Atualizar para conferir.',
     replyHint: 'Envio oficial · auditado · sem automação silenciosa',
     suggest: 'Sugerir com IA',
     suggesting: 'Pensando…',
-    suggested: 'Sugestão do NestAI inserida no rascunho. Revise antes de enviar.',
+    suggested: 'Sugestão do NestAI pronta para revisão. Seu rascunho foi preservado.',
+    applySuggestion: 'Usar sugestão',
+    discardSuggestion: 'Descartar',
     replyLocked: 'Resposta indisponível',
     replyLockedDesc: 'O canal de saída ainda não está liberado para esta conversa.',
+    reopenForReply: 'Reabra a conversa antes de responder pelo canal oficial.',
     context: 'Contexto da conversa',
+    noteTitle: 'Notas internas',
+    noteDesc: 'Visível apenas para a equipe. Nunca enviada ao cliente.',
+    notePlaceholder: 'Escreva uma nota interna…',
+    noteSave: 'Salvar nota',
+    noteSaving: 'Salvando nota…',
+    noteSaved: 'Nota interna registrada.',
+    noteDuplicate: 'Esta nota já havia sido registrada.',
+    claim: 'Assumir atendimento',
+    handoff: 'Transferir atendimento',
+    chooseOperator: 'Selecione um atendente autorizado',
+    transfer: 'Transferir agora',
+    transferring: 'Validando transferência…',
+    noOperators: 'Sem atendentes autorizados',
+    directoryUnavailable: 'Não foi possível consultar a equipe. A transferência está indisponível.',
+    waiting: 'Aguardar resposta',
+    resolve: 'Resolver',
+    reopen: 'Reabrir',
+    archive: 'Arquivar',
+    threadUpdated: 'Estado do atendimento atualizado e registrado.',
+    threadDuplicate: 'A alteração já estava registrada.',
+    threadRefreshFailed: 'Alteração salva, mas a lista não atualizou. Use Atualizar.',
+    actionProgress: 'Salvando alteração…',
+    actionsTitle: 'Gerenciar atendimento',
+    actionsHint: 'As ações são confirmadas pelo MillionsNest e auditadas no servidor.',
     close: 'Fechar',
     organization: 'Organização',
     channel: 'Canal',
     responsible: 'Responsável',
     unassigned: 'Não atribuído',
+    mine: 'Comigo',
+    anotherAgent: 'Atendente designado',
+    teamAssigned: 'Equipe designada',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo passo',
@@ -119,11 +163,19 @@ const copy = {
     title: 'Support',
     subtitle: 'Talk, understand and resolve with context — without turning Inbox into a technical dashboard.',
     refresh: 'Refresh',
+    loadMore: 'Load more conversations',
+    olderMessages: 'View earlier messages',
+    olderMessagesLoading: 'Loading history…',
+    loadingMore: 'Loading…',
     all: 'All',
     open: 'Open',
     resolved: 'Resolved',
-    search: 'Search conversations…',
+    search: 'Search conversations or people…',
+    searchIndex: 'Searching names securely…',
+    searchLocal: 'Searching this list; the name index is not enabled yet.',
     conversation: 'Conversation',
+    unidentified: 'Unidentified contact',
+    profileLabel: 'WhatsApp profile name',
     conversations: 'Conversations',
     noConversation: 'No conversations in this filter',
     noConversationDesc: 'Inbox only shows real, authorized records. Review the filter or wait for a conversation to arrive.',
@@ -136,19 +188,51 @@ const copy = {
     replyPlaceholder: 'Write a reply…',
     send: 'Send',
     sending: 'Sending…',
-    sent: 'Reply sent through the official channel.',
+    sent: 'Reply accepted by the official channel. Track delivery in the conversation.',
+    alreadySent: 'This reply was already recorded; no duplicate was sent.',
+    refreshFailed: 'Reply accepted, but the conversation could not refresh. Use Refresh to check.',
     replyHint: 'Official delivery · audited · no silent automation',
     suggest: 'Suggest with AI',
     suggesting: 'Thinking…',
-    suggested: 'NestAI suggestion inserted into the draft. Review it before sending.',
+    suggested: 'NestAI suggestion ready for review. Your draft is unchanged.',
+    applySuggestion: 'Use suggestion',
+    discardSuggestion: 'Discard',
     replyLocked: 'Reply unavailable',
     replyLockedDesc: 'The outbound channel is not enabled for this conversation yet.',
+    reopenForReply: 'Reopen the conversation before replying through the official channel.',
     context: 'Conversation context',
+    noteTitle: 'Internal notes',
+    noteDesc: 'Visible only to your team. Never sent to the contact.',
+    notePlaceholder: 'Write an internal note…',
+    noteSave: 'Save note',
+    noteSaving: 'Saving note…',
+    noteSaved: 'Internal note saved.',
+    noteDuplicate: 'This note was already recorded.',
+    claim: 'Take ownership',
+    handoff: 'Transfer conversation',
+    chooseOperator: 'Choose an authorized operator',
+    transfer: 'Transfer now',
+    transferring: 'Verifying transfer…',
+    noOperators: 'No authorized operators',
+    directoryUnavailable: 'Team directory is unavailable. Transfer is blocked.',
+    waiting: 'Wait for reply',
+    resolve: 'Resolve',
+    reopen: 'Reopen',
+    archive: 'Archive',
+    threadUpdated: 'Conversation state updated and recorded.',
+    threadDuplicate: 'This change was already recorded.',
+    threadRefreshFailed: 'Change saved, but the list did not refresh. Use Refresh.',
+    actionProgress: 'Saving change…',
+    actionsTitle: 'Manage conversation',
+    actionsHint: 'Changes are authorized by MillionsNest and audited by the server.',
     close: 'Close',
     organization: 'Organization',
     channel: 'Channel',
     responsible: 'Owner',
     unassigned: 'Unassigned',
+    mine: 'Assigned to me',
+    anotherAgent: 'Assigned agent',
+    teamAssigned: 'Assigned team',
     state: 'State',
     mode: 'Mode',
     next: 'Next step',
@@ -197,11 +281,19 @@ const copy = {
     title: 'Atención',
     subtitle: 'Conversa, entiende y resuelve con contexto — sin convertir la bandeja en un panel técnico.',
     refresh: 'Actualizar',
+    loadMore: 'Cargar más conversaciones',
+    olderMessages: 'Ver mensajes anteriores',
+    olderMessagesLoading: 'Cargando historial…',
+    loadingMore: 'Cargando…',
     all: 'Todas',
     open: 'Abiertas',
     resolved: 'Resueltas',
-    search: 'Buscar conversaciones…',
+    search: 'Buscar conversaciones o personas…',
+    searchIndex: 'Buscando nombres de forma segura…',
+    searchLocal: 'Buscando en esta lista; el índice de nombres aún no está activo.',
     conversation: 'Conversación',
+    unidentified: 'Contacto sin identificar',
+    profileLabel: 'Nombre del perfil de WhatsApp',
     conversations: 'Conversaciones',
     noConversation: 'No hay conversaciones en este filtro',
     noConversationDesc: 'La bandeja solo muestra registros reales y autorizados. Revisa el filtro o espera la llegada de una conversación.',
@@ -214,19 +306,51 @@ const copy = {
     replyPlaceholder: 'Escribe una respuesta…',
     send: 'Enviar',
     sending: 'Enviando…',
-    sent: 'Respuesta enviada por el canal oficial.',
+    sent: 'Respuesta aceptada por el canal oficial. Consulta la entrega en el historial.',
+    alreadySent: 'Esta respuesta ya estaba registrada; no se duplicó el envío.',
+    refreshFailed: 'Respuesta aceptada, pero no se pudo actualizar el historial. Usa Actualizar para comprobar.',
     replyHint: 'Envío oficial · auditado · sin automatización silenciosa',
     suggest: 'Sugerir con IA',
     suggesting: 'Pensando…',
-    suggested: 'Sugerencia de NestAI insertada en el borrador. Revísala antes de enviar.',
+    suggested: 'Sugerencia de NestAI lista para revisar. Tu borrador se conserva.',
+    applySuggestion: 'Usar sugerencia',
+    discardSuggestion: 'Descartar',
     replyLocked: 'Respuesta no disponible',
     replyLockedDesc: 'El canal de salida todavía no está habilitado para esta conversación.',
+    reopenForReply: 'Reabre la conversación antes de responder por el canal oficial.',
     context: 'Contexto de la conversación',
+    noteTitle: 'Notas internas',
+    noteDesc: 'Solo tu equipo puede verlas. Nunca se envían al contacto.',
+    notePlaceholder: 'Escribe una nota interna…',
+    noteSave: 'Guardar nota',
+    noteSaving: 'Guardando nota…',
+    noteSaved: 'Nota interna guardada.',
+    noteDuplicate: 'Esta nota ya estaba registrada.',
+    claim: 'Tomar atención',
+    handoff: 'Transferir conversación',
+    chooseOperator: 'Selecciona un operador autorizado',
+    transfer: 'Transferir ahora',
+    transferring: 'Verificando transferencia…',
+    noOperators: 'No hay operadores autorizados',
+    directoryUnavailable: 'No se pudo consultar el equipo. La transferencia está bloqueada.',
+    waiting: 'Esperar respuesta',
+    resolve: 'Resolver',
+    reopen: 'Reabrir',
+    archive: 'Archivar',
+    threadUpdated: 'Estado de la atención actualizado y registrado.',
+    threadDuplicate: 'Esta acción ya estaba registrada.',
+    threadRefreshFailed: 'Cambio guardado, pero la lista no se actualizó. Usa Actualizar.',
+    actionProgress: 'Guardando cambio…',
+    actionsTitle: 'Gestionar atención',
+    actionsHint: 'MillionsNest autoriza y audita las acciones en el servidor.',
     close: 'Cerrar',
     organization: 'Organización',
     channel: 'Canal',
     responsible: 'Responsable',
     unassigned: 'Sin asignar',
+    mine: 'A mi cargo',
+    anotherAgent: 'Agente asignado',
+    teamAssigned: 'Equipo asignado',
     state: 'Estado',
     mode: 'Modo',
     next: 'Próximo paso',
@@ -291,13 +415,6 @@ function nextStep(status: LiveInboxConversation['status'], t: typeof copy['pt-BR
   }
 }
 
-function readinessLabel(readiness: LiveInboxReadiness | null, t: typeof copy['pt-BR']) {
-  if (!readiness) return '—';
-  if (readiness.state === 'available') return t.available;
-  if (readiness.state === 'controlled') return t.controlled;
-  return t.blocked;
-}
-
 export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigate }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveInboxClient(session), [session]);
@@ -308,27 +425,58 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
   const [filter, setFilter] = useState<ConversationFilter>('all');
   const [query, setQuery] = useState('');
+  const [remoteConversations, setRemoteConversations] = useState<LiveInboxConversation[]>([]);
+  const [openedRemote, setOpenedRemote] = useState<LiveInboxConversation | null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchEnabled, setSearchEnabled] = useState<boolean | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [olderLoading, setOlderLoading] = useState(false);
+  const timelineSequenceRef = useRef(0);
   const [replySending, setReplySending] = useState(false);
+  const [threadActing, setThreadActing] = useState(false);
+  const [operators, setOperators] = useState<LiveInboxOperator[]>([]);
+  const [operatorChoice, setOperatorChoice] = useState('');
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<{ scopeKey: string; text: string } | null>(null);
   const [showContext, setShowContext] = useState(false);
+  const [internalNotes, setInternalNotes] = useState<LiveInboxInternalNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [noteSending, setNoteSending] = useState(false);
+  const [noteError, setNoteError] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const pendingReplyRef = useRef<InboxReplyAttempt | null>(null);
+  const pendingNoteAttemptRef = useRef<{ scope: string; text: string; id: string } | null>(null);
+  const pendingThreadActionRef = useRef<InboxThreadActionAttempt | null>(null);
+  const pendingHandoffRef = useRef<{ scope: string; uid: string; requestId: string } | null>(null);
+  const loadSequenceRef = useRef(0);
+  const selectedScopeRef = useRef('');
+  selectedScopeRef.current = `${session.expectedOrganizationId}:${selectedId}`;
 
   const contentReady = readiness?.foundations.some(
     (item) => item.id === 'message_content_store' && item.status === 'ready',
   ) ?? false;
+  const internalNotesEnabled = readiness?.internalNotesEnabled === true;
   const humanReplyReady = readiness?.foundations.some(
     (item) => item.id === 'human_reply' && item.status === 'ready',
   ) ?? false;
 
   const load = async () => {
+    const sequence = ++loadSequenceRef.current;
     setLoading(true);
+    setLoadingMore(false);
     setError('');
     try {
       const nextReadiness = await client.getReadiness();
+      if (sequence !== loadSequenceRef.current) return;
       setReadiness(nextReadiness);
       const canRead = nextReadiness.foundations.some(
         (item) => item.id === 'message_content_store' && item.status === 'ready',
@@ -336,45 +484,143 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
 
       if (!canRead) {
         setConversations([]);
+        setNextCursor(null);
         setSelectedId('');
         setMessages([]);
         return;
       }
 
-      const next = await client.listConversations();
-      setConversations(next);
-      setSelectedId((current) => current && next.some((item) => item.conversationId === current) ? current : '');
+      const page = await client.listConversationsPage();
+      if (sequence !== loadSequenceRef.current) return;
+      setConversations(page.conversations);
+      setNextCursor(page.nextCursor);
+      setSelectedId((current) => current && page.conversations.some((item) => item.conversationId === current) ? current : '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
+      if (sequence === loadSequenceRef.current) setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
     } finally {
-      setLoading(false);
+      if (sequence === loadSequenceRef.current) setLoading(false);
     }
   };
 
-  useEffect(() => { void load(); }, [client]);
+  const loadMore = async () => {
+    if (!nextCursor || loading || loadingMore) return;
+    const sequence = loadSequenceRef.current;
+    setLoadingMore(true);
+    try {
+      const page = await client.listConversationsPage(50, nextCursor);
+      if (sequence !== loadSequenceRef.current) return;
+      setConversations(current => [
+        ...current,
+        ...page.conversations.filter(item => !current.some(old => old.conversationId === item.conversationId)),
+      ]);
+      setNextCursor(page.nextCursor);
+    } catch (e) {
+      if (sequence === loadSequenceRef.current) {
+        setError(e instanceof Error ? e.message : 'INBOX_PAGINATION_UNAVAILABLE');
+      }
+    } finally {
+      if (sequence === loadSequenceRef.current) setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
+    void load();
+    return () => { loadSequenceRef.current += 1; };
+  }, [client]);
+
+  useEffect(() => {
+    // A previous principal/tenant must never leave cached conversations visible
+    // while the new session is loading or when its backend is unavailable.
+    setReadiness(null);
+    setConversations([]);
+    setNextCursor(null);
+    setRemoteConversations([]);
+    setOpenedRemote(null);
+    setSearchEnabled(null);
     setSelectedId('');
     setMessages([]);
+    setInternalNotes([]);
+    setNoteDraft('');
+    setNoteError('');
+    pendingNoteAttemptRef.current = null;
     setDrafts({});
+    setSuggestion(null);
+    pendingReplyRef.current = null;
+    pendingThreadActionRef.current = null;
     setShowContext(false);
-  }, [session.expectedOrganizationId]);
+  }, [client]);
 
   useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setRemoteConversations([]);
+      setSearchEnabled(null);
+      setSearchBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchBusy(true);
+    const timer = setTimeout(() => {
+      void client.searchConversations(trimmed)
+        .then(result => {
+          if (cancelled) return;
+          setRemoteConversations(result.conversations);
+          setSearchEnabled(result.enabled);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setRemoteConversations([]);
+          setSearchEnabled(false);
+        })
+        .finally(() => { if (!cancelled) setSearchBusy(false); });
+    }, 360);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [client, query]);
+
+  useEffect(() => {
+    const sequence = ++timelineSequenceRef.current;
+    setOlderCursor(null);
+    setOlderLoading(false);
+    setMessages([]);
     if (!selectedId) {
-      setMessages([]);
+      setTimelineLoading(false);
       return;
     }
 
     let cancelled = false;
     setTimelineLoading(true);
     setError('');
-    void client.listMessages(selectedId)
-      .then((next) => { if (!cancelled) setMessages(next); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'INBOX_MESSAGES_FAILED'); })
-      .finally(() => { if (!cancelled) setTimelineLoading(false); });
-    return () => { cancelled = true; };
+    void client.listMessagesPage(selectedId)
+      .then((page) => {
+        if (cancelled || sequence !== timelineSequenceRef.current) return;
+        setMessages(page.messages);
+        setOlderCursor(page.olderCursor);
+      })
+      .catch((e) => {
+        if (!cancelled && sequence === timelineSequenceRef.current) {
+          setError(e instanceof Error ? e.message : 'INBOX_MESSAGES_FAILED');
+        }
+      })
+      .finally(() => {
+        if (!cancelled && sequence === timelineSequenceRef.current) setTimelineLoading(false);
+      });
+    return () => { cancelled = true; timelineSequenceRef.current += 1; };
   }, [client, selectedId]);
+
+  useEffect(() => {
+    setInternalNotes([]);
+    setNoteDraft('');
+    setNoteError('');
+    pendingNoteAttemptRef.current = null;
+    if (!selectedId || !internalNotesEnabled) return;
+    let cancelled = false;
+    setNotesLoading(true);
+    void client.listInternalNotes(selectedId)
+      .then(items => { if (!cancelled) setInternalNotes(items); })
+      .catch(() => { if (!cancelled) setNoteError('INBOX_NOTE_READ_UNAVAILABLE'); })
+      .finally(() => { if (!cancelled) setNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [client, selectedId, internalNotesEnabled]);
 
   useEffect(() => {
     if (!showContext) return;
@@ -385,11 +631,57 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [showContext]);
 
-  const selected = conversations.find((conversation) => conversation.conversationId === selectedId) ?? null;
+  const canManage = canShowInboxManagement(session.context);
+  useEffect(() => {
+    setOperators([]);
+    setOperatorChoice('');
+    setDirectoryError(false);
+    pendingHandoffRef.current = null;
+    if (!canManage) return;
+    let cancelled = false;
+    setDirectoryLoading(true);
+    void client.listOperators()
+      .then(items => { if (!cancelled) setOperators(items); })
+      .catch(() => { if (!cancelled) setDirectoryError(true); })
+      .finally(() => { if (!cancelled) setDirectoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [client, canManage]);
+
+  const loadOlderMessages = async () => {
+    if (!selectedId || !olderCursor || olderLoading || timelineLoading) return;
+    const scope = selectedScopeRef.current;
+    const sequence = timelineSequenceRef.current;
+    setOlderLoading(true);
+    setError('');
+    try {
+      const page = await client.listMessagesPage(selectedId, 100, olderCursor);
+      if (sequence !== timelineSequenceRef.current || selectedScopeRef.current !== scope) return;
+      setMessages((current) => [
+        ...page.messages.filter(message => !current.some(existing => existing.messageId === message.messageId)),
+        ...current,
+      ]);
+      setOlderCursor(page.olderCursor);
+    } catch (e) {
+      if (sequence === timelineSequenceRef.current && selectedScopeRef.current === scope) {
+        setError(e instanceof Error ? e.message : 'INBOX_MESSAGE_PAGE_UNAVAILABLE');
+      }
+    } finally {
+      if (sequence === timelineSequenceRef.current && selectedScopeRef.current === scope) setOlderLoading(false);
+    }
+  };
+
+  const selected = conversations.find((conversation) => conversation.conversationId === selectedId)
+    ?? (openedRemote?.conversationId === selectedId ? openedRemote : null);
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
   const replyText = draftKey ? drafts[draftKey] || '' : '';
+  const activeSuggestion = suggestion?.scopeKey === draftKey ? suggestion.text : '';
 
-  const visibleConversations = conversations
+  const searchPool = query.trim().length >= 2
+    ? [...conversations, ...remoteConversations.filter(remote =>
+        !conversations.some(local => local.conversationId === remote.conversationId))]
+    : conversations;
+
+  const visibleConversations = searchPool
     .filter((conversation) => {
       if (filter === 'open' && !isOpenConversation(conversation)) return false;
       if (filter === 'resolved' && !['resolved', 'archived'].includes(conversation.status)) return false;
@@ -397,6 +689,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       if (!normalized) return true;
       return [
         conversation.conversationId,
+        conversation.contact?.displayName || '',
         conversation.status,
         conversation.mode,
         conversation.assignedTo?.ref || '',
@@ -405,48 +698,200 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const suggestReply = async () => {
-    if (!selected || aiSuggesting || messages.length === 0) return;
+    if (!selected || aiSuggesting || messages.length === 0 || !isOpenConversation(selected)) return;
     setAiSuggesting(true);
     setError('');
     setNotice('');
+    const requestedScope = draftKey;
     try {
-      const suggestion = await nestAi.suggestReply({
+      const text = await nestAi.suggestReply({
         conversationId: selected.conversationId,
         messages,
         currentDraft: replyText,
       });
-      setDrafts((current) => ({ ...current, [draftKey]: suggestion }));
-      setNotice(t.suggested);
+      if (selectedScopeRef.current === requestedScope) {
+        setSuggestion({ scopeKey: requestedScope, text });
+        setNotice(t.suggested);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'NESTAI_REPLY_SUGGESTION_FAILED');
+      if (selectedScopeRef.current === requestedScope) {
+        setError(e instanceof Error ? e.message : 'NESTAI_REPLY_SUGGESTION_FAILED');
+      }
     } finally {
       setAiSuggesting(false);
     }
   };
 
   const sendReply = async () => {
-    if (!selected || !humanReplyReady || !replyText.trim() || replySending) return;
+    if (!selected || !isOpenConversation(selected) || !humanReplyReady || !replyText.trim() || replySending) return;
+    const submittedConversationId = selected.conversationId;
+    const submittedOrgId = session.expectedOrganizationId;
+    const attempt = prepareInboxReplyAttempt(
+      pendingReplyRef.current,
+      draftKey,
+      replyText,
+      () => globalThis.crypto?.randomUUID?.() || `reply-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    pendingReplyRef.current = attempt;
     setReplySending(true);
     setError('');
     setNotice('');
     try {
-      await client.sendReply({
-        conversationId: selected.conversationId,
-        requestId: globalThis.crypto?.randomUUID?.() || `reply-${Date.now()}`,
-        text: replyText.trim(),
+      const result = await client.sendReply({
+        conversationId: submittedConversationId,
+        requestId: attempt.requestId,
+        text: attempt.text,
       });
-      setDrafts((current) => ({ ...current, [draftKey]: '' }));
-      setNotice(t.sent);
-      const [nextMessages, nextConversations] = await Promise.all([
-        client.listMessages(selected.conversationId),
-        client.listConversations(),
-      ]);
-      setMessages(nextMessages);
-      setConversations(nextConversations);
+      // A successful provider request is different from refreshing the timeline.
+      pendingReplyRef.current = null;
+      setSuggestion((current) => current?.scopeKey === draftKey ? null : current);
+      setDrafts((current) => current[draftKey]?.trim() === attempt.text ? { ...current, [draftKey]: '' } : current);
+      if (selectedScopeRef.current === draftKey) {
+        setNotice(result.kind === 'duplicate' ? t.alreadySent : t.sent);
+      }
+      try {
+        const [timeline, nextConversations] = await Promise.all([
+          client.listMessagesPage(submittedConversationId),
+          client.listConversations(),
+        ]);
+        if (selectedScopeRef.current.startsWith(`${submittedOrgId}:`)) setConversations(nextConversations);
+        if (selectedScopeRef.current === draftKey) {
+          timelineSequenceRef.current += 1;
+          setMessages(timeline.messages);
+          setOlderCursor(timeline.olderCursor);
+        }
+      } catch {
+        if (selectedScopeRef.current === draftKey) setError(t.refreshFailed);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'HUMAN_REPLY_UNAVAILABLE');
+      // Preserve requestId after uncertain network outcomes; backend idempotency
+      // can reconcile a retry without sending the same text a second time.
+      if (selectedScopeRef.current === draftKey) {
+        setError(e instanceof Error ? e.message : 'HUMAN_REPLY_UNAVAILABLE');
+      }
     } finally {
       setReplySending(false);
+    }
+  };
+  const runThreadAction = async (action: InboxThreadAction) => {
+    if (!selected || !canManage || threadActing || replySending || !availableInboxThreadActions(selected.status).includes(action)) return;
+    const scopeKey = draftKey;
+    const attempt = prepareInboxThreadActionAttempt(
+      pendingThreadActionRef.current,
+      scopeKey,
+      action,
+      action === 'assign' ? session.context.user.uid : '',
+      () => globalThis.crypto?.randomUUID?.() || `thread-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    pendingThreadActionRef.current = attempt;
+    setThreadActing(true);
+    setNotice('');
+    setError('');
+    try {
+      const result = await client.manageThread({
+        conversationId: selected.conversationId,
+        action,
+        requestId: attempt.requestId,
+        evidenceRef: selected.lastEvidenceRef,
+        ...(action === 'assign' ? { assigneeRef: session.context.user.uid } : {}),
+      });
+      pendingThreadActionRef.current = null;
+      if (selectedScopeRef.current !== scopeKey) return;
+      setConversations((current) => current.map((item) =>
+        item.conversationId === result.thread.conversationId ? result.thread : item));
+      setNotice(result.outcome === 'duplicate' ? t.threadDuplicate : t.threadUpdated);
+      try {
+        const updated = await client.listConversations();
+        if (selectedScopeRef.current === scopeKey) setConversations(updated);
+      } catch {
+        if (selectedScopeRef.current === scopeKey) setError(t.threadRefreshFailed);
+      }
+    } catch (e) {
+      // Retry the same requestId after a transient failure; the event store is idempotent.
+      if (selectedScopeRef.current === scopeKey) {
+        setError(e instanceof Error ? e.message : 'INBOX_COMMAND_FAILED');
+      }
+    } finally {
+      setThreadActing(false);
+    }
+  };
+
+  const transferConversation = async () => {
+    if (!selected || !canManage || !isOpenConversation(selected) ||
+        threadActing || replySending || !operatorChoice ||
+        !operators.some(operator => operator.uid === operatorChoice)) return;
+    const scope = draftKey;
+    let attempt = pendingHandoffRef.current;
+    if (!attempt || attempt.scope !== scope || attempt.uid !== operatorChoice) {
+      attempt = {
+        scope, uid: operatorChoice,
+        requestId: globalThis.crypto?.randomUUID?.() || `handoff-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
+      pendingHandoffRef.current = attempt;
+    }
+    setThreadActing(true);
+    setError('');
+    setNotice('');
+    try {
+      const result = await client.manageThread({
+        conversationId: selected.conversationId,
+        action: 'handoff',
+        requestId: attempt.requestId,
+        evidenceRef: selected.lastEvidenceRef,
+        assigneeRef: attempt.uid,
+      });
+      pendingHandoffRef.current = null;
+      if (selectedScopeRef.current !== scope) return;
+      setConversations(current => current.map(item =>
+        item.conversationId === result.thread.conversationId ? result.thread : item));
+      setOpenedRemote(current => current?.conversationId === result.thread.conversationId ? result.thread : current);
+      setNotice(result.outcome === 'duplicate' ? t.threadDuplicate : t.threadUpdated);
+    } catch (e) {
+      if (selectedScopeRef.current === scope) {
+        setError(e instanceof Error ? e.message : 'INBOX_TRANSFER_UNAVAILABLE');
+      }
+    } finally {
+      setThreadActing(false);
+    }
+  };
+
+  const actionLabel: Record<InboxThreadAction, string> = {
+    assign: t.claim,
+    wait_for_person: t.waiting,
+    resolve: t.resolve,
+    reopen: t.reopen,
+    archive: t.archive,
+  };
+
+  const saveInternalNote = async () => {
+    if (!selected || !canManage || !internalNotesEnabled || noteSending || !noteDraft.trim()) return;
+    const scope = draftKey, body = noteDraft.trim();
+    let attempt = pendingNoteAttemptRef.current;
+    if (!attempt || attempt.scope !== scope || attempt.text !== body) {
+      attempt = {
+        scope, text: body,
+        id: globalThis.crypto?.randomUUID?.() || `note-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      };
+      pendingNoteAttemptRef.current = attempt;
+    }
+    setNoteSending(true);
+    setNoteError('');
+    try {
+      const result = await client.addInternalNote({
+        conversationId: selected.conversationId, requestId: attempt.id, body,
+      });
+      if (selectedScopeRef.current !== scope) return;
+      pendingNoteAttemptRef.current = null;
+      setNoteDraft('');
+      setInternalNotes(current =>
+        current.some(item => item.noteId === result.note.noteId) ? current : [result.note, ...current]);
+      setNotice(result.outcome === 'duplicate' ? t.noteDuplicate : t.noteSaved);
+    } catch (error) {
+      if (selectedScopeRef.current === scope) {
+        setNoteError(error instanceof Error ? error.message : 'INBOX_NOTE_WRITE_UNAVAILABLE');
+      }
+    } finally {
+      setNoteSending(false);
     }
   };
 
@@ -475,8 +920,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
             <UserRound size={17} />
           </span>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-[#EAF1F6]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
-            <div className="mt-1 text-[10px] text-[#708398]">{session.context.activeOrganization.name}</div>
+            <div className="truncate text-sm font-semibold text-[#EAF1F6]">{selected.contact?.displayName || t.unidentified}</div>
+            <div className="mt-1 text-[11px] text-[#8096AA]">{selected.contact ? t.profileLabel : session.context.activeOrganization.name}</div>
           </div>
         </div>
 
@@ -491,7 +936,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.responsible}</dt>
-            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{selected.assignedTo?.ref || t.unassigned}</dd>
+            <dd className="max-w-[180px] truncate text-right font-medium text-[#C7D2DC]">{!selected.assignedTo ? t.unassigned : selected.assignedTo.ref === session.context.user.uid ? session.context.user.name : selected.assignedTo.type === 'team' ? t.teamAssigned : t.anotherAgent}</dd>
           </div>
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.state}</dt>
@@ -507,6 +952,109 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[#6A7E93]">{t.next}</div>
           <p className="mt-2 text-xs leading-5 text-[#A7B5C3]">{nextStep(selected.status, t)}</p>
         </div>
+
+        {canManage && isOpenConversation(selected) && (
+          <section className="mt-5 border-t border-[#2B3A4D] pt-5" aria-label={t.handoff}>
+            <h3 className="text-xs font-semibold text-[#EAF1F6]">{t.handoff}</h3>
+            {directoryLoading ? (
+              <p className="mt-3 text-xs text-[#91A9BE]">{t.transferring}</p>
+            ) : directoryError ? (
+              <p role="status" className="mt-3 text-xs text-[#E7B891]">{t.directoryUnavailable}</p>
+            ) : operators.length === 0 ? (
+              <p className="mt-3 text-xs text-[#8CA0B5]">{t.noOperators}</p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <select
+                  aria-label={t.chooseOperator}
+                  value={operatorChoice}
+                  onChange={event => {
+                    setOperatorChoice(event.target.value);
+                    pendingHandoffRef.current = null;
+                  }}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#344A5E] bg-[#101C29] px-3 text-base text-[#E9F1F8] md:text-sm"
+                >
+                  <option value="">{t.chooseOperator}</option>
+                  {operators.filter(operator => operator.uid !== session.context.user.uid)
+                    .map(operator => <option key={operator.uid} value={operator.uid}>{operator.displayName}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void transferConversation()}
+                  disabled={!operatorChoice || threadActing || replySending ||
+                    operatorChoice === selected.assignedTo?.ref}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#345365] bg-[#153440] px-3 text-xs font-semibold text-[#C9EDF4] disabled:opacity-40"
+                >
+                  {threadActing ? t.transferring : t.transfer}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {internalNotesEnabled && (
+          <section className="mt-5 border-t border-[#2B3A4D] pt-5" aria-label={t.noteTitle}>
+            <h3 className="text-xs font-semibold text-[#EAF1F6]">{t.noteTitle}</h3>
+            <p className="mt-1.5 text-[11px] leading-5 text-[#94A7BB]">{t.noteDesc}</p>
+            {notesLoading && <Loader2 size={15} className="mt-3 animate-spin text-[#7EABC4]" aria-label={t.loadingMore} />}
+            {noteError && <p className="mt-3 break-words text-xs text-[#FFB7C0]" role="alert">{noteError}</p>}
+            <div className="mt-3 max-h-[210px] space-y-2 overflow-y-auto">
+              {internalNotes.map(note => (
+                <article key={note.noteId} className="rounded-lg border border-[#2C3D4F] bg-[#0D1825] p-3">
+                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-[#D9E5EF]">{note.body}</p>
+                  <time className="mt-2 block text-[11px] text-[#8095A9]" dateTime={note.recordedAt}>
+                    {new Date(note.recordedAt).toLocaleString(currentLang, { dateStyle: 'short', timeStyle: 'short' })}
+                  </time>
+                </article>
+              ))}
+            </div>
+            {canManage && (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  aria-label={t.notePlaceholder}
+                  value={noteDraft}
+                  onChange={(event) => {
+                    const next = event.target.value.slice(0, 2000);
+                    if (pendingNoteAttemptRef.current?.text !== next.trim()) pendingNoteAttemptRef.current = null;
+                    setNoteDraft(next);
+                  }}
+                  rows={3}
+                  placeholder={t.notePlaceholder}
+                  className="connect-focus min-h-[86px] w-full resize-y rounded-lg border border-[#344A5E] bg-[#101C29] p-3 text-base leading-6 text-[#E9F1F8] outline-none placeholder:text-[#71879C] md:text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveInternalNote()}
+                  disabled={!noteDraft.trim() || noteSending}
+                  className="connect-focus min-h-11 w-full rounded-lg border border-[#315064] bg-[#163442] px-3 text-xs font-semibold text-[#C8F2FA] disabled:opacity-40"
+                >
+                  {noteSending ? t.noteSaving : t.noteSave}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {canManage && selected.status !== 'archived' && (
+          <section className="mt-5" aria-label={t.actionsTitle}>
+            <h3 className="text-xs font-semibold text-[#E8EFF5]">{t.actionsTitle}</h3>
+            <p className="mt-1.5 text-[12px] leading-5 text-[#8DA1B5]">{t.actionsHint}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {availableInboxThreadActions(selected.status).map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => void runThreadAction(action)}
+                  disabled={threadActing || replySending || (action === 'assign' && selected.assignedTo?.ref === session.context.user.uid)}
+                  className={`connect-focus min-h-11 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${action === 'resolve'
+                    ? 'border-[#66D9EF]/25 bg-[#163442]/60 text-[#BBF2F9] hover:bg-[#163442]'
+                    : 'border-[#2B3A4D] bg-[#111A27] text-[#C4D2DF] hover:border-[#395369] hover:bg-[#182433]'}`}
+                >
+                  {threadActing ? t.actionProgress : actionLabel[action]}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {onNavigate && session.context.appAccess.some((item) => item.access) && (
           <button
@@ -541,14 +1089,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           <h1 className="connect-page-title mt-2">{t.title}</h1>
           <p className="connect-page-subtitle mt-1.5 max-w-2xl">{t.subtitle}</p>
         </div>
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className={`rounded-lg border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[.1em] ${readiness?.state === 'available'
-            ? 'border-[#7CDEB3]/18 bg-[#7CDEB3]/[0.06] text-[#9BE8C6]'
-            : readiness?.state === 'controlled'
-              ? 'border-[#F1C77A]/18 bg-[#F1C77A]/[0.06] text-[#F5D79B]'
-              : 'border-[#FF9AA7]/18 bg-[#FF9AA7]/[0.06] text-[#FFB7C0]'}`}>
-            {readinessLabel(readiness, t)}
-          </span>
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => void load()}
@@ -622,11 +1163,18 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 <Search size={13} className="shrink-0 text-[#62768A]" />
                 <input
                   value={query}
+                  aria-label={t.search}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t.search}
-                  className="min-w-0 flex-1 bg-transparent text-xs text-[#D9E2EA] outline-none placeholder:text-[#526579]"
+                  className="min-w-0 flex-1 bg-transparent text-base text-[#D9E2EA] outline-none placeholder:text-[#526579] md:text-sm"
                 />
               </label>
+              {query.trim().length >= 2 && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-[#8295AA]" role="status">
+                  {searchBusy && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
+                  {searchBusy ? t.searchIndex : searchEnabled === false ? t.searchLocal : ''}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -654,6 +1202,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                         key={conversation.conversationId}
                         type="button"
                         onClick={() => {
+                          setOpenedRemote(conversation);
                           setSelectedId(conversation.conversationId);
                           setShowContext(false);
                         }}
@@ -665,17 +1214,33 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center justify-between gap-2">
-                              <span className="truncate text-[11px] font-semibold text-[#E8EFF5]">{t.conversation} {shortConversationId(conversation.conversationId)}</span>
-                              <span className="shrink-0 text-[8px] text-[#5E7287]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="truncate text-[13px] font-semibold text-[#E8EFF5]">{conversation.contact?.displayName || t.unidentified}</span>
+                              <span className="shrink-0 text-[11px] text-[#93A5B8]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
-                            <span className="mt-1 block truncate text-[10px] text-[#6D8196]">
-                              {t.status[conversation.status]} · {t.modes[conversation.mode]}
+                            <span className="mt-1 block truncate text-[12px] text-[#8295AA]">
+                              {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.mine : conversation.assignedTo ? t.responsible : t.unassigned}
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] text-[#64788D]">
+                              {conversation.contact ? t.profileLabel : shortConversationId(conversation.conversationId)}
                             </span>
                           </span>
                         </div>
                       </button>
                     );
                   })}
+                </div>
+              )}
+              {!loading && !query.trim() && nextCursor && (
+                <div className="border-t border-[#263648] p-3">
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    disabled={loadingMore}
+                    className="connect-focus flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#31475A] bg-[#122031] px-3 text-xs font-semibold text-[#B8D8E8] hover:bg-[#182B3F] disabled:opacity-40"
+                  >
+                    {loadingMore && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+                    {loadingMore ? t.loadingMore : t.loadMore}
+                  </button>
                 </div>
               )}
             </div>
@@ -705,9 +1270,20 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                     <MessageSquareText size={14} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-[#EEF4F8]">{t.conversation} {shortConversationId(selected.conversationId)}</div>
-                    <div className="mt-0.5 text-[9px] text-[#6A7E93]">{t.status[selected.status]} · {t.modes[selected.mode]}</div>
+                    <div className="truncate text-sm font-semibold text-[#EEF4F8]">{selected.contact?.displayName || t.unidentified}</div>
+                    <div className="mt-0.5 text-[11px] text-[#899AAF]">{t.status[selected.status]} · {t.modes[selected.mode]}{selected.contact ? ` · ${t.profileLabel}` : ''}</div>
                   </div>
+                  {canManage && selected.status !== 'archived' && (
+                    <button
+                      type="button"
+                      onClick={() => void runThreadAction(selected.status === 'resolved' ? 'reopen' : 'resolve')}
+                      disabled={threadActing || replySending}
+                      className="connect-focus inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-[#315064] bg-[#163442]/45 px-2.5 text-xs font-semibold text-[#B7EDF5] disabled:opacity-40"
+                    >
+                      {selected.status === 'resolved' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+                      <span className="hidden sm:inline">{selected.status === 'resolved' ? t.reopen : t.resolve}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowContext(true)}
@@ -719,22 +1295,39 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 </div>
 
                 <div className="relative flex-1 overflow-y-auto px-3.5 py-5 sm:px-5">
-                  <div className="mx-auto flex max-w-3xl items-center gap-3 pb-5 text-[9px] uppercase tracking-[.12em] text-[#52667A]">
-                    <span className="h-px flex-1 bg-[#26384A]" />
-                    {t.today}
-                    <span className="h-px flex-1 bg-[#26384A]" />
-                  </div>
-
                   {timelineLoading ? (
                     <div className="grid min-h-[300px] place-items-center text-[#687C91]"><Loader2 size={20} className="animate-spin" /></div>
                   ) : messages.length === 0 ? (
                     <div className="grid min-h-[300px] place-items-center px-6 text-center text-xs text-[#667A90]">{t.noMessages}</div>
                   ) : (
                     <div className="mx-auto max-w-3xl space-y-3">
-                      {messages.map((message) => {
+                      {olderCursor && (
+                        <div className="flex justify-center pb-4">
+                          <button
+                            type="button"
+                            onClick={() => void loadOlderMessages()}
+                            disabled={olderLoading}
+                            className="connect-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#31475A] bg-[#122031] px-4 text-xs font-semibold text-[#B8D8E8] hover:bg-[#182B3F] disabled:opacity-40"
+                          >
+                            {olderLoading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+                            {olderLoading ? t.olderMessagesLoading : t.olderMessages}
+                          </button>
+                        </div>
+                      )}
+                      {messages.map((message, index) => {
                         const outbound = message.direction === 'outbound';
+                        const previous = messages[index - 1];
+                        const showDay = !previous || timelineDayKey(previous.occurredAt, currentLang) !== timelineDayKey(message.occurredAt, currentLang);
                         return (
-                          <div key={message.messageId} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
+                          <React.Fragment key={message.messageId}>
+                            {showDay && (
+                              <div className="flex items-center gap-3 py-4 text-[11px] font-medium text-[#92A7BC]">
+                                <span className="h-px flex-1 bg-[#26384A]" />
+                                <time dateTime={message.occurredAt}>{timelineDayLabel(message.occurredAt, currentLang, t.today)}</time>
+                                <span className="h-px flex-1 bg-[#26384A]" />
+                              </div>
+                            )}
+                            <div className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
                             <article className={`max-w-[88%] rounded-[14px] border px-3.5 py-3 sm:max-w-[76%] ${outbound
                               ? 'border-[#315064] bg-[#163442]/55'
                               : 'border-[#2B3A4D] bg-[#111A27]'}`}>
@@ -744,7 +1337,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                                 <span className={message.deliveryStatus === 'failed' ? 'text-[#FF9AA7]' : ''}>{t.delivery[message.deliveryStatus]}</span>
                               </div>
                             </article>
-                          </div>
+                            </div>
+                          </React.Fragment>
                         );
                       })}
                     </div>
@@ -752,12 +1346,49 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                 </div>
 
                 <div className="border-t connect-divider bg-[#0B121B]/80 p-3 sm:p-4">
-                  {humanReplyReady ? (
+                  {humanReplyReady && isOpenConversation(selected) ? (
                     <div className="mx-auto max-w-3xl">
+                      {activeSuggestion && (
+                        <div className="mb-3 rounded-[12px] border border-[#315064] bg-[#122334] p-3" aria-live="polite">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-[#B6F1F9]">
+                            <Sparkles size={14} aria-hidden="true" /> {t.suggested}
+                          </div>
+                          <p className="mt-3 whitespace-pre-wrap break-words text-[13px] leading-6 text-[#E8EFF5]">{activeSuggestion}</p>
+                          <div className="mt-3 flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSuggestion(null)}
+                              className="connect-focus min-h-10 rounded-lg border border-[#365064] px-3 text-xs font-semibold text-[#AAB8C9] hover:text-white"
+                            >
+                              {t.discardSuggestion}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={replySending}
+                              onClick={() => {
+                                setDrafts((current) => ({ ...current, [draftKey]: activeSuggestion }));
+                                pendingReplyRef.current = null;
+                                setSuggestion(null);
+                                setNotice('');
+                              }}
+                              className="connect-accent-button connect-focus min-h-10 rounded-lg px-4 text-xs font-semibold disabled:opacity-40"
+                            >
+                              {t.applySuggestion}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="rounded-[12px] border border-[#31465A] bg-[#101A27] p-2 focus-within:border-[#66D9EF]/35">
                         <textarea
                           value={replyText}
-                          onChange={(event) => setDrafts((current) => ({ ...current, [draftKey]: event.target.value.slice(0, 4096) }))}
+                          aria-label={t.replyPlaceholder}
+                          onChange={(event) => {
+                            const next = event.target.value.slice(0, 4096);
+                            if (pendingReplyRef.current?.scopeKey === draftKey && pendingReplyRef.current.text !== next.trim()) {
+                              pendingReplyRef.current = null;
+                            }
+                            setDrafts((current) => ({ ...current, [draftKey]: next }));
+                          }}
                           placeholder={t.replyPlaceholder}
                           rows={2}
                           className="w-full resize-none bg-transparent px-2 py-1.5 text-base leading-6 text-[#EEF4F8] outline-none placeholder:text-[#5A6E82] md:text-sm"
@@ -791,7 +1422,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                   ) : (
                     <div className="mx-auto flex max-w-3xl items-start gap-2 rounded-[10px] border border-[#F1C77A]/15 bg-[#F1C77A]/[0.045] p-3 text-[10px] leading-4 text-[#B9A47B]">
                       <LockKeyhole size={13} className="mt-0.5 shrink-0 text-[#F1C77A]" />
-                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {t.replyLockedDesc}</span>
+                      <span><strong className="font-semibold text-[#E5D3AC]">{t.replyLocked}.</strong> {!isOpenConversation(selected) ? t.reopenForReply : t.replyLockedDesc}</span>
                     </div>
                   )}
                 </div>

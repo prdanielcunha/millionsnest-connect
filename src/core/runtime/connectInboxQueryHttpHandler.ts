@@ -6,11 +6,14 @@ import type {
 import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
 import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { ConnectMessageContentStore } from '../inbox/messageContentStore';
+import type { InboxContactProfileStore } from '../inbox/inboxContactProfileStore';
+import { filterAuthorizedInboxContactProfiles, inboxContactSearchTerm } from '../inbox/inboxContactProfileStore';
 
 export interface ConnectInboxQueryHttpHandlerOptions {
   contextProvider: CanonicalContextProvider;
   threadStore: ConnectThreadStore;
   messageStore: ConnectMessageContentStore;
+  contactProfileStore?: InboxContactProfileStore;
 }
 
 function bearer(req: express.Request): string {
@@ -142,7 +145,8 @@ export function createConnectInboxConversationListHttpHandler(
 
     const organizationId = safeId(req.query.organizationId);
     const limit = limitOf(req.query.limit, 50, 100);
-    if (!organizationId) {
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : '';
+    if (!organizationId || cursor.length > 1024) {
       return res.status(400).json({
         success: false,
         code: 'INBOX_SCOPE_REQUIRED',
@@ -153,16 +157,64 @@ export function createConnectInboxConversationListHttpHandler(
     if (!context) return;
 
     try {
-      const conversations = await options.threadStore.listByOrganization({
-        organizationId: context.organizationId,
-        limit,
-      });
+      if (cursor && !options.threadStore.listPageByOrganization) {
+        return res.status(400).json({ success: false, code: 'INBOX_CURSOR_INVALID' });
+      }
+      const page = options.threadStore.listPageByOrganization
+        ? await options.threadStore.listPageByOrganization({
+            organizationId: context.organizationId,
+            limit,
+            ...(cursor ? { cursor } : {}),
+          })
+        : {
+            threads: await options.threadStore.listByOrganization({
+              organizationId: context.organizationId,
+              limit,
+            }),
+            nextCursor: null,
+          };
+      const conversations = page.threads;
+      // Identity enrichment is derived only from these authorized threads.
+      // No caller-supplied phone number or arbitrary profile ID is accepted.
+      let profiles: Awaited<ReturnType<InboxContactProfileStore['list']>> = [];
+      if (options.contactProfileStore && conversations.length) {
+        try {
+          profiles = await options.contactProfileStore.list({
+            organizationId: context.organizationId,
+            conversationIds: conversations.map(thread => thread.conversationId),
+          });
+        } catch {
+          // Contact display labels are optional; remain functional without them.
+        }
+      }
+      const profileById = new Map(
+        filterAuthorizedInboxContactProfiles(
+          profiles,
+          context.organizationId,
+          conversations.map(thread => thread.conversationId),
+        ).map(profile => [profile.conversationId, profile]),
+      );
       return res.status(200).json({
         success: true,
         organizationId: context.organizationId,
-        conversations,
+        nextCursor: page.nextCursor,
+        conversations: conversations.map(conversation => {
+          const profile = profileById.get(conversation.conversationId);
+          return {
+            ...conversation,
+            ...(profile ? {
+              contact: {
+                displayName: profile.displayName,
+                source: 'whatsapp_profile',
+              },
+            } : {}),
+          };
+        }),
       });
     } catch (error) {
+      if (error instanceof Error && (error.message === 'INBOX_CURSOR_INVALID' || error.message === 'INBOX_PAGINATION_UNAVAILABLE')) {
+        return res.status(400).json({ success: false, code: 'INBOX_CURSOR_INVALID' });
+      }
       const mapped = storageFailure(error);
       return res.status(mapped.status).json({
         success: false,
@@ -184,7 +236,8 @@ export function createConnectInboxMessageListHttpHandler(
     const organizationId = safeId(req.query.organizationId);
     const conversationId = safeId(req.params.conversationId);
     const limit = limitOf(req.query.limit, 100, 200);
-    if (!organizationId || !conversationId) {
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : '';
+    if (!organizationId || !conversationId || cursor.length > 2048) {
       return res.status(400).json({
         success: false,
         code: 'INBOX_SCOPE_REQUIRED',
@@ -216,11 +269,23 @@ export function createConnectInboxMessageListHttpHandler(
     }
 
     try {
-      const records = await options.messageStore.listConversation({
-        organizationId: context.organizationId,
-        conversationId,
-        limit,
-      });
+      if (cursor && !options.messageStore.listHistoryPage) {
+        return res.status(400).json({ success: false, code: 'INBOX_MESSAGE_CURSOR_INVALID' });
+      }
+      const page = options.messageStore.listHistoryPage
+        ? await options.messageStore.listHistoryPage({
+            organizationId: context.organizationId,
+            conversationId,
+            limit,
+            ...(cursor ? { cursor } : {}),
+          })
+        : {
+            messages: await options.messageStore.listConversation({
+              organizationId: context.organizationId, conversationId, limit,
+            }),
+            olderCursor: null,
+          };
+      const records = page.messages;
 
       // Deliberately omit senderRef, recipientRef and providerMessageId from
       // the browser contract. Authorized operators get the conversation body
@@ -240,13 +305,82 @@ export function createConnectInboxMessageListHttpHandler(
         success: true,
         organizationId: context.organizationId,
         conversationId,
+        olderCursor: page.olderCursor,
         messages,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'INBOX_MESSAGE_CURSOR_INVALID') {
+        return res.status(400).json({ success: false, code: error.message });
+      }
       return res.status(503).json({
         success: false,
         code: 'MESSAGE_CONTENT_UNAVAILABLE',
       });
+    }
+  };
+}
+
+/**
+ * Scoped Inbox contact search. Only index-backed, expiring, self-reported
+ * display labels are searched. A matching label cannot bypass canonical
+ * thread membership or Hub's read authority.
+ */
+export function createConnectInboxContactSearchHttpHandler(
+  options: ConnectInboxQueryHttpHandlerOptions,
+) {
+  return async function inboxContactSearchHttpHandler(
+    req: express.Request,
+    res: express.Response,
+  ) {
+    setPrivateHeaders(res);
+    const organizationId = safeId(req.query.organizationId);
+    const term = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const limit = limitOf(req.query.limit, 20, 30);
+    if (!organizationId || term.length < 2 || term.length > 80 || !inboxContactSearchTerm(term)) {
+      return res.status(400).json({ success: false, code: 'INBOX_SEARCH_INVALID' });
+    }
+    const context = await resolveReadContext(req, res, options, organizationId);
+    if (!context) return;
+
+    if (!options.contactProfileStore?.search) {
+      return res.status(200).json({
+        success: true,
+        organizationId: context.organizationId,
+        enabled: false,
+        conversations: [],
+      });
+    }
+    try {
+      const candidates = await options.contactProfileStore.search({
+        organizationId: context.organizationId,
+        term,
+        limit,
+      });
+      const profiles = filterAuthorizedInboxContactProfiles(
+        candidates,
+        context.organizationId,
+        candidates.map(item => item.conversationId),
+      ).slice(0, limit);
+      const conversations = await Promise.all(profiles.map(async profile => {
+        const projection = await options.threadStore.load({
+          organizationId: context.organizationId,
+          conversationId: profile.conversationId,
+        });
+        if (!projection) return null;
+        return {
+          ...projection,
+          contact: { displayName: profile.displayName, source: 'whatsapp_profile' as const },
+        };
+      }));
+      return res.status(200).json({
+        success: true,
+        organizationId: context.organizationId,
+        enabled: true,
+        conversations: conversations.filter(Boolean),
+      });
+    } catch (error) {
+      const mapped = storageFailure(error);
+      return res.status(mapped.status).json({ success: false, code: mapped.code });
     }
   };
 }

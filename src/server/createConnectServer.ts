@@ -25,6 +25,7 @@ import {
 import { createConnectInboxReadinessHttpHandler } from '../core/runtime/connectInboxReadinessHttpHandler';
 import {
   createConnectInboxConversationListHttpHandler,
+  createConnectInboxContactSearchHttpHandler,
   createConnectInboxMessageListHttpHandler,
 } from '../core/runtime/connectInboxQueryHttpHandler';
 import { createConnectInboxHumanReplyHttpHandler } from '../core/runtime/connectInboxHumanReplyHttpHandler';
@@ -36,6 +37,13 @@ import {
   FirestoreMessageContentStore,
 } from '../core/inbox/firestoreMessageContentStore';
 import type { ConnectMessageContentStore } from '../core/inbox/messageContentStore';
+import type { InboxContactProfileStore } from '../core/inbox/inboxContactProfileStore';
+import { FirestoreInboxContactProfileStore } from '../core/inbox/firestoreInboxContactProfileStore';
+import type { InboxInternalNoteStore } from '../core/inbox/inboxInternalNoteStore';
+import { FirestoreInboxInternalNoteStore } from '../core/inbox/firestoreInboxInternalNoteStore';
+import { HubFirestoreInboxOperatorDirectory, type ConnectInboxOperatorDirectory } from '../core/inbox/hubFirestoreInboxOperatorDirectory';
+import { createConnectInboxOperatorDirectoryHttpHandler } from '../core/runtime/connectInboxOperatorDirectoryHttpHandler';
+import { createInboxInternalNoteHttpHandler } from '../core/runtime/connectInboxInternalNoteHttpHandler';
 import { WhatsAppInboxIngestor } from '../core/inbox/whatsappInboxIngestor';
 import { HumanReplyService } from '../core/inbox/humanReplyService';
 import { FirestoreHumanReplyDispatchStore } from '../core/inbox/firestoreHumanReplyDispatchStore';
@@ -73,6 +81,9 @@ export interface CreateConnectServerOptions {
   inboxContextProvider?: CanonicalContextProvider;
   inboxStore?: ConnectThreadStore;
   inboxMessageContentStore?: ConnectMessageContentStore;
+  inboxContactProfileStore?: InboxContactProfileStore;
+  inboxInternalNoteStore?: InboxInternalNoteStore;
+  inboxOperatorDirectory?: ConnectInboxOperatorDirectory;
   whatsappConnectionRegistry?: WhatsAppConnectionRegistry;
   inboxStorageReadinessProbe?: () => Promise<ConnectRuntimeFirestoreReadiness>;
   logger?: {
@@ -126,8 +137,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxReadHandler: ReturnType<typeof createConnectInboxThreadReadHttpHandler> | null = null;
   let inboxCommandHandler: ReturnType<typeof createConnectInboxThreadCommandHttpHandler> | null = null;
   let inboxConversationListHandler: ReturnType<typeof createConnectInboxConversationListHttpHandler> | null = null;
+  let inboxContactSearchHandler: ReturnType<typeof createConnectInboxContactSearchHttpHandler> | null = null;
   let inboxMessageListHandler: ReturnType<typeof createConnectInboxMessageListHttpHandler> | null = null;
   let inboxHumanReplyHandler: ReturnType<typeof createConnectInboxHumanReplyHttpHandler> | null = null;
+  let inboxNoteHandler: ReturnType<typeof createInboxInternalNoteHttpHandler> | null = null;
+  let inboxOperatorDirectoryHandler: ReturnType<typeof createConnectInboxOperatorDirectoryHttpHandler> | null = null;
   let inboxReadinessHandler: ReturnType<typeof createConnectInboxReadinessHttpHandler> | null = null;
   let operationalReadinessHandler: ReturnType<typeof createConnectOperationalReadinessHttpHandler> | null = null;
   let inboxContextProvider = options.inboxContextProvider ?? null;
@@ -231,6 +245,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         durableStore,
         readinessProbe,
       );
+      const operatorDirectory = options.inboxOperatorDirectory
+        ?? new HubFirestoreInboxOperatorDirectory({ projectId, fetchImpl: options.fetchImpl });
+      inboxOperatorDirectoryHandler = createConnectInboxOperatorDirectoryHttpHandler({
+        contextProvider: inboxContextProvider, directory: operatorDirectory,
+      });
       inboxReadHandler = createConnectInboxThreadReadHttpHandler({
         contextProvider: inboxContextProvider,
         store: gatedStore,
@@ -238,6 +257,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       inboxCommandHandler = createConnectInboxThreadCommandHttpHandler({
         contextProvider: inboxContextProvider,
         store: gatedStore,
+        operatorDirectory,
       });
 
       const messageStore = messageContentEnabled
@@ -249,10 +269,41 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
         : null;
 
       if (messageStore) {
+        // Default-off privacy gate. The operator must first configure Firestore
+        // TTL on expiresAt and explicitly confirm retention before enabling.
+        const contactProfilesEnabled =
+          env.CONNECT_INBOX_CONTACT_PROFILE_ENABLED?.trim().toLowerCase() === 'true' &&
+          env.CONNECT_INBOX_CONTACT_TTL_CONFIRMED?.trim().toLowerCase() === 'true';
+        const internalNotesEnabled =
+          env.CONNECT_INBOX_INTERNAL_NOTES_ENABLED?.trim().toLowerCase() === 'true' &&
+          env.CONNECT_INBOX_INTERNAL_NOTES_TTL_CONFIRMED?.trim().toLowerCase() === 'true';
+        inboxNoteHandler = internalNotesEnabled
+          ? createInboxInternalNoteHttpHandler({
+              contextProvider: inboxContextProvider,
+              threadStore: gatedStore,
+              noteStore: options.inboxInternalNoteStore
+                ?? new FirestoreInboxInternalNoteStore({ projectId, fetchImpl: options.fetchImpl }),
+            })
+          : null;
+
+        const contactProfileStore = contactProfilesEnabled
+          ? options.inboxContactProfileStore
+            ?? new FirestoreInboxContactProfileStore({
+              projectId,
+              fetchImpl: options.fetchImpl,
+            })
+          : undefined;
         inboxConversationListHandler = createConnectInboxConversationListHttpHandler({
           contextProvider: inboxContextProvider,
           threadStore: gatedStore,
           messageStore,
+          contactProfileStore,
+        });
+        inboxContactSearchHandler = createConnectInboxContactSearchHttpHandler({
+          contextProvider: inboxContextProvider,
+          threadStore: gatedStore,
+          messageStore,
+          contactProfileStore,
         });
         inboxMessageListHandler = createConnectInboxMessageListHttpHandler({
           contextProvider: inboxContextProvider,
@@ -272,6 +323,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               registry,
               messageStore,
               gatedStore,
+              undefined,
+              contactProfileStore,
             );
           } else {
             logger.warn?.('CONNECT_WHATSAPP_INGESTION_BINDING_MISSING');
@@ -491,6 +544,22 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     return inboxReadinessHandler(req, res);
   });
 
+  app.get('/api/core/inbox/operators', async (req, res) => {
+    if (!inboxOperatorDirectoryHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({ success: false, code: 'INBOX_DIRECTORY_UNAVAILABLE' });
+    }
+    return inboxOperatorDirectoryHandler(req, res);
+  });
+
+  app.get('/api/core/inbox/conversations/search', async (req, res) => {
+    if (!inboxContactSearchHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(503).json({ success: false, code: 'INBOX_SEARCH_UNAVAILABLE' });
+    }
+    return inboxContactSearchHandler(req, res);
+  });
+
   app.get('/api/core/inbox/conversations', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     if (!durableInboxEnabled || !messageContentEnabled) {
@@ -506,6 +575,23 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       });
     }
     return inboxConversationListHandler(req, res);
+  });
+
+  // Private notes have no provider dispatch path, ever. Both IAM and
+  // retention gates must be explicitly activated before these routes exist.
+  app.get('/api/core/inbox/threads/:conversationId/notes', async (req, res) => {
+    if (!inboxNoteHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(404).json({ success: false, code: 'INBOX_INTERNAL_NOTES_DISABLED' });
+    }
+    return inboxNoteHandler(req, res);
+  });
+  app.post('/api/core/inbox/threads/:conversationId/notes', async (req, res) => {
+    if (!inboxNoteHandler) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(404).json({ success: false, code: 'INBOX_INTERNAL_NOTES_DISABLED' });
+    }
+    return inboxNoteHandler(req, res);
   });
 
   app.post('/api/core/inbox/threads/:conversationId/reply', async (req, res) => {

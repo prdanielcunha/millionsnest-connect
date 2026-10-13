@@ -2,6 +2,7 @@ import {
   ConnectThreadEvent,
   ConnectThreadProjection,
   projectConnectThread,
+  sameConnectThreadEventIntent,
 } from './threadDomain';
 
 export interface ConnectThreadScope {
@@ -14,12 +15,25 @@ export type ConnectThreadAppendResult = {
   projection: ConnectThreadProjection;
 };
 
+export type ConnectThreadPage = {
+  threads: readonly ConnectThreadProjection[];
+  nextCursor: string | null;
+};
+
+export type ConnectThreadPageQuery = {
+  organizationId: string;
+  limit?: number;
+  cursor?: string;
+};
+
 export interface ConnectThreadStore {
   load(scope: ConnectThreadScope): Promise<ConnectThreadProjection | null>;
   listByOrganization(input: {
     organizationId: string;
     limit?: number;
   }): Promise<readonly ConnectThreadProjection[]>;
+  /** Optional adapter method; no breaking change to existing stores. */
+  listPageByOrganization?(input: ConnectThreadPageQuery): Promise<ConnectThreadPage>;
   readEvents(scope: ConnectThreadScope): Promise<readonly ConnectThreadEvent[]>;
   append(
     event: ConnectThreadEvent,
@@ -44,10 +58,6 @@ function assertScope(scope: ConnectThreadScope): void {
 function keyOf(scope: ConnectThreadScope): string {
   assertScope(scope);
   return `${scope.organizationId}\u001f${scope.conversationId}`;
-}
-
-function eventFingerprint(event: ConnectThreadEvent): string {
-  return JSON.stringify(event);
 }
 
 /**
@@ -109,7 +119,7 @@ export class InMemoryConnectThreadStore implements ConnectThreadStore {
     const duplicate = current.find((candidate) => candidate.eventId === event.eventId);
 
     if (duplicate) {
-      if (eventFingerprint(duplicate) !== eventFingerprint(event)) {
+      if (!sameConnectThreadEventIntent(duplicate, event)) {
         throw new Error('EVENT_ID_COLLISION');
       }
       const projection = projectConnectThread(current);

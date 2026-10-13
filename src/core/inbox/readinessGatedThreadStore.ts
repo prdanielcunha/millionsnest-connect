@@ -1,5 +1,7 @@
 import type {
   ConnectThreadAppendResult,
+  ConnectThreadPage,
+  ConnectThreadPageQuery,
   ConnectThreadScope,
   ConnectThreadStore,
 } from './threadStore';
@@ -51,6 +53,18 @@ export class ReadinessGatedConnectThreadStore implements ConnectThreadStore {
   }): Promise<readonly ConnectThreadProjection[]> {
     await this.assertReady();
     return this.inner.listByOrganization(input);
+  }
+
+  async listPageByOrganization(input: ConnectThreadPageQuery): Promise<ConnectThreadPage> {
+    await this.assertReady();
+    if (this.inner.listPageByOrganization) {
+      return this.inner.listPageByOrganization(input);
+    }
+    if (input.cursor) throw new Error('INBOX_PAGINATION_UNAVAILABLE');
+    return {
+      threads: await this.inner.listByOrganization(input),
+      nextCursor: null,
+    };
   }
 
   async readEvents(

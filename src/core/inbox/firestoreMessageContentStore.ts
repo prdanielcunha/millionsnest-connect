@@ -6,11 +6,14 @@ import {
   type ConnectMessageContentStore,
   type ConnectMessageContentWriteResult,
   type ConnectMessageDeliveryStatus,
+  type ConnectMessageHistoryPage,
+  type ConnectMessageHistoryQuery,
 } from './messageContentStore';
 import {
   GoogleMetadataAccessTokenProvider,
   type ConnectRuntimeAccessTokenProvider,
 } from './firestoreThreadStore';
+import { decodeInboxMessageCursor, encodeInboxMessageCursor } from './inboxMessagePagination';
 
 const DEFAULT_PROJECT_ID = 'millionsnest';
 const STORAGE_SCHEMA_VERSION = 1;
@@ -271,10 +274,17 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
     conversationId: string;
     limit?: number;
   }): Promise<readonly ConnectMessageContentRecord[]> {
+    const page = await this.listHistoryPage(input);
+    return page.messages;
+  }
+
+  async listHistoryPage(input: ConnectMessageHistoryQuery): Promise<ConnectMessageHistoryPage> {
     const organizationId = safeSegment(input.organizationId, 180);
     const conversationId = safeSegment(input.conversationId, 180);
     const limit = Math.max(1, Math.min(input.limit ?? 100, 200));
-    const token = await this.tokenProvider.getAccessToken();
+    const cursor = input.cursor
+      ? decodeInboxMessageCursor(input.cursor, organizationId, conversationId)
+      : null;
     const collection = [
       'connectSensitiveOrganizations',
       organizationId,
@@ -282,28 +292,71 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
       conversationId,
       'messages',
     ];
-    const url = new URL(`${this.documentsBase}/${encodedPath(collection)}`);
-    url.searchParams.set('pageSize', String(limit));
+    const documentPrefix = `projects/${this.projectId}/databases/(default)/documents`;
+    const structuredQuery: Record<string, unknown> = {
+      from: [{ collectionId: 'messages' }],
+      orderBy: [
+        { field: { fieldPath: 'occurredAt' }, direction: 'DESCENDING' },
+        { field: { fieldPath: '__name__' }, direction: 'DESCENDING' },
+      ],
+      limit: limit + 1,
+    };
+    if (cursor) {
+      structuredQuery.startAt = {
+        before: false,
+        values: [
+          { stringValue: cursor.occurredAt },
+          { referenceValue: `${documentPrefix}/${encodedPath([...collection.slice(0, -1), 'messages', cursor.messageId])}` },
+        ],
+      };
+    }
 
-    const response = await this.fetchImpl(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
+    const token = await this.tokenProvider.getAccessToken();
+    const parent = collection.slice(0, -1);
+    const response = await this.fetchImpl(
+      `${this.documentsBase}/${encodedPath(parent)}:runQuery`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ structuredQuery }),
+        cache: 'no-store',
       },
-      cache: 'no-store',
-    });
-    if (response.status === 404) return [];
-    if (!response.ok) throw new Error(`MESSAGE_CONTENT_LIST_${response.status}`);
-
-    const payload = await response.json() as { documents?: FirestoreDocument[] };
-    return (payload.documents ?? [])
-      .map(parseRecord)
-      .filter((record) =>
-        record.organizationId === organizationId &&
-        record.conversationId === conversationId)
-      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.messageId.localeCompare(b.messageId))
-      .slice(-limit);
+    );
+    if (!response.ok) throw new Error(`MESSAGE_CONTENT_PAGE_${response.status}`);
+    const raw = await response.text();
+    if (!raw.trim()) return { messages: [], olderCursor: null };
+    let rows: any[];
+    try {
+      const json = JSON.parse(raw);
+      rows = Array.isArray(json) ? json : [json];
+    } catch {
+      try { rows = raw.trim().split(/\\r?\\n/).filter(Boolean).map(line => JSON.parse(line)); }
+      catch { throw new Error('MESSAGE_CONTENT_PAGE_INVALID'); }
+    }
+    const records: ConnectMessageContentRecord[] = [];
+    for (const row of rows) {
+      if (!row?.document) continue;
+      const record = parseRecord(row.document as FirestoreDocument);
+      if (record.organizationId !== organizationId || record.conversationId !== conversationId) {
+        throw new Error('MESSAGE_CONTENT_SCOPE_MISMATCH');
+      }
+      records.push(record);
+    }
+    const page = records.slice(0, limit);
+    const oldest = page.at(-1);
+    return {
+      messages: page.reverse(),
+      olderCursor: records.length > limit && oldest
+        ? encodeInboxMessageCursor({
+            organizationId, conversationId,
+            occurredAt: oldest.occurredAt,
+            messageId: oldest.messageId,
+          })
+        : null,
+    };
   }
 
   async updateDeliveryStatus(input: {

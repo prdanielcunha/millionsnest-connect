@@ -5,6 +5,7 @@ export type LiveInboxReadiness = {
   authoritySource: string;
   state: 'available' | 'controlled' | 'blocked';
   durableInboxEnabled: boolean;
+  internalNotesEnabled?: boolean;
   storageState: 'read_write_confirmed' | 'read_only' | 'denied_or_missing' | 'unknown';
   foundations: Array<{
     id:
@@ -23,6 +24,8 @@ export type LiveInboxConversation = {
   schemaVersion: 1;
   organizationId: string;
   conversationId: string;
+  /** Optional, self-reported name from a scoped and expiring contact read model. */
+  contact?: { displayName: string; source: 'whatsapp_profile' };
   status: 'new' | 'in_progress' | 'waiting_person' | 'waiting_team' | 'resolved' | 'archived';
   mode: 'automatic' | 'approval' | 'human';
   automationPaused: boolean;
@@ -32,6 +35,16 @@ export type LiveInboxConversation = {
   lastEventId: string;
   sourceEventCount: number;
   lastEvidenceRef: string;
+};
+
+export type LiveInboxOperator = { uid: string; displayName: string; role: string };
+
+export type LiveInboxInternalNote = {
+  noteId: string;
+  actorUid: string;
+  body: string;
+  recordedAt: string;
+  internalOnly: true;
 };
 
 export type LiveInboxMessage = {
@@ -79,6 +92,39 @@ export class LiveInboxClient {
     return Array.isArray(body.conversations) ? body.conversations : [];
   }
 
+  async searchConversations(
+    query: string,
+    limit = 20,
+  ): Promise<{ enabled: boolean; conversations: LiveInboxConversation[] }> {
+    const response = await fetch(
+      `/api/core/inbox/conversations/search?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&q=${encodeURIComponent(query)}&limit=${Math.max(1, Math.min(limit, 30))}`,
+      { method: 'GET', headers: this.headers(), cache: 'no-store' },
+    );
+    const body = await parse(response);
+    return {
+      enabled: body.enabled === true,
+      conversations: Array.isArray(body.conversations) ? body.conversations : [],
+    };
+  }
+
+  async listConversationsPage(
+    limit = 50,
+    cursor = '',
+  ): Promise<{ conversations: LiveInboxConversation[]; nextCursor: string | null }> {
+    const url = `/api/core/inbox/conversations?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 100))}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      cache: 'no-store',
+    });
+    const body = await parse(response);
+    return {
+      conversations: Array.isArray(body.conversations) ? body.conversations : [],
+      nextCursor: typeof body.nextCursor === 'string' && body.nextCursor.length <= 1024
+        ? body.nextCursor : null,
+    };
+  }
+
   async listMessages(conversationId: string, limit = 100): Promise<LiveInboxMessage[]> {
     const response = await fetch(
       `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}`,
@@ -90,6 +136,25 @@ export class LiveInboxClient {
     );
     const body = await parse(response);
     return Array.isArray(body.messages) ? body.messages : [];
+  }
+
+  async listMessagesPage(
+    conversationId: string,
+    limit = 100,
+    cursor = '',
+  ): Promise<{ messages: LiveInboxMessage[]; olderCursor: string | null }> {
+    const url = `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.headers(),
+      cache: 'no-store',
+    });
+    const payload = await parse(response);
+    return {
+      messages: Array.isArray(payload.messages) ? payload.messages : [],
+      olderCursor: typeof payload.olderCursor === 'string' && payload.olderCursor.length <= 2048
+        ? payload.olderCursor : null,
+    };
   }
 
   async sendReply(input: {
@@ -120,6 +185,78 @@ export class LiveInboxClient {
     return await parse(response);
   }
 
+  async listOperators(): Promise<LiveInboxOperator[]> {
+    const response = await fetch(
+      `/api/core/inbox/operators?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`, {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.operators) ? body.operators : [];
+  }
+
+  async manageThread(input: {
+    conversationId: string;
+    action: 'assign' | 'handoff' | 'wait_for_person' | 'resolve' | 'reopen' | 'archive';
+    requestId: string;
+    evidenceRef: string;
+    assigneeRef?: string;
+  }): Promise<{ outcome: 'appended' | 'duplicate'; thread: LiveInboxConversation }> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(input.conversationId)}/actions`,
+      {
+        method: 'POST',
+        headers: {
+          ...this.headers(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organizationId: this.session.expectedOrganizationId,
+          action: input.action,
+          requestId: input.requestId,
+          evidenceRef: input.evidenceRef,
+          ...((input.action === 'assign' || input.action === 'handoff')
+            ? { assigneeType: 'user', assigneeRef: input.assigneeRef }
+            : {}),
+        }),
+      },
+    );
+    return await parse(response);
+  }
+
+  async listInternalNotes(conversationId: string): Promise<LiveInboxInternalNote[]> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/notes?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`, {
+        method: 'GET',
+        headers: this.headers(),
+        cache: 'no-store',
+      },
+    );
+    const body = await parse(response);
+    return Array.isArray(body.notes) ? body.notes : [];
+  }
+
+  async addInternalNote(input: {
+    conversationId: string;
+    requestId: string;
+    body: string;
+  }): Promise<{ outcome: 'created' | 'duplicate'; note: LiveInboxInternalNote }> {
+    const response = await fetch(
+      `/api/core/inbox/threads/${encodeURIComponent(input.conversationId)}/notes`, {
+        method: 'POST',
+        headers: { ...this.headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationId: this.session.expectedOrganizationId,
+          requestId: input.requestId,
+          body: input.body,
+        }),
+      },
+    );
+    return await parse(response);
+  }
+
   async getReadiness(): Promise<LiveInboxReadiness> {
     const response = await fetch(
       `/api/core/inbox/readiness?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`,
@@ -135,6 +272,7 @@ export class LiveInboxClient {
       authoritySource: String(body.authoritySource || ''),
       state: body.state || 'blocked',
       durableInboxEnabled: body.durableInboxEnabled === true,
+      internalNotesEnabled: body.internalNotesEnabled === true,
       storageState: body.storageState || 'unknown',
       foundations: Array.isArray(body.foundations) ? body.foundations : [],
       blockers: Array.isArray(body.blockers) ? body.blockers : [],

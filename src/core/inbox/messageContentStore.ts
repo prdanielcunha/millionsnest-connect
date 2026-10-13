@@ -28,6 +28,20 @@ export type ConnectMessageContentWriteResult = {
   record: ConnectMessageContentRecord;
 };
 
+export type ConnectMessageHistoryPage = {
+  /** Chronological order so new pages can be prepended in the Inbox. */
+  messages: readonly ConnectMessageContentRecord[];
+  /** Cursor for strictly older messages. */
+  olderCursor: string | null;
+};
+
+export type ConnectMessageHistoryQuery = {
+  organizationId: string;
+  conversationId: string;
+  limit?: number;
+  cursor?: string;
+};
+
 export interface ConnectMessageContentStore {
   put(record: ConnectMessageContentRecord): Promise<ConnectMessageContentWriteResult>;
   get(input: {
@@ -44,6 +58,8 @@ export interface ConnectMessageContentStore {
     conversationId: string;
     limit?: number;
   }): Promise<readonly ConnectMessageContentRecord[]>;
+  /** Optional cursor contract; legacy stores can continue to use listConversation. */
+  listHistoryPage?(input: ConnectMessageHistoryQuery): Promise<ConnectMessageHistoryPage>;
   updateDeliveryStatus(input: {
     organizationId: string;
     conversationId: string;
