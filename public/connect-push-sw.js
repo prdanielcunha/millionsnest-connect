@@ -4,9 +4,9 @@ self.addEventListener('push', event => {
     let data;
     try { data = event.data.json(); } catch { return; }
     const url = new URL(data.url, self.location.origin);
-    if (url.origin !== self.location.origin || url.pathname !== '/inbox' || !url.searchParams.get('conversationId')) return;
+    if (url.origin !== self.location.origin || url.pathname !== '/inbox' || !url.searchParams.get('conversationId') && data.kind !== 'push_test') return;
     await self.registration.showNotification('MillionsNest Connect', {
-      body: 'Há uma nova mensagem para atendimento.',
+      body: data.kind === 'push_test' ? ({ 'pt-BR': 'Teste de notificações do Connect.', 'en-US': 'Connect notification test.', 'es-ES': 'Prueba de avisos de Connect.' }[data.locale] || 'Teste de notificações do Connect.') : 'Há uma nova mensagem para atendimento.',
       icon: '/brand/connect/v2/02_app/pwa/icon-192.png',
       tag: typeof data.tag === 'string' ? data.tag : 'connect-inbox',
       data: { url: url.href },

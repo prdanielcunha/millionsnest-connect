@@ -339,13 +339,13 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
         }
 
-        if (registry && env.CONNECT_WEB_PUSH_ENABLED === 'true' && env.CONNECT_WEB_PUSH_TTL_CONFIRMED === 'true' && env.CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED === 'true') {
+        if (registry && (env.CONNECT_WEB_PUSH_ENABLED === 'true' || env.CONNECT_WEB_PUSH_TEST_MODE === 'true') && env.CONNECT_WEB_PUSH_TTL_CONFIRMED === 'true' && env.CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED === 'true') {
           try {
             const publicKey = env.CONNECT_WEB_PUSH_PUBLIC_KEY || '';
             const sender = createWebPushSender(publicKey, env.CONNECT_WEB_PUSH_PRIVATE_KEY || '', env.CONNECT_WEB_PUSH_SUBJECT || '');
             const pushStore = new FirestorePushStore(projectId, options.fetchImpl);
-            inboxPush = new InboxPushService(pushStore, gatedStore, operatorDirectory, sender, registry, undefined, logger);
-            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey, gatedStore);
+            if (env.CONNECT_WEB_PUSH_ENABLED === 'true') inboxPush = new InboxPushService(pushStore, gatedStore, operatorDirectory, sender, registry, undefined, logger);
+            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey, gatedStore, { sender, deliveryMode: env.CONNECT_WEB_PUSH_ENABLED === 'true' ? 'live' : 'test' });
           } catch {
             logger.warn?.('CONNECT_WEB_PUSH_CONFIGURATION_INVALID');
           }

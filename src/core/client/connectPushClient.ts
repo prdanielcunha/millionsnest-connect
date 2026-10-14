@@ -33,7 +33,7 @@ export class ConnectPushClient {
       method, cache: 'no-store', headers: { Authorization: `Bearer ${this.session.idToken}`, 'Content-Type': 'application/json' },
       ...(method !== 'GET' ? { body: JSON.stringify({ organizationId: this.session.expectedOrganizationId, ...(body as object || {}) }) } : {}),
     });
-    if (!response.ok) throw new Error(response.status === 404 ? 'PUSH_DISABLED' : 'PUSH_REQUEST_FAILED');
+    if (!response.ok) throw new Error(response.status === 404 ? 'PUSH_DISABLED' : response.status === 429 ? 'PUSH_TEST_RATE_LIMIT' : 'PUSH_REQUEST_FAILED');
     return response.status === 204 ? null : response.json();
   }
   async unread(conversationIds: string[]): Promise<InboxUnreadMarkers> {
@@ -42,7 +42,8 @@ export class ConnectPushClient {
   async markRead(conversationId: string, expectedEventId: string): Promise<void> {
     await this.request('POST', { conversationId, expectedEventId }, 'read');
   }
-  async status(): Promise<{ publicKey: string; devices: PushDeviceView[] }> { return this.request('GET'); }
+  async test(deviceId: string, locale: string): Promise<void> { await this.request('POST', { deviceId, locale }, 'test'); }
+  async status(): Promise<{ publicKey: string; devices: PushDeviceView[]; deliveryMode?: 'test' | 'live' }> { return this.request('GET'); }
   /** Call only from a click, with key preloaded; permission request precedes all awaited work. */
   async enable(publicKey: string, quietStart: number, quietEnd: number): Promise<void> {
     const epoch = pushSessionEpoch;
