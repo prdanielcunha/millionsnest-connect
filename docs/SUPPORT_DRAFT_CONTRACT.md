@@ -1,0 +1,11 @@
+# Official support draft
+
+`POST /api/core/support/draft`, transient Firebase Bearer, body exactly `{ organizationId, product, locale? }`. Products: musicscale/nestfinance/nestjourney. Locales: pt-BR/en-US/es-ES. Hub freshly validates the user's requested organization and that product's access; no Connect role or app claim is manufactured by the caller.
+
+Hosting/Cloud Run transport may consume Authorization. The same user bearer may be preserved in X-Connect-User-Authorization, matching MusicScale's existing transport. If present it must be a single bounded Bearer string and is selected before unchanged fresh Hub validation; malformed/multiple values fail401 rather than silently selecting another credential. Neither header grants tenant, role or app access.
+
+Requires `CONNECT_SUPPORT_DRAFT_ENABLED=true`, the existing configured Meta provider, mounted support-origin key and exactly one enabled existing WhatsApp binding. Reads only `GET /{existing-phone-number-id}?fields=display_phone_number` using the existing server credential/version, rejects redirects and mismatched IDs. Never changes number, WABA, registration, webhooks, credentials, billing or sends a message. Multiple/no bindings fail409; missing/invalid metadata fails503. Do not replace this with a guessed number or a client-selected destination.
+
+Returns `{ product, expiresAt, draftUrl, automaticSend:false }`. URL is a manual wa.me draft with a localized product label and the existing ten-minute signed product hint. No caller identity, organization, token, internal provider ID or conversation data is returned. The central support number is public contact information; the response gives no permission to read its organization or to query another tenant's tools. Fresh domain authorization and canonical entity selection are still required independently for every data request.
+
+Source apps should invoke this through their existing authenticated backend on explicit support-button clicks, then open only the returned HTTPS wa.me draft. No background sends, commercial automation, stored bearer, caller phone override or query-string bearer. Actual MusicScale/NestFinance/NestJourney buttons/proxies and authenticated integration QA remain outstanding; this endpoint alone does not certify them. Default is disabled, independently of the incoming product-routing flag.

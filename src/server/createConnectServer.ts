@@ -2,6 +2,7 @@ import { resolveExecutionSecretBundle } from './executionSecretBundle';
 import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
+import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
@@ -144,6 +145,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxPush: InboxPushService | null = null;
   let productRouting: WhatsAppProductRouting | null = null;
   let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
+  let supportDraftHandler: ReturnType<typeof createSupportDraftHttpHandler> | null = null;
   let automationJobs: FirestoreAutomationJobStore | null = null;
   let automationWorker: InternalAutomationWorker | null = null;
   let automationEventHandler: ReturnType<typeof createAutomationEventHandler> | null = null;
@@ -371,6 +373,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             : null;
 
         let humanReplyService: HumanReplyService | undefined;
+        if (officialWhatsAppProvider && env.CONNECT_SUPPORT_DRAFT_ENABLED === 'true' && env.CONNECT_SUPPORT_ORIGIN_SECRET && env.CONNECT_SUPPORT_ORIGIN_SECRET.length >= 32) {
+          supportDraftHandler = createSupportDraftHttpHandler({ contextProvider: inboxContextProvider, secret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
+            bindings: parseWhatsAppConnectionBindings(env), provider: officialWhatsAppProvider });
+        }
         if (registry && registry.size > 0 && officialWhatsAppProvider) {
           humanReplyService = new HumanReplyService({
             registry,
@@ -592,6 +598,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
     if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
     return financePendingDocuments(req, res);
+  });
+  app.post('/api/core/support/draft', (req, res) => {
+    if (!supportDraftHandler) { res.status(404).json({ code: 'SUPPORT_DRAFT_DISABLED' }); return; }
+    return supportDraftHandler(req, res);
   });
   app.post('/api/core/support/origin', (req, res) => {
     if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
