@@ -8,7 +8,7 @@ let status = 200, payload: unknown = { schemaVersion: 1, summary: { awaitingUplo
 const fetchImpl: typeof fetch = async (url, init) => {
   calls++; assert.equal(url, 'https://nestfinance.millionsnest.com/api/finance-gateway?operation=connect-pending-documents');
   assert.equal(init.redirect, 'error'); assert.equal(init.method, 'POST');
-  assert.deepEqual(init.headers, { Authorization: req.headers.authorization, 'x-organization-id': 'synthetic-org', 'Content-Type': 'application/json' });
+  assert.deepEqual(init.headers, { Authorization: req.headers.authorization, 'X-Connect-User-Authorization': req.headers.authorization, 'x-organization-id': 'synthetic-org', 'Content-Type': 'application/json' });
   assert.deepEqual(JSON.parse(String(init.body)), { financeEntityId: 'synthetic-entity' });
   return new Response(JSON.stringify(payload), { status });
 };
