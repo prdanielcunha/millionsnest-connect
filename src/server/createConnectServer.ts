@@ -1,3 +1,5 @@
+import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
+import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
 import { FirestorePushStore } from '../core/push/firestorePushStore';
 import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
 import { createPushRouter } from '../core/push/pushHttpRouter';
@@ -132,6 +134,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
   let whatsappIngestor: WhatsAppInboxIngestor | null = null;
   let inboxPush: InboxPushService | null = null;
+  let productRouting: WhatsAppProductRouting | null = null;
   let pushRouter: express.Router | null = null;
   let whatsappAssistOrchestrator: WhatsAppAssistOrchestrator | null = null;
   let channelLinkConfirmHandler: ReturnType<typeof createConnectChannelLinkConfirmHttpHandler> | null = null;
@@ -402,6 +405,16 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 provider: officialWhatsAppProvider,
               });
 
+              if (env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true' && env.CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED === 'true') {
+                let owners = {};
+                try { owners = JSON.parse(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON || '{}'); } catch { throw new Error('PRODUCT_SUPPORT_OWNERS_INVALID'); }
+                productRouting = new WhatsAppProductRouting({
+                  registry, routes: new FirestoreProductRouteStore(projectId, options.fetchImpl),
+                  messages: messageStore, threads: gatedStore, replies: assistReplyService,
+                  directory: operatorDirectory, owners, originSecret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
+                });
+              }
+
               whatsappAssistOrchestrator = new WhatsAppAssistOrchestrator({
                 registry,
                 bindingStore: new FirestoreWhatsAppChannelIdentityBindingStore({
@@ -420,6 +433,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 }),
                 core,
                 replyService: assistReplyService,
+                resumeGuard: productRouting ? async event => (await productRouting!.route([event])).length === 1 : undefined,
                 linkRootSecret,
                 publicOrigin,
                 logger,
@@ -433,6 +447,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 error: error instanceof Error ? error.message : 'unknown_error',
               });
               whatsappAssistOrchestrator = null;
+              productRouting = null;
               channelLinkConfirmHandler = null;
             }
           }
@@ -446,7 +461,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             afterIngest: async (events) => {
               // Assist runs first so a resolved conversation never produces a stale alert.
               if (whatsappAssistOrchestrator) {
-                try { await whatsappAssistOrchestrator.afterIngest(events); }
+                try {
+                  const routed = productRouting ? await productRouting.route(events) : events;
+                  await whatsappAssistOrchestrator.afterIngest(routed);
+                }
                 catch { logger.warn?.('CONNECT_WHATSAPP_ASSIST_POST_INGEST_FAILED'); }
               }
               if (inboxPush) {
