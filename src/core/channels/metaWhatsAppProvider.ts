@@ -72,6 +72,23 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     this.timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? 10_000, 30_000));
   }
 
+  /** Read-only discovery of the already configured number. No registration or configuration mutation. */
+  async getDisplayPhoneNumber(id: string): Promise<string> {
+    const phoneNumberId = safeId(id, 128);
+    try {
+      const response = await this.fetchImpl(`https://graph.facebook.com/${this.graphApiVersion}/${encodeURIComponent(phoneNumberId)}?fields=display_phone_number`, {
+        method: 'GET', redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs),
+        headers: { Authorization: `Bearer ${this.accessToken}`, Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      if (data?.id !== phoneNumberId || typeof data.display_phone_number !== 'string' || !/^\+?[0-9 ()-]{8,32}$/.test(data.display_phone_number)) throw new Error();
+      const number = data.display_phone_number.replace(/\D/g, '');
+      if (!/^[1-9][0-9]{7,14}$/.test(number)) throw new Error();
+      return number;
+    } catch { throw new Error('WHATSAPP_SUPPORT_NUMBER_UNAVAILABLE'); }
+  }
+
   async sendText(input: WhatsAppProviderSendTextInput): Promise<WhatsAppProviderSendResult> {
     const phoneNumberId = safeId(input.phoneNumberId, 128);
     const recipientPhone = safePhone(input.recipientPhone);
