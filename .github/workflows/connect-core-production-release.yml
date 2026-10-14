@@ -341,7 +341,9 @@ jobs:
             --format='table(metadata.name,status.url,status.traffic.revisionName,status.traffic.percent,status.traffic.tag)'
 
       - name: Deploy Connect Firebase Hosting with API rewrite
-        run: npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
+        run: |
+          echo CONNECT_HOSTING_RELEASE_STARTED=true >> "$GITHUB_ENV"
+          npx -y firebase-tools@15.26.0 deploy --only hosting:connect --project "$PROJECT_ID" --non-interactive
 
       - name: Production smoke through canonical Connect domain
         shell: bash
@@ -512,16 +514,7 @@ jobs:
               rollback_failed=1
             fi
           fi
-          if [ -n "${PREVIOUS_HOSTING_VERSION:-}" ]; then
-            [[ "$PREVIOUS_HOSTING_VERSION" =~ ^sites/mn-connect-555464791734/versions/[a-zA-Z0-9_-]+$ ]]
-            ACCESS_TOKEN="$(gcloud auth print-access-token)"
-            echo "::add-mask::$ACCESS_TOKEN"
-            curl --fail --silent --show-error --max-time 30 -X POST \
-              -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
-              -d '{"message":"Connect guarded release rollback"}' \
-              "https://firebasehosting.googleapis.com/v1beta1/sites/mn-connect-555464791734/releases?versionName=$PREVIOUS_HOSTING_VERSION" > /tmp/connect-hosting-rollback.json
-            node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/connect-hosting-rollback.json','utf8'));if(d.version?.name!==process.env.PREVIOUS_HOSTING_VERSION)process.exit(1)"
-            rm /tmp/connect-hosting-rollback.json
-            echo CONNECT_FAILURE_HOSTING_VERSION_RESTORED
+          if ! bash scripts/restore-connect-hosting.sh; then
+            rollback_failed=1
           fi
           test "$rollback_failed" = 0
