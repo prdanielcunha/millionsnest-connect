@@ -1,3 +1,4 @@
+import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
@@ -584,6 +585,13 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   });
 
   app.use(express.json({ limit: '32kb' }));
+  const financePendingDocuments = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
+    ? createNestFinancePendingDocumentsHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
+      audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
+    if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
+    return financePendingDocuments(req, res);
+  });
   app.post('/api/core/support/origin', (req, res) => {
     if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
     return supportOriginHandler(req, res);
