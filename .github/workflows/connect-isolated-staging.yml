@@ -11,11 +11,11 @@ concurrency:
   group: connect-isolated-staging
   cancel-in-progress: false
 env:
-  SOURCE_SHA: 04dbc0b0f7f694604cdce344686ed87e1a1f10a4
+  SOURCE_SHA: 97e8eddacac420edb581169f666ff595c6b7ffa2
   PROJECT_ID: millionsnest
   REGION: us-central1
   SERVICE: connect-api-staging
-  IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api-staging:04dbc0b0f7f694604cdce344686ed87e1a1f10a4
+  IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api-staging:97e8eddacac420edb581169f666ff595c6b7ffa2
 jobs:
   isolated-staging:
     if: github.ref == 'refs/heads/production'
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: 04dbc0b0f7f694604cdce344686ed87e1a1f10a4
+          ref: 97e8eddacac420edb581169f666ff595c6b7ffa2
       - name: Require successful full quality gate for exact source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/prdanielcunha/millionsnest-connect/actions/runs/38569700923 > /tmp/gate.json
+            https://api.github.com/repos/prdanielcunha/millionsnest-connect/actions/runs/38574786055 > /tmp/gate.json
           jq -e --arg sha "$SOURCE_SHA" '.head_sha == $sha and .conclusion == "success" and .name == "Connect Quality"' /tmp/gate.json >/dev/null
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -55,6 +55,15 @@ jobs:
           gcloud run services describe connect-api --project "$PROJECT_ID" --region "$REGION" --format=json > /tmp/production-before.json
           jq -S '{spec,traffic:.status.traffic,ready:.status.latestReadyRevisionName}' /tmp/production-before.json > /tmp/production-before-snapshot.json
           test "$(jq -r '.spec.template.spec.serviceAccountName' /tmp/production-before.json)" = mn-connect-runtime@millionsnest.iam.gserviceaccount.com
+          python3 - <<'PYMETA'
+          import json
+          d=json.load(open('/tmp/production-before.json'))
+          env={v['name']:v for v in d['spec']['template']['spec']['containers'][0].get('env',[])}
+          for name in ['CONNECT_WHATSAPP_WEBHOOK_ENABLED','CONNECT_WHATSAPP_INGESTION_ENABLED','CONNECT_WHATSAPP_ASSIST_ENABLED','CONNECT_INBOX_DURABLE_ENABLED','CONNECT_INBOX_MESSAGE_CONTENT_ENABLED']:
+              print('CONNECT_LIVE_EXISTING_FLAG='+name+':'+str(env.get(name,{}).get('value','false')).lower())
+          for name in ['CONNECT_WHATSAPP_APP_SECRET','CONNECT_WHATSAPP_ACCESS_TOKEN','CONNECT_WHATSAPP_CONNECTIONS_JSON']:
+              print('CONNECT_LIVE_CONFIG_PRESENT='+name+':'+str(name in env).lower())
+          PYMETA
           rm /tmp/production-before.json
       - name: Build and publish exact source container
         run: |
@@ -70,7 +79,8 @@ jobs:
             --image "$IMAGE" --service-account mn-connect-runtime@millionsnest.iam.gserviceaccount.com \
             --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
             --concurrency 20 --timeout 30 --quiet \
-            --set-env-vars "CONNECT_RELEASE_SHA=$SOURCE_SHA,GOOGLE_CLOUD_PROJECT=millionsnest,FIREBASE_PROJECT_ID=millionsnest,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,CONNECT_HOMOLOGATION_READ_ONLY=true,CONNECT_INBOX_DURABLE_ENABLED=false,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=false,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_WHATSAPP_ASSIST_ENABLED=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false"
+            --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:latest \
+            --set-env-vars "CONNECT_RELEASE_SHA=$SOURCE_SHA,GOOGLE_CLOUD_PROJECT=millionsnest,FIREBASE_PROJECT_ID=millionsnest,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=true,CONNECT_INBOX_DURABLE_ENABLED=false,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=false,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_WHATSAPP_ASSIST_ENABLED=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false"
       - name: Exercise deployed API gates and exact SHA
         run: |
           set -euo pipefail
