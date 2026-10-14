@@ -11,11 +11,11 @@ concurrency:
   group: connect-isolated-staging
   cancel-in-progress: false
 env:
-  SOURCE_SHA: 7029123c2cc2f044fe6d80847ea964688d6c0b3a
+  SOURCE_SHA: 04dbc0b0f7f694604cdce344686ed87e1a1f10a4
   PROJECT_ID: millionsnest
   REGION: us-central1
   SERVICE: connect-api-staging
-  IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api-staging:7029123c2cc2f044fe6d80847ea964688d6c0b3a
+  IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api-staging:04dbc0b0f7f694604cdce344686ed87e1a1f10a4
 jobs:
   isolated-staging:
     if: github.ref == 'refs/heads/production'
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: 7029123c2cc2f044fe6d80847ea964688d6c0b3a
+          ref: 04dbc0b0f7f694604cdce344686ed87e1a1f10a4
       - name: Require successful full quality gate for exact source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/prdanielcunha/millionsnest-connect/actions/runs/38566676373 > /tmp/gate.json
+            https://api.github.com/repos/prdanielcunha/millionsnest-connect/actions/runs/38569700923 > /tmp/gate.json
           jq -e --arg sha "$SOURCE_SHA" '.head_sha == $sha and .conclusion == "success" and .name == "Connect Quality"' /tmp/gate.json >/dev/null
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -70,7 +70,7 @@ jobs:
             --image "$IMAGE" --service-account mn-connect-runtime@millionsnest.iam.gserviceaccount.com \
             --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
             --concurrency 20 --timeout 30 --quiet \
-            --set-env-vars "CONNECT_RELEASE_SHA=$SOURCE_SHA,GOOGLE_CLOUD_PROJECT=millionsnest,FIREBASE_PROJECT_ID=millionsnest,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,CONNECT_INBOX_DURABLE_ENABLED=false,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=false,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_WHATSAPP_ASSIST_ENABLED=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false"
+            --set-env-vars "CONNECT_RELEASE_SHA=$SOURCE_SHA,GOOGLE_CLOUD_PROJECT=millionsnest,FIREBASE_PROJECT_ID=millionsnest,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,CONNECT_HOMOLOGATION_READ_ONLY=true,CONNECT_INBOX_DURABLE_ENABLED=false,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=false,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_WHATSAPP_ASSIST_ENABLED=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false"
       - name: Exercise deployed API gates and exact SHA
         run: |
           set -euo pipefail
@@ -81,10 +81,14 @@ jobs:
             test "$(curl --silent --show-error -X "$1" -H 'Content-Type: application/json' -d '{}' -o /tmp/staging-probe.json -w '%{http_code}' "$STAGING_URL$2")" = "$3"
             jq -e --arg code "$4" '.code == $code' /tmp/staging-probe.json >/dev/null
           }
-          probe POST /api/core/support/origin 404 SUPPORT_ORIGIN_DISABLED
-          probe POST /api/core/inbox/push/devices 404 PUSH_DISABLED
-          probe POST /api/core/automations/worker 404 AUTOMATION_EXECUTION_DISABLED
-          probe POST /api/channels/whatsapp/webhook 404 WHATSAPP_WEBHOOK_DISABLED
+          probe POST /api/core/support/origin 409 HOMOLOGATION_READ_ONLY
+          probe POST /api/core/inbox/push/devices 409 HOMOLOGATION_READ_ONLY
+          probe POST /api/core/automations/worker 409 HOMOLOGATION_READ_ONLY
+          probe POST /api/channels/whatsapp/webhook 409 HOMOLOGATION_READ_ONLY
+          probe DELETE /api/personal/sources 409 HOMOLOGATION_READ_ONLY
+          probe PATCH /api/core/inbox/threads 409 HOMOLOGATION_READ_ONLY
+          probe PUT /api/personal/radar 409 HOMOLOGATION_READ_ONLY
+          echo "CONNECT_STAGING_SHARED_DATA_MUTATIONS_BLOCKED"
           echo "CONNECT_STAGING_API_SHA=$SOURCE_SHA"
           echo "CONNECT_STAGING_API_URL=$STAGING_URL"
       - name: Publish expiring Firebase preview only
