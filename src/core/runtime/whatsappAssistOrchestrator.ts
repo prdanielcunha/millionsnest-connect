@@ -37,7 +37,7 @@ function requestId(kind: 'link' | 'answer', providerMessageId: string): string {
   return `wa-assist-${kind}-${digest(providerMessageId)}`;
 }
 
-function localeFromText(text: string): SupportedLocale {
+export function localeFromText(text: string): SupportedLocale {
   const normalized = text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -206,6 +206,7 @@ export class WhatsAppAssistOrchestrator {
     linkRootSecret: string;
     publicOrigin: string;
     now?: () => Date;
+    resumeGuard?: (event: Extract<WhatsAppNormalizedEvent, { kind: 'message' }>) => Promise<boolean>;
     logger?: {
       info(message: string, meta?: Record<string, unknown>): void;
       warn?(message: string, meta?: Record<string, unknown>): void;
@@ -271,16 +272,19 @@ export class WhatsAppAssistOrchestrator {
       original.messageType === 'text' &&
       original.body
     ) {
-      await this.processMessage({
-        kind: 'message',
+      const event = {
+        kind: 'message' as const,
         providerMessageId: original.providerMessageId,
         from: original.senderRef,
         phoneNumberId: original.recipientRef,
         timestamp: String(Math.floor(new Date(original.occurredAt).getTime() / 1000)),
         messageType: 'text',
         text: original.body,
-      });
-      answerTriggered = true;
+      };
+      if (!this.options.resumeGuard || await this.options.resumeGuard(event)) {
+        await this.processMessage(event);
+        answerTriggered = true;
+      }
     }
 
     return {
