@@ -35,3 +35,12 @@
 - Actual signed support buttons/publishers in upstream apps and canonical financial/pastoral tools/entitlements/consents remain outstanding; operator-alert ingress is not member notification integration.
 - Real WhatsApp multiapp, physical iPhone closed/locked, Android/desktop and staging/rollback tests are pending. Do not close #223/#224/#225/#226 or activate gates from CI alone.
 - Keep #216/#221 pending their original upstream conditions; #222 unchanged. Continue implementation from existing modules/contracts; do not repeat a whole-repository audit.
+
+## Completion continuation — 2026-10-14 morning
+
+- Integrated baseline: main `d5b1ccb557d4d8bcb9b50d5ce9854547a720182c`; production untouched.
+- Hub contract dependency now implemented in PR https://github.com/prdanielcunha/millionsnest/pull/347, code `84bf4437b18de43074258da7c0d471af17c8eb03`: separate canonical NestFinance/NestJourney app access, without RBAC/billing changes. 129/129 Hub context tests, lint/build passed; Hub PR CI green.
+- Connect consumes optional per-app grants fail-closed, rejects substituted app IDs/cross-tenant access; existing MusicScale behavior preserved.
+- Installed Firebase plugin was verified; it provides skills here, without callable Firebase tools. Official Firebase CLI 15.33.0 installed; login:list confirmed no authenticated account. No credentials requested or exposed.
+- New executable read-only GCP preflight uses existing GitHub WIF after reviewed main merge. It checks current runtime/registry metadata only, not Meta configuration or secret values. Inspect its Actions result before attempting staging provisioning; do not assume failure/success from local CLI state.
+- Next exact action: check/merge Hub #347 and Connect completion increment after CI; inspect GCP preflight, then complete signed support origin and domain reader adapters using actual upstream APIs. Finance existing evidence API enforces finance.view + entity scope; current selector requires a Finance-scoped token, so do not bypass it with Connect identity claims.

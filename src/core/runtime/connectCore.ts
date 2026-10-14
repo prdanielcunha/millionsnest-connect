@@ -26,6 +26,8 @@ export interface CanonicalCoreContext {
   appAccess: {
     musicscale: boolean;
     nestlocal?: boolean;
+    nestfinance?: boolean;
+    nestjourney?: boolean;
   };
 }
 
