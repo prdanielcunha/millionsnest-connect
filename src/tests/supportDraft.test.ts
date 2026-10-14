@@ -4,7 +4,7 @@ import { verifyProductOrigin } from '../core/routing/productRouting';
 import { MetaWhatsAppProvider } from '../core/channels/metaWhatsAppProvider';
 const secret = 'synthetic-support-origin-secret-long-enough', now = 1800000000000;
 let allowed = true, organizationId = 'synthetic-customer-org', calls = 0;
-const contextProvider: any = { async resolve() { return { status: 'resolved', context: { organizationId, appAccess: { musicscale: allowed, nestfinance: allowed, nestjourney: allowed } } }; } };
+const contextProvider: any = { async resolve(input: any) { assert.equal(input.authToken, 'Bearer synthetic-caller'); return { status: 'resolved', context: { organizationId, appAccess: { musicscale: allowed, nestfinance: allowed, nestjourney: allowed } } }; } };
 const bindings = [{ organizationId: 'synthetic-central-support-org', phoneNumberId: '123456789', connectionRef: 'synthetic-official', enabled: true }];
 let upstream: any = { id: '123456789', display_phone_number: '+1 (650) 555-0100' }, status = 200;
 const provider = new MetaWhatsAppProvider({ accessToken: 'synthetic-meta-secret', graphApiVersion: 'v25.0', fetchImpl: async (url, init) => {
@@ -24,7 +24,9 @@ for (const [product, locale, phrase] of [['musicscale', 'pt-BR', 'Preciso de sup
   assert.equal(res.body.automaticSend, false);
   for (const forbidden of ['synthetic-caller', 'synthetic-central-support-org', 'synthetic-customer-org', 'synthetic-meta-secret', '123456789']) assert(!JSON.stringify(res.body).includes(forbidden));
 }
+assert.equal((await invoke({ ...request, headers: { authorization: 'Bearer synthetic-transport', 'x-connect-user-authorization': request.headers.authorization } })).code, 200);
 const successfulCalls = calls;
+for (const forwarded of ['Basic forged', ['Bearer synthetic-caller'], 'Bearer token extra']) assert.equal((await invoke({ ...request, headers: { ...request.headers, 'x-connect-user-authorization': forwarded } })).code, 401);
 assert.equal((await invoke({ ...request, headers: {} })).code, 401);
 allowed = false; assert.equal((await invoke()).code, 403); allowed = true;
 organizationId = 'synthetic-other-org'; assert.equal((await invoke()).code, 403); organizationId = request.body.organizationId;
