@@ -22,7 +22,13 @@ for (const endpoint of ['http://web.push.apple.com/x', 'https://localhost/x', 'h
 assert.throws(() => validateSubscription({ ...subscription, keys: { ...subscription.keys, auth: 'short' } }));
 const vapid = webPush.generateVAPIDKeys();
 assert.equal(typeof createWebPushSender(vapid.publicKey, vapid.privateKey, 'mailto:ops@example.test'), 'function');
+const readStates = new Map<string, Record<string, { eventId: string; recordedAt: string }>>();
 const store: PushStore & { devices: PushDevice[]; claims: Set<string>; statuses: string[] } = {
+  async readMarkers(org, uid) { return readStates.get(JSON.stringify([org, uid])) ?? {}; },
+  async markRead(org, uid, conversationId, eventId) {
+    const key = JSON.stringify([org, uid]);
+    readStates.set(key, { ...(readStates.get(key) ?? {}), [conversationId]: { eventId, recordedAt: new Date().toISOString() } });
+  },
   devices: [], claims: new Set(), statuses: [],
   async get(id) { return this.devices.find(d => d.id === id) ?? null; },
   async save(d) { this.devices = [...this.devices.filter(old => old.id !== d.id), d]; },
@@ -37,7 +43,7 @@ const store: PushStore & { devices: PushDevice[]; claims: Set<string>; statuses:
 };
 let context: CanonicalCoreContext = { actorUid: 'operator', organizationId: 'org-a', globalAccess: false,
   systemRole: null, organizationRole: 'admin', permissions: [], capabilities: [], appAccess: { musicscale: false } };
-const router = createPushRouter({ async resolve() { return { status: 'resolved', context }; } }, store, vapid.publicKey);
+let router = createPushRouter({ async resolve() { return { status: 'resolved', context }; } }, store, vapid.publicKey);
 async function request(method: string, body?: unknown, suffix = '', authenticated = true) {
   const query = Object.fromEntries(new URLSearchParams(suffix.split('?')[1] || ''));
   const req = { method, body, query, params: { deviceId: suffix.replace('/', '') }, headers: authenticated ? { authorization: 'Bearer transient' } : {} };
@@ -47,7 +53,7 @@ async function request(method: string, body?: unknown, suffix = '', authenticate
   let allowed = false;
   await (router as any).stack[0].handle(req, res, () => { allowed = true; });
   if (allowed) {
-    const layer = (router as any).stack.find((l: any) => l.route?.methods[method.toLowerCase()]);
+    const layer = (router as any).stack.find((l: any) => l.route?.methods[method.toLowerCase()] && l.route.path === (method === 'DELETE' ? '/:deviceId' : suffix.startsWith('/unread') ? '/unread' : suffix.startsWith('/read') ? '/read' : '/'));
     await layer.route.stack[0].handle(req, res);
   }
   return { status: res.statusCode, text: async () => JSON.stringify(res.body) };
@@ -85,6 +91,21 @@ const push = new InboxPushService(store, threads, directory, async (_device, pay
 }, registry, () => now);
 await Promise.all(Array.from({ length: 20 }, () => push.afterIngest(events)));
 assert.equal(sends, 1); assert.equal(store.statuses[0], 'accepted_by_push_service');
+router = createPushRouter({ async resolve() { return { status: 'resolved', context }; } }, store, vapid.publicKey, threads);
+let unreadResponse = await (await request('POST', { organizationId: 'org-a', conversationIds: [scope.conversationId] }, '/unread')).text();
+const inbound = JSON.parse(unreadResponse).unread[scope.conversationId];
+assert(inbound.eventId);
+assert.equal((await request('POST', { organizationId: 'org-a', conversationId: scope.conversationId, expectedEventId: 'stale' }, '/read')).status, 409);
+assert.equal((await request('POST', { organizationId: 'org-a', conversationId: scope.conversationId, expectedEventId: inbound.eventId }, '/read')).status, 204);
+unreadResponse = await (await request('POST', { organizationId: 'org-a', conversationIds: [scope.conversationId] }, '/unread')).text();
+assert.deepEqual(JSON.parse(unreadResponse).unread, {});
+context = { ...context, actorUid: 'other-operator' };
+unreadResponse = await (await request('POST', { organizationId: 'org-a', conversationIds: [scope.conversationId] }, '/unread')).text();
+assert(JSON.parse(unreadResponse).unread[scope.conversationId]);
+context = { ...context, actorUid: 'operator' };
+store.claims.clear(); await push.afterIngest(events); assert.equal(sends, 1, 'loaded message suppresses stale alert');
+assert.equal((await request('POST', { organizationId: 'org-a', conversationIds: ['../other-org'] }, '/unread')).status, 400);
+readStates.clear();
 store.claims.clear(); eligible = false; await push.afterIngest(events); assert.equal(sends, 1);
 eligible = true; store.devices = [{ ...device, quietStart: 11, quietEnd: 13 }]; await push.afterIngest(events); assert.equal(sends, 1);
 store.devices = [device];

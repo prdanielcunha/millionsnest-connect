@@ -78,6 +78,12 @@ function fingerprint(value: unknown): string {
   return createHash('sha256').update(canonicalJson(value)).digest('hex');
 }
 
+/** Compare immutable message identity/content; delivery and receipt time evolve independently. */
+function immutableMessageFingerprint(record: ConnectMessageContentRecord): string {
+  const { recordedAt: _recordedAt, deliveryStatus: _deliveryStatus, deliveryUpdatedAt: _deliveryUpdatedAt, ...identity } = record;
+  return fingerprint(identity);
+}
+
 function stringValue(value: string): Record<string, unknown> {
   return { stringValue: value };
 }
@@ -222,7 +228,7 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
     }).catch(() => null);
 
     if (providerExisting) {
-      if (fingerprint(providerExisting) !== fingerprint(record)) {
+      if (immutableMessageFingerprint(providerExisting) !== immutableMessageFingerprint(record)) {
         throw new Error('PROVIDER_MESSAGE_ID_COLLISION');
       }
       return { kind: 'duplicate', record: providerExisting };
@@ -230,7 +236,7 @@ export class FirestoreMessageContentStore implements ConnectMessageContentStore 
 
     const directExisting = await this.get(record).catch(() => null);
     if (directExisting) {
-      if (fingerprint(directExisting) !== fingerprint(record)) {
+      if (immutableMessageFingerprint(directExisting) !== immutableMessageFingerprint(record)) {
         throw new Error('MESSAGE_ID_COLLISION');
       }
       return { kind: 'duplicate', record: directExisting };

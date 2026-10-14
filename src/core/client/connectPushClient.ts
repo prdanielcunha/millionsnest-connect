@@ -1,5 +1,6 @@
 import type { LiveConnectSession } from './liveConnectSession';
 
+export type InboxUnreadMarkers = Record<string, { eventId: string; evidenceRef: string }>;
 export type PushDeviceView = { id: string; enabled: boolean; expiresAt: string; quietStart: number; quietEnd: number; timeZone: string };
 export function pushSupported(): boolean {
   return typeof window !== 'undefined' && typeof navigator !== 'undefined' && window.isSecureContext && 'serviceWorker' in navigator &&
@@ -32,6 +33,12 @@ export class ConnectPushClient {
     });
     if (!response.ok) throw new Error(response.status === 404 ? 'PUSH_DISABLED' : 'PUSH_REQUEST_FAILED');
     return response.status === 204 ? null : response.json();
+  }
+  async unread(conversationIds: string[]): Promise<InboxUnreadMarkers> {
+    return (await this.request('POST', { conversationIds: conversationIds.slice(0, 100) }, 'unread')).unread;
+  }
+  async markRead(conversationId: string, expectedEventId: string): Promise<void> {
+    await this.request('POST', { conversationId, expectedEventId }, 'read');
   }
   async status(): Promise<{ publicKey: string; devices: PushDeviceView[] }> { return this.request('GET'); }
   /** Call only from a click, with key preloaded; permission request precedes all awaited work. */

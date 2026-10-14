@@ -328,7 +328,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             const sender = createWebPushSender(publicKey, env.CONNECT_WEB_PUSH_PRIVATE_KEY || '', env.CONNECT_WEB_PUSH_SUBJECT || '');
             const pushStore = new FirestorePushStore(projectId, options.fetchImpl);
             inboxPush = new InboxPushService(pushStore, gatedStore, operatorDirectory, sender, registry);
-            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey);
+            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey, gatedStore);
           } catch {
             logger.warn?.('CONNECT_WEB_PUSH_CONFIGURATION_INVALID');
           }

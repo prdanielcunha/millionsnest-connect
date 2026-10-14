@@ -44,6 +44,8 @@ export class InboxPushService {
         // Cap upstream checks as well as sends so one webhook has bounded work.
         if (++attempted > 10) break;
         if (!await this.directory.verify({ organizationId: scope.organizationId, uid: device.actorUid })) continue;
+        const readMarkers = await this.store.readMarkers(scope.organizationId, device.actorUid);
+        if (readMarkers[scope.conversationId]?.eventId === thread.lastEventId) continue;
         const currentDevice = await this.store.get(device.id);
         if (!currentDevice || JSON.stringify(currentDevice) !== JSON.stringify(device)) continue;
         // Recheck canonical thread after potentially slow authority lookup.

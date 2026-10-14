@@ -1,10 +1,11 @@
 import express from 'express';
 import type { CanonicalContextProvider } from '../runtime/connectCore';
 import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
+import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { PushStore } from './firestorePushStore';
 import { pushId, validateSubscription } from './pushPolicy';
 
-export function createPushRouter(contextProvider: CanonicalContextProvider, store: PushStore, publicKey: string) {
+export function createPushRouter(contextProvider: CanonicalContextProvider, store: PushStore, publicKey: string, threads?: ConnectThreadStore) {
   const router = express.Router();
   router.use(async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -25,6 +26,46 @@ export function createPushRouter(contextProvider: CanonicalContextProvider, stor
       res.locals.pushContext = result.context;
       next();
     } catch { res.status(503).json({ code: 'PUSH_AUTHORITY_UNAVAILABLE' }); }
+  });
+  async function lastInbound(organizationId: string, conversationId: string) {
+    if (!threads) throw new Error('PUSH_THREADS_UNAVAILABLE');
+    const scope = { organizationId, conversationId };
+    if (!await threads.load(scope)) return null;
+    const events = await threads.readEvents(scope);
+    return events.filter(e => e.eventType === 'MESSAGE_REPLIED')
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.eventId.localeCompare(a.eventId))[0]?? null;
+  }
+  router.post('/unread', async (req, res) => {
+    const ids = req.body?.conversationIds;
+    if (!Array.isArray(ids) || ids.length > 100 || ids.some(id => typeof id !== 'string' || !id || id.length > 180 || /[\\/]/.test(id))) {
+      res.status(400).json({ code: 'INVALID_CONVERSATIONS' }); return;
+    }
+    try {
+      const { organizationId, actorUid } = res.locals.pushContext;
+      const markers = await store.readMarkers(organizationId, actorUid);
+      const unread: Record<string, { eventId: string; evidenceRef: string }> = Object.create(null);
+      // Batched reads cap concurrent Firestore work; browser IDs never select another tenant.
+      for (let offset = 0; offset < ids.length; offset += 5) {
+        const results = await Promise.all(ids.slice(offset, offset + 5).map(async conversationId => {
+          const latest = await lastInbound(organizationId, conversationId);
+          return latest && markers[conversationId]?.eventId !== latest.eventId ? { conversationId, eventId: latest.eventId, evidenceRef: latest.evidenceRef } : null;
+        }));
+        for (const item of results) if (item) unread[item.conversationId] = { eventId: item.eventId, evidenceRef: item.evidenceRef };
+      }
+      res.json({ unread });
+    } catch { res.status(503).json({ code: 'PUSH_READ_STATE_UNAVAILABLE' }); }
+  });
+  router.post('/read', async (req, res) => {
+    const id = req.body?.conversationId;
+    if (typeof id !== 'string' || !id || id.length > 180 || /[\\/]/.test(id)) { res.status(400).json({ code: 'INVALID_CONVERSATION' }); return; }
+    try {
+      const { organizationId, actorUid } = res.locals.pushContext;
+      const latest = await lastInbound(organizationId, id);
+      if (!latest) { res.status(404).json({ code: 'THREAD_MESSAGE_NOT_FOUND' }); return; }
+      if (typeof req.body.expectedEventId !== 'string' || req.body.expectedEventId !== latest.eventId) { res.status(409).json({ code: 'PUSH_READ_MESSAGE_CHANGED' }); return; }
+      await store.markRead(organizationId, actorUid, id, latest.eventId);
+      res.status(204).end();
+    } catch { res.status(503).json({ code: 'PUSH_READ_STATE_UNAVAILABLE' }); }
   });
   router.get('/', async (_req, res) => {
     try {

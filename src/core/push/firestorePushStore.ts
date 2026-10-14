@@ -1,7 +1,11 @@
 import { GoogleMetadataAccessTokenProvider, type ConnectRuntimeAccessTokenProvider } from '../inbox/firestoreThreadStore';
-import type { PushDevice } from './pushPolicy';
+import { pushId, type PushDevice } from './pushPolicy';
+export type PushReadMarker = { eventId: string; recordedAt: string };
+export type PushReadMarkers = Record<string, PushReadMarker>;
 
 export interface PushStore {
+  readMarkers(organizationId: string, actorUid: string): Promise<PushReadMarkers>;
+  markRead(organizationId: string, actorUid: string, conversationId: string, eventId: string): Promise<void>;
   save(device: PushDevice): Promise<void>;
   get(deviceId: string): Promise<PushDevice | null>;
   list(organizationId: string): Promise<PushDevice[]>;
@@ -23,6 +27,34 @@ export class FirestorePushStore implements PushStore {
     return this.fetchImpl(`${this.base}${path}`, { ...init, signal: AbortSignal.timeout(8000), headers: {
       Authorization: `Bearer ${await this.token.getAccessToken()}`, 'Content-Type': 'application/json',
     } });
+  }
+  private async markerDocument(organizationId: string, actorUid: string) {
+    const path = `/connectPushReadStates/${pushId(organizationId, actorUid)}`;
+    const r = await this.request(path);
+    if (r.status === 404) return { path, markers: {} as PushReadMarkers, updateTime: null };
+    if (!r.ok) throw new Error('PUSH_STORAGE_UNAVAILABLE');
+    const doc = await r.json() as { updateTime: string; fields: { organizationId: { stringValue: string }; actorUid: { stringValue: string }; recordJson: { stringValue: string } } };
+    if (doc.fields.organizationId.stringValue !== organizationId || doc.fields.actorUid.stringValue !== actorUid) throw new Error('PUSH_READ_SCOPE_DENIED');
+    return { path, markers: JSON.parse(doc.fields.recordJson.stringValue) as PushReadMarkers, updateTime: doc.updateTime };
+  }
+  async readMarkers(organizationId: string, actorUid: string): Promise<PushReadMarkers> {
+    return (await this.markerDocument(organizationId, actorUid)).markers;
+  }
+  async markRead(organizationId: string, actorUid: string, conversationId: string, eventId: string) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { path, markers, updateTime } = await this.markerDocument(organizationId, actorUid);
+      Object.defineProperty(markers, conversationId, { value: { eventId, recordedAt: new Date().toISOString() }, enumerable: true, configurable: true, writable: true });
+      const bounded = Object.fromEntries(Object.entries(markers).sort((a, b) => b[1].recordedAt.localeCompare(a[1].recordedAt)).slice(0, 250));
+      const condition = updateTime ? `currentDocument.updateTime=${encodeURIComponent(updateTime)}` : 'currentDocument.exists=false';
+      const r = await this.request(`${path}?${condition}`, { method: 'PATCH', body: JSON.stringify({ fields: {
+        organizationId: { stringValue: organizationId }, actorUid: { stringValue: actorUid }, recordJson: { stringValue: JSON.stringify(bounded) },
+        expiresAt: { timestampValue: new Date(Date.now() + 90 * 86400000).toISOString() },
+      } }) });
+      if ([409, 412].includes(r.status)) continue;
+      if (!r.ok) throw new Error('PUSH_STORAGE_UNAVAILABLE');
+      return;
+    }
+    throw new Error('PUSH_READ_CONCURRENT_UPDATE');
   }
   async get(deviceId: string): Promise<PushDevice | null> {
     if (!/^[a-f0-9]{64}$/.test(deviceId)) throw new Error('INVALID_DEVICE_ID');
