@@ -51,6 +51,9 @@ export class WhatsAppProductRouting {
         if (owner && await this.options.directory.verify({ organizationId: scope.organizationId, uid: owner })) {
           await this.commands.handoff({ ...scope, requestId: `wa-20-product-handoff-${id}`, evidenceRef,
             assigneeType: 'user', assigneeRef: owner, reasonCode: `product_${product}_human_required` });
+        } else {
+          await this.commands.requestHumanReview({ ...scope, requestId: `wa-20-product-review-${id}`, evidenceRef,
+            reasonCode: `product_${product}_owner_unavailable` });
         }
       }
       const locale = localeFromText(clean);

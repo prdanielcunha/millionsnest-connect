@@ -55,9 +55,9 @@ const routing = new WhatsAppProductRouting({ registry, routes, threads, now: () 
   replies: { async send(i) { sent.set(i.requestId, i.text); return { kind: 'sent', providerMessageId: 'accepted', messageId: 'id' }; } },
   directory: { async list() { return []; }, async verify() { return authorizedOwner; } }, owners: { nestfinance: 'verified-operator' },
 });
-async function receive(text: string, index: number, occurredAt?: Date) {
+async function receive(text: string, index: number, occurredAt?: Date, from = 'private-phone') {
   clock = new Date(+now - 10000 + index * 1000);
-  const event = { kind: 'message' as const, providerMessageId: `inbound-${index}`, from: 'private-phone', phoneNumberId: 'phone', timestamp: String(Math.floor(+clock / 1000)), messageType: 'text', text };
+  const event = { kind: 'message' as const, providerMessageId: `inbound-${index}`, from, phoneNumberId: 'phone', timestamp: String(Math.floor(+clock / 1000)), messageType: 'text', text };
   const scope = { organizationId: 'channel-org', conversationId: createConversationIdFromChannelIdentity({ organizationId: 'channel-org', connectionRef: 'official', channel: 'whatsapp', channelUserId: event.from }) };
   if (!await threads.load(scope)) await commands.open({ ...scope, requestId: 'wa-00-open', evidenceRef: 'open', channel: 'whatsapp', occurredAt: new Date(+clock - 1000) });
   await commands.recordPersonReply({ ...scope, requestId: 'wa-10-in-' + index, evidenceRef: createMessageEvidenceRef('whatsapp', event.providerMessageId) });
@@ -69,12 +69,19 @@ const sentCount = sent.size; await routing.route([current.event]); assert.equal(
 current = await receive('Qual é minha próxima escala no MusicScale?', 2); assert.equal((await routing.route([current.event])).length, 1);
 current = await receive('NestFinance: documento pendente', 3); assert.equal((await routing.route([current.event])).length, 0); assert([...sent.values()].at(-1)?.includes('atendimento humano'));
 assert.equal((await threads.load(current.scope))?.assignedTo, undefined, 'unverified support owner never receives assignment');
+assert.equal((await threads.load(current.scope))?.status, 'waiting_team', 'owner unavailable enters the real team queue');
+assert.equal((await threads.load(current.scope))?.mode, 'human');
+assert.equal((await threads.load(current.scope))?.automationPaused, true);
+const reviewEvents = (await threads.readEvents(current.scope)).filter(event => event.eventType === 'HUMAN_REVIEW_REQUESTED');
+assert.equal(reviewEvents.length, 1); await routing.route([current.event]);
+assert.equal((await threads.readEvents(current.scope)).filter(event => event.eventType === 'HUMAN_REVIEW_REQUESTED').length, 1);
 current = await receive('NestJourney: preciso de acompanhamento', 4); assert.equal((await routing.route([current.event])).length, 0);
+assert.equal((await threads.load(current.scope))?.status, 'waiting_team', 'an inbound reply cannot remove an unclaimed human request from the queue');
 current = await receive('MusicScale: qual é minha próxima escala?', 5); forged = true; await assert.rejects(() => routing.route([current.event]), /EVIDENCE_MISMATCH/); forged = false;
-assert.equal((await routing.route([current.event])).length, 1, 'switch restores only the existing authorized Core path');
+assert.equal((await routing.route([current.event])).length, 0, 'product switches must not resume automation after human review is requested');
 current = await receive('NestFinance', 6, new Date(+now - 25 * 3600000)); const countBefore = sent.size; assert.equal((await routing.route([current.event])).length, 0); assert.equal(sent.size, countBefore, 'expired Meta service window cannot send');
-authorizedOwner = true; current = await receive('NestFinance', 7); await routing.route([current.event]); assert.equal((await threads.load(current.scope))?.assignedTo?.ref, 'verified-operator');
-current = await receive('MusicScale: qual é minha próxima escala?', 8); assert.equal((await routing.route([current.event])).length, 0, 'human assignment blocks automation');
+authorizedOwner = true; current = await receive('NestFinance', 7, undefined, 'synthetic-second-phone'); await routing.route([current.event]); assert.equal((await threads.load(current.scope))?.assignedTo?.ref, 'verified-operator');
+current = await receive('MusicScale: qual é minha próxima escala?', 8, undefined, 'synthetic-second-phone'); assert.equal((await routing.route([current.event])).length, 0, 'human assignment blocks automation');
 assert.equal(states.get(routingId(current.scope.organizationId, current.scope.conversationId))?.product, 'musicscale', 'product switch persists while human retains control');
 assert(!JSON.stringify([...states.values()]).includes('private-phone')); assert(!JSON.stringify([...states.values()]).includes('documento pendente'));
 console.log('Product routing: same number/3 apps, clarification, persistent switches, signed-origin verification, tenant isolation, delayed retries, Meta window, verified human owner and human control passed.');
