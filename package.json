@@ -38,7 +38,7 @@
     "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts",
     "test:push": "node --import tsx src/tests/webPush.test.ts && node --import tsx src/tests/pushClient.test.ts && node --import tsx src/tests/messageContentRetry.test.ts",
     "test:product-routing": "node --import tsx src/tests/productRouting.test.ts",
-    "test:automation-worker": "node --import tsx src/tests/automationWorker.test.ts"
+    "test:automation-worker": "node --import tsx src/tests/automationWorker.test.ts && node --import tsx src/tests/automationJobsClient.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
