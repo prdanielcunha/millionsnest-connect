@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createPushDiagnostic } from '../core/push/pushDiagnostic';
+import type { PushStore } from '../core/push/firestorePushStore';
+import type { PushDevice } from '../core/push/pushPolicy';
+const now=new Date('2026-10-14T12:00:00Z'),device: PushDevice={id:'a'.repeat(64),organizationId:'org-a',actorUid:'actor-a',enabled:true,expiresAt:new Date(+now+86400000).toISOString(),quietStart:0,quietEnd:0,timeZone:'UTC',subscription:{endpoint:'https://web.push.apple.com/synthetic',keys:{p256dh:'synthetic',auth:'synthetic'}}};
+let sent=0, failed=false; const reservations=new Set<string>(),states:string[]=[];
+const store={get:async()=>device,claim:async(id:string)=>{if(reservations.has(id))return false;reservations.add(id);return true;},result:async(_id:string,state:string)=>{states.push(state);}} as unknown as PushStore;
+const handler=createPushDiagnostic(store,async(_device,payload)=>{sent++;assert.equal(_device.actorUid,'actor-a');const data=JSON.parse(payload);assert.equal(data.kind,'push_test');assert.equal(data.url,'/inbox');assert(!payload.includes('actor-a'));assert(!payload.includes('org-a'));assert(!payload.includes('synthetic'));if(failed)throw new Error('PRIVATE_PROVIDER_DETAIL');},()=>now);
+async function call(body:any={organizationId:'org-a',deviceId:device.id,locale:'en-US'},context:any={organizationId:'org-a',actorUid:'actor-a'}) {let status=200,payload:any;const res={locals:{pushContext:context},status(n:number){status=n;return this;},json(p:any){payload=p;return this;}};await handler({body} as any,res as any);return{status,payload};}
+assert.deepEqual((await call()).payload,{accepted:true,deliveryConfirmed:false});assert.equal(sent,1);
+assert.equal((await call()).status,429);assert.equal(sent,1);
+assert.equal((await call(undefined,{organizationId:'org-b',actorUid:'actor-a'})).status,403);
+assert.equal((await call(undefined,{organizationId:'org-a',actorUid:'actor-b'})).status,403);
+assert.equal((await call({organizationId:'org-a',deviceId:device.id,role:'owner'})).status,400);
+assert.equal((await call({organizationId:'org-a',deviceId:device.id,locale:'injected'})).status,400);
+device.enabled=false;assert.equal((await call()).status,409);device.enabled=true;
+device.quietStart=11;device.quietEnd=13;assert.equal((await call()).status,409);device.quietStart=0;device.quietEnd=0;
+device.expiresAt=now.toISOString();assert.equal((await call()).status,409);device.expiresAt=new Date(+now+86400000).toISOString();
+reservations.clear();failed=true;const failure=await call();assert.equal(failure.status,503);assert(!JSON.stringify(failure.payload).includes('PRIVATE'));assert.equal((await call()).status,429);assert.deepEqual(states,['accepted','failed']);
+console.log('Push self-diagnostic: own actor/tenant, no fabricated conversation, preferences, minute limit and ambiguous delivery suppression passed');

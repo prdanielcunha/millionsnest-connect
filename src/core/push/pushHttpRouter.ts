@@ -1,3 +1,5 @@
+import { createPushDiagnostic } from './pushDiagnostic';
+import type { PushSender } from './inboxPushService';
 import express from 'express';
 import type { CanonicalContextProvider } from '../runtime/connectCore';
 import { evaluateConnectInboxAuthority } from '../inbox/inboxAuthority';
@@ -5,7 +7,7 @@ import type { ConnectThreadStore } from '../inbox/threadStore';
 import type { PushStore } from './firestorePushStore';
 import { pushId, validateSubscription } from './pushPolicy';
 
-export function createPushRouter(contextProvider: CanonicalContextProvider, store: PushStore, publicKey: string, threads?: ConnectThreadStore) {
+export function createPushRouter(contextProvider: CanonicalContextProvider, store: PushStore, publicKey: string, threads?: ConnectThreadStore, diagnostics?: { sender: PushSender; deliveryMode: 'test' | 'live' }) {
   const router = express.Router();
   router.use(async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -67,11 +69,12 @@ export function createPushRouter(contextProvider: CanonicalContextProvider, stor
       res.status(204).end();
     } catch { res.status(503).json({ code: 'PUSH_READ_STATE_UNAVAILABLE' }); }
   });
+  if (diagnostics) router.post('/test', createPushDiagnostic(store, diagnostics.sender));
   router.get('/', async (_req, res) => {
     try {
       const { organizationId, actorUid } = res.locals.pushContext;
       const devices = (await store.list(organizationId)).filter(d => d.actorUid === actorUid && Date.parse(d.expiresAt) > Date.now());
-      res.json({ publicKey, devices: devices.map(({ id, enabled, expiresAt, quietStart, quietEnd, timeZone }) =>
+      res.json({ publicKey, deliveryMode: diagnostics?.deliveryMode ?? 'live', devices: devices.map(({ id, enabled, expiresAt, quietStart, quietEnd, timeZone }) =>
         ({ id, enabled, expiresAt, quietStart, quietEnd, timeZone })) });
     } catch { res.status(503).json({ code: 'PUSH_STORAGE_UNAVAILABLE' }); }
   });
