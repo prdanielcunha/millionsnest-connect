@@ -22,7 +22,8 @@ export function createWebPushSender(publicKey: string, privateKey: string, subje
 export class InboxPushService {
   constructor(private readonly store: PushStore, private readonly threads: ConnectThreadStore,
     private readonly directory: ConnectInboxOperatorDirectory, private readonly send: PushSender,
-    private readonly registry: WhatsAppConnectionRegistry, private readonly now = () => new Date()) {}
+    private readonly registry: WhatsAppConnectionRegistry, private readonly now = () => new Date(),
+    private readonly logger?: { info(message: string, meta?: Record<string, unknown>): void; warn?(message: string, meta?: Record<string, unknown>): void }) {}
   async afterIngest(events: WhatsAppNormalizedEvent[]) {
     for (const event of events) {
       if (event.kind !== 'message') continue;
@@ -39,6 +40,7 @@ export class InboxPushService {
       const devices = await this.store.list(scope.organizationId);
       let attempted = 0;
       for (const device of devices) {
+        try {
         if (!device.enabled || Date.parse(device.expiresAt) <= this.now().getTime() || isQuiet(device, this.now())) continue;
         if (thread.assignedTo && (thread.assignedTo.type !== 'user' || thread.assignedTo.ref !== device.actorUid)) continue;
         // Cap upstream checks as well as sends so one webhook has bounded work.
@@ -56,11 +58,17 @@ export class InboxPushService {
         try {
           await this.send(device, privatePushPayload({ ...scope, messageId }));
           await this.store.result(id, 'accepted_by_push_service');
+          this.logger?.info('CONNECT_WEB_PUSH_PROVIDER_ACCEPTED');
         } catch (error) {
           const status = (error as { statusCode?: number }).statusCode;
           if (status === 404 || status === 410) await this.store.remove(scope.organizationId, device.actorUid, device.id);
           // Ambiguous network errors are not automatically retried (could already have delivered).
           await this.store.result(id, status === 404 || status === 410 ? 'expired' : 'failed_or_unknown');
+          this.logger?.warn?.('CONNECT_WEB_PUSH_DELIVERY_FAILED', { status: status === 404 || status === 410 ? 'expired' : 'failed_or_unknown' });
+        }
+        } catch {
+          // One revoked/broken device or failed lookup must not prevent other recipients.
+          this.logger?.warn?.('CONNECT_WEB_PUSH_DEVICE_UNAVAILABLE');
         }
       }
     }

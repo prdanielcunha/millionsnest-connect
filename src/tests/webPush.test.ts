@@ -112,6 +112,14 @@ store.devices = [device];
 const failed = new InboxPushService(store, threads, directory, async () => { throw { statusCode: 410 }; }, registry, () => now);
 await failed.afterIngest(events); assert.equal(store.devices.length, 0); assert.equal(store.statuses.at(-1), 'expired');
 assert(!privatePushPayload({ ...scope, messageId: 'opaque' }).includes('sensitive'));
+store.claims.clear();
+store.devices = [{ ...device, actorUid: 'broken-operator' }, { ...device, id: pushId('another-valid-endpoint') }];
+const isolatedFailure = new InboxPushService(store, threads, {
+  async list() { return []; },
+  async verify({ uid }) { if (uid === 'broken-operator') throw new Error('HUB_UNAVAILABLE'); return true; },
+}, async () => { sends++; }, registry, () => now);
+await isolatedFailure.afterIngest(events);
+assert.equal(sends, 2, 'broken recipient lookup does not block another eligible device');
 const fs = new FirestorePushStore('millionsnest', async () => new Response('{}', { status: 409 }), { async getAccessToken() { return 'runtime-token'; } });
 assert.equal(await fs.claim('duplicate', now.toISOString()), false);
 await assert.rejects(() => new FirestorePushStore('millionsnest', async () => new Response('{}', { status: 403 }), { async getAccessToken() { return 'runtime-token'; } }).claim('id', now.toISOString()));

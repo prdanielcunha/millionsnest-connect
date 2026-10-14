@@ -2,12 +2,13 @@ import type { LiveConnectSession } from './liveConnectSession';
 
 export type InboxUnreadMarkers = Record<string, { eventId: string; evidenceRef: string }>;
 export type PushDeviceView = { id: string; enabled: boolean; expiresAt: string; quietStart: number; quietEnd: number; timeZone: string };
+let pushSessionEpoch = 0;
 export function pushSupported(): boolean {
   return typeof window !== 'undefined' && typeof navigator !== 'undefined' && window.isSecureContext && 'serviceWorker' in navigator &&
     'PushManager' in window && 'Notification' in window;
 }
 export function pushNeedsHomeScreen(): boolean {
-  return /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches &&
+  return (/iPhone|iPad|iPod/.test(navigator.userAgent) || navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) && !window.matchMedia('(display-mode: standalone)').matches &&
     !(navigator as Navigator & { standalone?: boolean }).standalone;
 }
 export function readInboxPushLink(href: string): { organizationId: string; conversationId: string } | null {
@@ -18,6 +19,7 @@ export function readInboxPushLink(href: string): { organizationId: string; conve
   return { organizationId, conversationId };
 }
 export async function unsubscribeLocalPush(): Promise<void> {
+  pushSessionEpoch++;
   if (!pushSupported()) return;
   const registration = await navigator.serviceWorker.getRegistration('/');
   const subscription = await registration?.pushManager.getSubscription();
@@ -43,12 +45,14 @@ export class ConnectPushClient {
   async status(): Promise<{ publicKey: string; devices: PushDeviceView[] }> { return this.request('GET'); }
   /** Call only from a click, with key preloaded; permission request precedes all awaited work. */
   async enable(publicKey: string, quietStart: number, quietEnd: number): Promise<void> {
+    const epoch = pushSessionEpoch;
     if (!pushSupported()) throw new Error('PUSH_UNSUPPORTED');
     if (pushNeedsHomeScreen()) throw new Error('PUSH_HOME_SCREEN_REQUIRED');
     const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
     if (permission !== 'granted') throw new Error('PUSH_PERMISSION_DENIED');
     const registration = await navigator.serviceWorker.register('/connect-push-sw.js', { scope: '/', updateViaCache: 'none' });
     await navigator.serviceWorker.ready;
+    if (epoch !== pushSessionEpoch) throw new Error('PUSH_SESSION_CHANGED');
     let subscription = await registration.pushManager.getSubscription();
     const bytes = Uint8Array.from(atob(publicKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
     if (subscription) {
@@ -60,8 +64,10 @@ export class ConnectPushClient {
     }
     subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
     try {
+      if (epoch !== pushSessionEpoch) throw new Error('PUSH_SESSION_CHANGED');
       await this.request('POST', { subscription: subscription.toJSON(), enabled: true, quietStart, quietEnd,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      if (epoch !== pushSessionEpoch) throw new Error('PUSH_SESSION_CHANGED');
     } catch (error) {
       // An orphan subscription must never keep notifying after failed registration/tenant switch.
       await subscription.unsubscribe();

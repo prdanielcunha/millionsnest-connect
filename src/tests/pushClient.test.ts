@@ -17,7 +17,7 @@ let fail = false;
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (async (_url: unknown, init: RequestInit) => {
   order.push('api'); assert.equal((init.headers as any).Authorization, 'Bearer test');
-  return new Response('{}', { status: fail ? 503 : init.method === 'DELETE' ? 204 : 201 });
+  return new Response(init.method === 'DELETE' && !fail ? null : '{}', { status: fail ? 503 : init.method === 'DELETE' ? 204 : 201 });
 }) as typeof fetch;
 const client = new ConnectPushClient({ idToken: 'test', expectedOrganizationId: 'org-a' } as any);
 try {
@@ -28,6 +28,15 @@ try {
   assert.deepEqual(order, ['permission', 'register', 'api']);
   fail = true; await assert.rejects(() => client.enable('AQ', 22, 8)); assert.equal(unsubscribed, 1);
   await unsubscribeLocalPush(); assert.equal(unsubscribed, 2);
+  fail = false;
+  let grant: (permission: string) => void;
+  (globalThis.Notification as any).requestPermission = () => new Promise(resolve => { grant = resolve; });
+  const activating = client.enable('AQ', 22, 8);
+  await unsubscribeLocalPush();
+  grant!('granted');
+  await assert.rejects(() => activating, /PUSH_SESSION_CHANGED/);
+  await client.disableThisDevice();
+
 } finally { globalThis.fetch = originalFetch; }
 
 const handlers: Record<string, any> = {}; const shown: any[] = []; const opened: string[] = [];

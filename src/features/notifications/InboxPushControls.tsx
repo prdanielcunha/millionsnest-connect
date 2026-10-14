@@ -22,7 +22,7 @@ export function InboxPushControls({ session, language }: { session: LiveConnectS
   }, [client]);
   // The API flag is canonical; unavailable/unauthorized feature has no deceptive active toggle.
   if (!key) return null;
-  const supported = pushSupported(), install = supported && pushNeedsHomeScreen();
+  const supported = pushSupported(), install = pushNeedsHomeScreen();
   const run = async (action: () => Promise<void>, activating = false) => {
     setBusy(true); setNotice('');
     try { await action(); setDevices((await client.status()).devices); if (activating) setNotice(t.success); }
