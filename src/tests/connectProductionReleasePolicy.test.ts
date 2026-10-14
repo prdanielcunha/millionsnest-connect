@@ -477,3 +477,9 @@ assert.match(release, /Restore serving revision and Hosting on any release failu
 assert.match(release, /releases\?versionName=\$PREVIOUS_HOSTING_VERSION/);
 assert.match(release, /CONNECT_FAILURE_RUNTIME_TRAFFIC_RESTORED/);
 assert.match(release, /CONNECT_FAILURE_HOSTING_VERSION_RESTORED/);
+
+assert.match(release, /CONNECT_SUPPORT_DRAFT_ENABLED=true/, 'Release mounts only the authenticated manual support draft');
+assert.match(release, /test "\$SUPPORT_DRAFT_STATUS" = "401"/, 'Release must prove support drafts reject unauthenticated callers');
+assert.match(release, /CONNECT_WEB_PUSH_ENABLED=false/, 'Physical push gate remains closed');
+assert.match(release, /CONNECT_PRODUCT_ROUTING_ENABLED=false/, 'Manual draft activation must not enable automated routing');
+assert.match(release, /CONNECT_AUTOMATION_EXECUTION_ENABLED=false/, 'Manual draft activation must not enable automation');
