@@ -193,3 +193,7 @@ Permanent rule: this standalone app must be usable from its own domain/PWA witho
 Google/Firebase authenticates identity only. MillionsNest canonical organization, membership, entitlement and RBAC data authorizes access. Never use client-provided organization IDs, local/session storage, e-mail, UID aliases or UI roles as authorization. Direct entry and Hub handoff must converge on the same authorization truth, support wrong-account recovery, multi-organization handling, safe return paths and PT/EN/ES.
 
 Current conformance: MillionsNest Connect must support native direct entry in LIVE mode in addition to Hub handoff; Hub session-context remains the canonical authorization authority.
+
+## Web Push increment (#223)
+
+`src/core/push` holds default-off Web Push transport, Hub-authorized device routes and Connect-owned sensitive Firestore storage. Never persist bearer credentials or message bodies in push records/payload. Physical iPhone delivery and external storage/secret configuration remain mandatory activation gates; consult `docs/CONNECT_EXECUTION_HANDOFF.md`.

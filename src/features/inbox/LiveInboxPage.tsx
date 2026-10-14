@@ -1,3 +1,5 @@
+import { InboxPushControls } from '../notifications/InboxPushControls';
+import { ConnectPushClient, type InboxUnreadMarkers, readInboxPushLink } from '../../core/client/connectPushClient';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -418,10 +420,24 @@ function nextStep(status: LiveInboxConversation['status'], t: typeof copy['pt-BR
 export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigate }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveInboxClient(session), [session]);
+  useEffect(() => {
+    const link = readInboxPushLink(window.location.href);
+    if (!link || link.organizationId !== session.expectedOrganizationId) return;
+    let active = true;
+    void client.getConversation(link.conversationId).then(thread => {
+      if (!active) return;
+      setOpenedRemote(thread);
+      setSelectedId(thread.conversationId);
+    }).catch(() => { if (active) setError('INBOX_CONVERSATION_UNAVAILABLE'); });
+    return () => { active = false; };
+  }, [client, session.expectedOrganizationId]);
+  const pushClient = useMemo(() => new ConnectPushClient(session), [session]);
+  const [unreadMarkers, setUnreadMarkers] = useState<InboxUnreadMarkers>({});
   const nestAi = useMemo(() => new ConnectNestAiClient(session, currentLang), [session, currentLang]);
   const [readiness, setReadiness] = useState<LiveInboxReadiness | null>(null);
   const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
   const [selectedId, setSelectedId] = useState('');
+  const pushLink = readInboxPushLink(window.location.href);
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
   const [filter, setFilter] = useState<ConversationFilter>('all');
   const [query, setQuery] = useState('');
@@ -494,7 +510,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       if (sequence !== loadSequenceRef.current) return;
       setConversations(page.conversations);
       setNextCursor(page.nextCursor);
-      setSelectedId((current) => current && page.conversations.some((item) => item.conversationId === current) ? current : '');
+      setSelectedId((current) => current && (page.conversations.some((item) => item.conversationId === current) || pushLink?.conversationId === current && pushLink.organizationId === session.expectedOrganizationId) ? current : '');
     } catch (e) {
       if (sequence === loadSequenceRef.current) setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
     } finally {
@@ -672,6 +688,27 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
 
   const selected = conversations.find((conversation) => conversation.conversationId === selectedId)
     ?? (openedRemote?.conversationId === selectedId ? openedRemote : null);
+  useEffect(() => {
+    let active = true;
+    setUnreadMarkers({});
+    const ids = [...new Set([...conversations, ...remoteConversations, ...(openedRemote ? [openedRemote] : [])].map(c => c.conversationId))].slice(0, 100);
+    if (!ids.length) return;
+    void pushClient.unread(ids).then(markers => { if (active) setUnreadMarkers(markers); }).catch(() => {});
+    return () => { active = false; };
+  }, [pushClient, conversations, remoteConversations, openedRemote]);
+  const selectedUnread = selectedId ? unreadMarkers[selectedId] : undefined;
+  useEffect(() => {
+    if (!selectedUnread || timelineLoading || !selectedId) return;
+    // Do not mark messages as read until the matching inbound message was actually loaded.
+    const loaded = messages.some(m => m.direction === 'inbound' &&
+      `connect-message:${m.messageId.split(':')[0]}:${m.messageId.split(':').slice(1).join(':').slice(0, 32)}` === selectedUnread.evidenceRef);
+    if (!loaded) return;
+    let active = true;
+    void pushClient.markRead(selectedId, selectedUnread.eventId).then(() => {
+      if (active) setUnreadMarkers(current => { const next = { ...current }; delete next[selectedId]; return next; });
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [pushClient, selectedId, selectedUnread?.eventId, messages, timelineLoading]);
   const draftKey = selected ? `${session.expectedOrganizationId}:${selected.conversationId}` : '';
   const replyText = draftKey ? drafts[draftKey] || '' : '';
   const activeSuggestion = suggestion?.scopeKey === draftKey ? suggestion.text : '';
@@ -1102,6 +1139,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
         </div>
       </header>
 
+      <InboxPushControls session={session} language={currentLang} />
+
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-[#FF9AA7]/20 bg-[#FF9AA7]/[0.06] px-4 py-3 text-xs text-[#FFD0D5]">
           <CircleAlert size={15} className="mt-0.5 shrink-0" />
@@ -1210,7 +1249,9 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                       >
                         <div className="flex items-start gap-3">
                           <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border ${active ? 'border-[#66D9EF]/24 bg-[#163442] text-[#66D9EF]' : 'border-[#324659] bg-[#111A27] text-[#71869A]'}`}>
-                            <MessageSquareText size={14} />
+                            {unreadMarkers[conversation.conversationId]
+                              ? <span role="img" aria-label={currentLang === 'pt-BR' ? 'Mensagem não lida' : currentLang === 'es-ES' ? 'Mensaje sin leer' : 'Unread message'} className="h-2.5 w-2.5 rounded-full bg-[#66D9EF]" />
+                              : <MessageSquareText size={14} />}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center justify-between gap-2">

@@ -17,7 +17,7 @@ export interface HubConnectSessionOrganization {
 }
 
 export interface HubConnectSessionAppAccess {
-  appId: 'musicscale' | 'nestlocal';
+  appId: 'musicscale' | 'nestlocal' | 'nestfinance' | 'nestjourney';
   organizationId: string;
   accessible: boolean;
   decisionState: 'granted' | 'denied';
@@ -33,6 +33,8 @@ export interface HubConnectSessionContextResponse {
   appAccess?: {
     musicscale: HubConnectSessionAppAccess;
     nestlocal?: HubConnectSessionAppAccess;
+    nestfinance?: HubConnectSessionAppAccess;
+    nestjourney?: HubConnectSessionAppAccess;
   } | null;
 }
 
@@ -101,6 +103,12 @@ export function mapHubConnectSessionContext(
     };
   }
 
+  for (const appId of ['nestfinance', 'nestjourney'] as const) {
+    const access = payload.appAccess?.[appId];
+    if (access && (access.organizationId !== activeOrganizationId || access.appId !== appId)) {
+      return { status: 'denied', reason: 'O contexto do aplicativo não corresponde à organização ativa.' };
+    }
+  }
   const context: CanonicalCoreContext = {
     actorUid: payload.user.uid,
     systemRole: payload.user.systemRole ?? null,
@@ -113,6 +121,8 @@ export function mapHubConnectSessionContext(
       activeOrganization.capabilities,
     ),
     appAccess: {
+      nestfinance: payload.appAccess?.nestfinance?.accessible === true && payload.appAccess.nestfinance.decisionState === 'granted',
+      nestjourney: payload.appAccess?.nestjourney?.accessible === true && payload.appAccess.nestjourney.decisionState === 'granted',
       musicscale:
         musicScaleAccess?.accessible === true &&
         musicScaleAccess.decisionState === 'granted',

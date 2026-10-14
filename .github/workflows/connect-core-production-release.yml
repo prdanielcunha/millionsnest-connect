@@ -1,3 +1,4 @@
+# Combined release: preserve live401 gates and validate against current main before publication.
 name: Connect Core Production Release
 
 on:
@@ -104,7 +105,10 @@ jobs:
               -o "/tmp/${name}.json" -w '%{http_code}' \
               "$url")"
             echo "CONNECT_UPSTREAM_ROUTE_STATUS=$name:$status"
-            test "$status" = "401"
+            if [ "$status" != "401" ]; then
+              echo "::error::CONNECT_UPSTREAM_AUTH_CONTRACT_FAILED route=$name status=$status"
+              exit 1
+            fi
           }
 
           probe_unauthenticated_route             "musicscale-connect-next"             "https://musicscale.millionsnest.com/api/v1/connect/next-schedule"
@@ -204,6 +208,19 @@ jobs:
           echo "PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION" >> "$GITHUB_ENV"
           echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
 
+      - name: Capture existing Hosting version before any serving mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+          echo "::add-mask::$ACCESS_TOKEN"
+          curl --fail --silent --show-error --max-time 20 -H "Authorization: Bearer $ACCESS_TOKEN" \
+            'https://firebasehosting.googleapis.com/v1beta1/sites/mn-connect-555464791734/releases?pageSize=1' > /tmp/connect-hosting-before.json
+          PREVIOUS_HOSTING_VERSION="$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/connect-hosting-before.json','utf8'));const v=d.releases?.[0]?.version?.name;if(typeof v!=='string'||!/^sites\/mn-connect-555464791734\/versions\/[a-zA-Z0-9_-]+$/.test(v))process.exit(1);process.stdout.write(v)")"
+          echo "PREVIOUS_HOSTING_VERSION=$PREVIOUS_HOSTING_VERSION" >> "$GITHUB_ENV"
+          rm /tmp/connect-hosting-before.json
+          echo CONNECT_PREVIOUS_HOSTING_VERSION_CAPTURED
+
       - name: Deploy Connect Core revision
         shell: bash
         run: |
@@ -225,7 +242,8 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
@@ -417,6 +435,27 @@ jobs:
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-inbox-list-auth.json','utf8'));if(x.success!==false||x.code!=='AUTH_REQUIRED')process.exit(1)"
           echo "CONNECT_INBOX_QUERY_AUTHORITY_OK"
 
+          OPERATOR_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/connect-operator-auth.json -w '%{http_code}' \
+            "$BASE/api/core/inbox/operators?organizationId=release-smoke")"
+          test "$OPERATOR_STATUS" = "401"
+
+          SEARCH_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/connect-search-auth.json -w '%{http_code}' \
+            "$BASE/api/core/inbox/conversations/search?organizationId=release-smoke&q=release")"
+          test "$SEARCH_STATUS" = "401"
+
+          # Notes are disabled without an explicit TTL gate (404) or, when
+          # enabled, deny every unauthenticated read (401).
+          NOTES_STATUS="$(curl --silent --show-error --location \
+            --retry 6 --retry-delay 2 --retry-all-errors \
+            -o /tmp/connect-notes-auth.json -w '%{http_code}' \
+            "$BASE/api/core/inbox/threads/release-smoke/notes?organizationId=release-smoke")"
+          test "$NOTES_STATUS" = "401" -o "$NOTES_STATUS" = "404"
+          echo "CONNECT_INBOX_OPERATOR_SEARCH_NOTES_AUTHORITY_OK"
+
           MESSAGE_STATUS="$(curl --silent --show-error --location \
             --retry 12 --retry-delay 3 --retry-all-errors \
             -o /tmp/connect-core-unauth.json -w '%{http_code}' \
@@ -449,3 +488,31 @@ jobs:
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ github.event_name == 'push' || inputs.live_mode == true }}"
           trap - ERR
+
+      - name: Restore serving revision and Hosting on any release failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rollback_failed=0
+          if [ -n "${PREVIOUS_TRAFFIC_REVISION:-}" ]; then
+            if gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+              --to-revisions="$PREVIOUS_TRAFFIC_REVISION=100" --quiet; then
+              echo CONNECT_FAILURE_RUNTIME_TRAFFIC_RESTORED
+            else
+              rollback_failed=1
+            fi
+          fi
+          if [ -n "${PREVIOUS_HOSTING_VERSION:-}" ]; then
+            [[ "$PREVIOUS_HOSTING_VERSION" =~ ^sites/mn-connect-555464791734/versions/[a-zA-Z0-9_-]+$ ]]
+            ACCESS_TOKEN="$(gcloud auth print-access-token)"
+            echo "::add-mask::$ACCESS_TOKEN"
+            curl --fail --silent --show-error --max-time 30 -X POST \
+              -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+              -d '{"message":"Connect guarded release rollback"}' \
+              "https://firebasehosting.googleapis.com/v1beta1/sites/mn-connect-555464791734/releases?versionName=$PREVIOUS_HOSTING_VERSION" > /tmp/connect-hosting-rollback.json
+            node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/connect-hosting-rollback.json','utf8'));if(d.version?.name!==process.env.PREVIOUS_HOSTING_VERSION)process.exit(1)"
+            rm /tmp/connect-hosting-rollback.json
+            echo CONNECT_FAILURE_HOSTING_VERSION_RESTORED
+          fi
+          test "$rollback_failed" = 0

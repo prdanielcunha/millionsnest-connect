@@ -138,3 +138,15 @@ Consulte:
 * `docs/PRODUCT.md`
 * `docs/SECURITY.md`
 * `docs/TOOL_PROTOCOL.md`
+
+## Web Push (P0 #223 — default off)
+
+The Core can dispatch private Web Push after durable WhatsApp ingestion. Device APIs use Hub-authorized Inbox management and revalidate operator membership before dispatch. VAPID keys belong in Secret Manager, never the repository. Enable only after staging proves Firestore client denial, IAM and `expiresAt` TTL for `connectPushDevices`, `connectPushDeliveries` and `connectPushReadStates`: `CONNECT_WEB_PUSH_ENABLED` + `CONNECT_WEB_PUSH_TTL_CONFIRMED` + `CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED`. Configure `CONNECT_WEB_PUSH_PUBLIC_KEY`, `CONNECT_WEB_PUSH_PRIVATE_KEY`, `CONNECT_WEB_PUSH_SUBJECT`. See `docs/CONNECT_EXECUTION_HANDOFF.md` for physical-device gates and exact continuation. No physical push delivery or production activation is certified by these local tests.
+
+## Single-number product routing (#224 — default off)
+
+`CONNECT_PRODUCT_ROUTING_ENABLED`, `CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED` and `CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED` gate the durable router after official inbound ingestion. MusicScale retains its real Hub/Tool Gateway path; NestFinance/NestJourney route to human support until official domain contracts exist. See `docs/CONNECT_PRODUCT_ROUTING_CONTRACT.md` for signed-origin consumer, storage and upstream gaps. Product hints never authorize identity or tenant access.
+
+## Internal event worker (#225 — default off)
+
+The internal worker queues real Inbox notification references, uses durable leases/idempotency and an atomic 100-job daily tenant quota, exposes a Hub-authorized audit API, and accepts signed official-app operator-alert events. It does not dispatch commercial WhatsApp or claim domain/member automations are live. Recovery scheduling, secret/private-storage configuration and upstream app publishers remain pending. See `docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md`.

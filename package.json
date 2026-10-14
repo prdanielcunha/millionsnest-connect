@@ -7,7 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:core": "tsx server.ts",
     "build": "vite build",
-    "build:core": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-core/server.cjs",
+    "build:core": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-core/server.cjs && esbuild src/core/automations/runRecoveryWorker.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist-core/recovery.cjs",
     "start:core": "node dist-core/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-core server.js",
@@ -35,7 +35,11 @@
     "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts",
     "test:release-policy": "tsx src/tests/firestoreRuntimeReadiness.test.ts && tsx src/tests/runtimeStorageReadinessPolicy.test.ts && tsx src/tests/connectProductionReleasePolicy.test.ts",
     "test:outbound": "tsx src/tests/outboundDelivery.test.ts && tsx src/tests/outboundDeliveryHttpHandler.test.ts",
-    "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts"
+    "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts",
+    "test:push": "node --import tsx src/tests/webPush.test.ts && node --import tsx src/tests/pushClient.test.ts && node --import tsx src/tests/messageContentRetry.test.ts && node --import tsx src/tests/executionSecretBundle.test.ts && node --import tsx src/tests/pushDiagnostic.test.ts",
+    "test:product-routing": "node --import tsx src/tests/productRouting.test.ts && node --import tsx src/tests/supportOrigin.test.ts && node --import tsx src/tests/nestFinancePendingDocumentsTool.test.ts",
+    "test:automation-worker": "node --import tsx src/tests/automationWorker.test.ts && node --import tsx src/tests/automationJobsClient.test.ts && node --import tsx src/tests/automationRecoveryInvoker.test.ts && node --import tsx src/tests/homologationReadOnly.test.ts",
+    "start:recovery": "node dist-core/recovery.cjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -48,11 +52,13 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",

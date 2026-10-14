@@ -184,3 +184,18 @@ console.log('--- Running Hub Connect Session Context Adapter Tests ---');
 }
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
+
+{
+  const base = {
+    success: true, protocolVersion: '1.0.0', user: { uid: 'synthetic-user', systemRole: null, capabilities: [] },
+    globalAccess: false, activeOrganizationId: 'org-a', activeOrganization: { id: 'org-a', organizationRole: 'member', permissions: [], capabilities: [] },
+    appAccess: { musicscale: { appId: 'musicscale' as const, organizationId: 'org-a', accessible: false, decisionState: 'denied' as const } },
+  };
+  const finance = { appId: 'nestfinance' as const, organizationId: 'org-a', accessible: true, decisionState: 'granted' as const };
+  const result = mapHubConnectSessionContext({ ...base, appAccess: { ...base.appAccess, nestfinance: finance } });
+  if (result.status !== 'resolved') throw new Error('Expected canonical finance context');
+  checkEqual(result.context.appAccess.nestfinance, true, 'finance independent grant');
+  checkEqual(result.context.appAccess.nestjourney, false, 'missing journey fails closed');
+  checkEqual(mapHubConnectSessionContext({ ...base, appAccess: { ...base.appAccess, nestfinance: { ...finance, organizationId: 'org-b' } } }).status, 'denied', 'finance cross tenant denied');
+  checkEqual(mapHubConnectSessionContext({ ...base, appAccess: { ...base.appAccess, nestfinance: { ...finance, appId: 'nestjourney' } } }).status, 'denied', 'substituted app identity denied');
+}

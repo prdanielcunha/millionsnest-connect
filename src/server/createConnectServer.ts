@@ -1,3 +1,15 @@
+import { resolveExecutionSecretBundle } from './executionSecretBundle';
+import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
+import { homologationReadOnly } from './homologationReadOnly';
+import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
+import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
+import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
+import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
+import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
+import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
+import { FirestorePushStore } from '../core/push/firestorePushStore';
+import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
+import { createPushRouter } from '../core/push/pushHttpRouter';
 import express from 'express';
 import {
   ConnectCoreService,
@@ -104,7 +116,8 @@ export interface CreateConnectServerOptions {
 export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
   const logger = options.logger ?? console;
-  const env = options.env ?? process.env;
+  const env = resolveExecutionSecretBundle(options.env ?? process.env);
+  if (env.CONNECT_HOMOLOGATION_READ_ONLY === 'true') app.use(homologationReadOnly);
   const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
   const storageReadinessProbeEnabled =
     env.CONNECT_STORAGE_READINESS_PROBE_ENABLED?.trim().toLowerCase() === 'true';
@@ -128,6 +141,15 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
   let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
   let whatsappIngestor: WhatsAppInboxIngestor | null = null;
+  let inboxPush: InboxPushService | null = null;
+  let productRouting: WhatsAppProductRouting | null = null;
+  let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
+  let automationJobs: FirestoreAutomationJobStore | null = null;
+  let automationWorker: InternalAutomationWorker | null = null;
+  let automationEventHandler: ReturnType<typeof createAutomationEventHandler> | null = null;
+  let automationJobsReadHandler: ReturnType<typeof createAutomationJobsReadHandler> | null = null;
+  let automationWorkerHandler: ReturnType<typeof createAutomationWorkerHandler> | null = null;
+  let pushRouter: express.Router | null = null;
   let whatsappAssistOrchestrator: WhatsAppAssistOrchestrator | null = null;
   let channelLinkConfirmHandler: ReturnType<typeof createConnectChannelLinkConfirmHttpHandler> | null = null;
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
@@ -317,6 +339,18 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
         }
 
+        if (registry && (env.CONNECT_WEB_PUSH_ENABLED === 'true' || env.CONNECT_WEB_PUSH_TEST_MODE === 'true') && env.CONNECT_WEB_PUSH_TTL_CONFIRMED === 'true' && env.CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED === 'true') {
+          try {
+            const publicKey = env.CONNECT_WEB_PUSH_PUBLIC_KEY || '';
+            const sender = createWebPushSender(publicKey, env.CONNECT_WEB_PUSH_PRIVATE_KEY || '', env.CONNECT_WEB_PUSH_SUBJECT || '');
+            const pushStore = new FirestorePushStore(projectId, options.fetchImpl);
+            if (env.CONNECT_WEB_PUSH_ENABLED === 'true') inboxPush = new InboxPushService(pushStore, gatedStore, operatorDirectory, sender, registry, undefined, logger);
+            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey, gatedStore, { sender, deliveryMode: env.CONNECT_WEB_PUSH_ENABLED === 'true' ? 'live' : 'test' });
+          } catch {
+            logger.warn?.('CONNECT_WEB_PUSH_CONFIGURATION_INVALID');
+          }
+        }
+
         if (registry && whatsappIngestionEnabled) {
           if (registry.size > 0) {
             whatsappIngestor = new WhatsAppInboxIngestor(
@@ -385,6 +419,19 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 provider: officialWhatsAppProvider,
               });
 
+              if (env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true' && env.CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED === 'true') {
+                let owners = {};
+                try { owners = JSON.parse(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON || '{}'); } catch { throw new Error('PRODUCT_SUPPORT_OWNERS_INVALID'); }
+                productRouting = new WhatsAppProductRouting({
+                  registry, routes: new FirestoreProductRouteStore(projectId, options.fetchImpl),
+                  messages: messageStore, threads: gatedStore, replies: assistReplyService,
+                  directory: operatorDirectory, owners, originSecret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
+                });
+                if (env.CONNECT_SUPPORT_ORIGIN_SECRET && env.CONNECT_SUPPORT_ORIGIN_SECRET.length >= 32) {
+                  supportOriginHandler = createSupportOriginHttpHandler(inboxContextProvider, env.CONNECT_SUPPORT_ORIGIN_SECRET);
+                }
+              }
+
               whatsappAssistOrchestrator = new WhatsAppAssistOrchestrator({
                 registry,
                 bindingStore: new FirestoreWhatsAppChannelIdentityBindingStore({
@@ -403,6 +450,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 }),
                 core,
                 replyService: assistReplyService,
+                resumeGuard: productRouting ? async event => (await productRouting!.route([event])).length === 1 : undefined,
                 linkRootSecret,
                 publicOrigin,
                 logger,
@@ -416,8 +464,41 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 error: error instanceof Error ? error.message : 'unknown_error',
               });
               whatsappAssistOrchestrator = null;
+              productRouting = null;
+              supportOriginHandler = null;
               channelLinkConfirmHandler = null;
             }
+          }
+        }
+
+        if (inboxPush && env.CONNECT_AUTOMATION_EXECUTION_ENABLED === 'true' && env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_AUTOMATION_TTL_CONFIRMED === 'true') {
+          try {
+            const workerSecret = env.CONNECT_AUTOMATION_WORKER_SECRET || '';
+            if (workerSecret.length < 32) throw new Error('AUTOMATION_WORKER_SECRET_REQUIRED');
+            const keys = JSON.parse(env.CONNECT_AUTOMATION_SOURCE_KEYS_JSON || '{}');
+            if (!keys || typeof keys !== 'object' || Array.isArray(keys) || Object.entries(keys).some(([k, v]) => !['musicscale', 'nestfinance', 'nestjourney'].includes(k) || typeof v !== 'string' || v.length < 32)) throw new Error('AUTOMATION_SOURCE_KEYS_INVALID');
+            automationJobs = new FirestoreAutomationJobStore(projectId, options.fetchImpl);
+            automationWorker = new InternalAutomationWorker(automationJobs, async event => {
+              const thread = await gatedStore.load({ organizationId: event.organizationId, conversationId: event.conversationId });
+              if (!thread) return 'needs_review';
+              let outcome;
+              if (event.sourceApp === 'whatsapp') {
+                const original = await messageStore.get({ organizationId: event.organizationId, conversationId: event.conversationId, messageId: event.messageId! });
+                if (!original || original.direction !== 'inbound' || !original.recipientRef || !original.senderRef) return 'needs_review';
+                outcome = await inboxPush!.afterIngest([{ kind: 'message', phoneNumberId: original.recipientRef, providerMessageId: original.providerMessageId, from: original.senderRef, messageType: original.messageType, timestamp: String(Math.floor(Date.parse(original.occurredAt) / 1000)), text: original.body }]);
+              } else {
+                // Internal operator alert only: no financial/pastoral data read or outbound Meta send.
+                if (!await operatorDirectory.verify({ organizationId: event.organizationId, uid: event.recipientUid! })) return 'needs_review';
+                outcome = await inboxPush!.notifyAutomation({ organizationId: event.organizationId, conversationId: event.conversationId, eventId: jobId(event), recipientUid: event.recipientUid! });
+              }
+              return outcome.failed > 0 ? 'needs_review' : 'complete';
+            });
+            automationEventHandler = createAutomationEventHandler(automationJobs, keys);
+            automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
+            automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret);
+          } catch {
+            automationJobs = null; automationWorker = null; automationEventHandler = null; automationWorkerHandler = null; automationJobsReadHandler = null;
+            logger.warn?.('CONNECT_AUTOMATION_CONFIGURATION_INVALID');
           }
         }
 
@@ -426,9 +507,30 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             env,
             logger,
             ingestor: whatsappIngestor,
-            afterIngest: whatsappAssistOrchestrator
-              ? (events) => whatsappAssistOrchestrator!.afterIngest(events)
-              : undefined,
+            afterIngest: async (events) => {
+              // Assist runs first so a resolved conversation never produces a stale alert.
+              if (whatsappAssistOrchestrator) {
+                try {
+                  const routed = productRouting ? await productRouting.route(events) : events;
+                  await whatsappAssistOrchestrator.afterIngest(routed);
+                }
+                catch { logger.warn?.('CONNECT_WHATSAPP_ASSIST_POST_INGEST_FAILED'); }
+              }
+              if (inboxPush) {
+                try {
+                  if (automationJobs && automationWorker && registry) {
+                    for (const event of events) {
+                      if (event.kind !== 'message') continue;
+                      const binding = registry.resolve(event.phoneNumberId); if (!binding) continue;
+                      const conversationId = createConversationIdFromChannelIdentity({ organizationId: binding.organizationId, connectionRef: binding.connectionRef, channel: 'whatsapp', channelUserId: event.from });
+                      const messageId = createProviderMessageIndexId('whatsapp', event.providerMessageId);
+                      await automationJobs.enqueue(validateAutomationEvent({ schemaVersion: 1, sourceApp: 'whatsapp', trigger: 'inbox.message_received', eventId: messageId, organizationId: binding.organizationId, conversationId, messageId, occurredAt: new Date(Number(event.timestamp) * 1000).toISOString() }, 'whatsapp', Date.now()), new Date());
+                    }
+                    await automationWorker.run(10);
+                  } else await inboxPush.afterIngest(events);
+                } catch { logger.warn?.('CONNECT_WEB_PUSH_POST_INGEST_FAILED'); }
+              }
+            },
           });
         }
 
@@ -470,7 +572,35 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     whatsappWebhookIngressHandler,
   );
 
+  app.get('/api/core/automations/jobs', (req, res) => {
+    if (!automationJobsReadHandler) { res.status(404).json({ code: 'AUTOMATION_EXECUTION_DISABLED' }); return; }
+    return automationJobsReadHandler(req, res);
+  });
+  app.post('/api/core/automations/events/:sourceApp', express.raw({ type: 'application/json', limit: '16kb' }), (req, res) => {
+    if (!automationEventHandler) { res.status(404).json({ code: 'AUTOMATION_EXECUTION_DISABLED' }); return; }
+    return automationEventHandler(req, res);
+  });
+  app.post('/api/core/automations/worker', express.raw({ type: 'application/json', limit: '1kb' }), (req, res) => {
+    if (!automationWorkerHandler) { res.status(404).json({ code: 'AUTOMATION_EXECUTION_DISABLED' }); return; }
+    return automationWorkerHandler(req, res);
+  });
+
   app.use(express.json({ limit: '32kb' }));
+  const financePendingDocuments = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
+    ? createNestFinancePendingDocumentsHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
+      audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
+    if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
+    return financePendingDocuments(req, res);
+  });
+  app.post('/api/core/support/origin', (req, res) => {
+    if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
+    return supportOriginHandler(req, res);
+  });
+  app.use('/api/core/inbox/push', (req, res, next) => {
+    if (!pushRouter) { res.status(404).json({ code: 'PUSH_DISABLED' }); return; }
+    return pushRouter(req, res, next);
+  });
 
   app.post('/api/core/channel-link/confirm', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');

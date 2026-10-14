@@ -1,3 +1,4 @@
+import { unsubscribeLocalPush } from './connectPushClient';
 export type ConnectDirectIdentity = {
   uid: string;
   idToken: string;
@@ -34,6 +35,7 @@ export async function startConnectGoogleSignIn(): Promise<void> {
 }
 
 export async function signOutConnectDirectIdentity(): Promise<void> {
+  await unsubscribeLocalPush();
   await (await bridge()).signOut();
 }
 
