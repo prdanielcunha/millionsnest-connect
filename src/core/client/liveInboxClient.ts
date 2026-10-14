@@ -125,6 +125,15 @@ export class LiveInboxClient {
     };
   }
 
+  async getConversation(conversationId: string): Promise<LiveInboxConversation> {
+    const response = await fetch(`/api/core/inbox/threads/${encodeURIComponent(conversationId)}?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}`, {
+      headers: this.headers(), cache: 'no-store',
+    });
+    const result = await parse(response);
+    if (result.thread?.organizationId !== this.session.expectedOrganizationId || result.thread?.conversationId !== conversationId) throw new Error('INBOX_SCOPE_MISMATCH');
+    return result.thread;
+  }
+
   async listMessages(conversationId: string, limit = 100): Promise<LiveInboxMessage[]> {
     const response = await fetch(
       `/api/core/inbox/threads/${encodeURIComponent(conversationId)}/messages?organizationId=${encodeURIComponent(this.session.expectedOrganizationId)}&limit=${Math.max(1, Math.min(limit, 200))}`,
