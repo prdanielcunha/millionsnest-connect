@@ -7,7 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:core": "tsx server.ts",
     "build": "vite build",
-    "build:core": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-core/server.cjs",
+    "build:core": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist-core/server.cjs && esbuild src/core/automations/runRecoveryWorker.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist-core/recovery.cjs",
     "start:core": "node dist-core/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-core server.js",
@@ -38,7 +38,8 @@
     "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts",
     "test:push": "node --import tsx src/tests/webPush.test.ts && node --import tsx src/tests/pushClient.test.ts && node --import tsx src/tests/messageContentRetry.test.ts",
     "test:product-routing": "node --import tsx src/tests/productRouting.test.ts && node --import tsx src/tests/supportOrigin.test.ts",
-    "test:automation-worker": "node --import tsx src/tests/automationWorker.test.ts && node --import tsx src/tests/automationJobsClient.test.ts"
+    "test:automation-worker": "node --import tsx src/tests/automationWorker.test.ts && node --import tsx src/tests/automationJobsClient.test.ts && node --import tsx src/tests/automationRecoveryInvoker.test.ts",
+    "start:recovery": "node dist-core/recovery.cjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

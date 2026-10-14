@@ -20,3 +20,7 @@ Default off. This worker executes **internal Connect operator alerts only**, nev
 Require existing P0 push gates plus `CONNECT_AUTOMATION_EXECUTION_ENABLED`, `CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED`, `CONNECT_AUTOMATION_TTL_CONFIRMED`; secret-managed `CONNECT_AUTOMATION_WORKER_SECRET` (>=32 chars), optional `CONNECT_AUTOMATION_SOURCE_KEYS_JSON` (app->distinct secret, >=32 chars each).
 
 Private runtime IAM/client-denial/TTL required for `connectAutomationJobs.expiresAt` (30d) and `connectAutomationBudgets.expiresAt` (3d). No scheduler is provisioned: an authenticated operator/server must invoke the worker. Periodic recovery therefore remains an external deployment/configuration gate. Staging and physical devices remain unverified. Do not enable or claim a three-app automation integration from CI alone.
+
+## Recovery executable
+
+`npm run build:core` bundles `dist-core/recovery.cjs` alongside the API. Run `npm run start:recovery` in the existing container with secret-managed `CONNECT_AUTOMATION_WORKER_SECRET` and `CONNECT_AUTOMATION_RECOVERY_ORIGIN` set to the canonical Connect HTTPS origin or its isolated Cloud Run service URL. It signs a fresh timestamp and exact ten-job body, rejects unrelated origins/redirects, times out after 25 seconds and exits nonzero without exposing secrets or raw responses. It never retries an uncertain HTTP outcome; the durable queue owns retry/lease policy. Success logs only the processed count. A scheduler/Cloud Run Job must still be provisioned and verified before unattended recovery is claimed.
