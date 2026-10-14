@@ -105,6 +105,11 @@ export class ConnectThreadCommandService {
     });
   }
 
+  /** Queue an unresolved request without fabricating an assignee. */
+  async requestHumanReview(command: ReasonedConnectThreadCommand): Promise<ConnectThreadCommandResult> {
+    return this.execute('HUMAN_REVIEW_REQUESTED', command, { reasonCode: command.reasonCode });
+  }
+
   async resolve(
     command: ReasonedConnectThreadCommand,
   ): Promise<ConnectThreadCommandResult> {
