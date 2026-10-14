@@ -242,7 +242,8 @@ jobs:
             --concurrency 40 \
             --timeout 60 \
             --allow-unauthenticated \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
