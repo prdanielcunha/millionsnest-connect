@@ -1,0 +1,51 @@
+name: Connect GCP Completion Preflight
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/connect-gcp-completion-preflight.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: connect-gcp-completion-preflight
+  cancel-in-progress: true
+jobs:
+  read-only-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Authenticate through existing MillionsNest WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Read existing runtime metadata without exposing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth print-access-token >/dev/null
+          test "$(gcloud projects describe millionsnest --format='value(projectNumber)')" = '555464791734'
+          gcloud run services describe connect-api --project millionsnest --region us-central1 --format=json > /tmp/connect-service.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/connect-service.json'))
+          spec = d.get('spec', {}).get('template', {}).get('spec', {})
+          env = {x.get('name'): x for x in spec.get('containers', [{}])[0].get('env', [])}
+          print('CONNECT_GCP_RUNTIME_READ=approved')
+          print('CONNECT_RUNTIME_SERVICE_ACCOUNT_PRESENT=' + str(bool(spec.get('serviceAccountName'))).lower())
+          for name in ['CONNECT_WEB_PUSH_PUBLIC_KEY', 'CONNECT_WEB_PUSH_PRIVATE_KEY', 'CONNECT_AUTOMATION_WORKER_SECRET']:
+              print(name + '_CONFIGURED=' + str(name in env).lower())
+          print('CONNECT_LATEST_READY_REVISION=' + d.get('status', {}).get('latestReadyRevisionName', 'unknown'))
+          PY
+          rm /tmp/connect-service.json
+          gcloud artifacts repositories describe millionsnest-web --project millionsnest --location us-central1 --format='value(format)' >/dev/null
+          echo 'CONNECT_EXISTING_ARTIFACT_REGISTRY_READ=approved'
+          for secret in connect-web-push-private connect-automation-worker; do
+            if gcloud secrets describe "$secret" --project millionsnest --format='value(name)' >/dev/null 2>&1; then
+              echo "CONNECT_SECRET_METADATA_${secret}=accessible"
+            else
+              echo "CONNECT_SECRET_METADATA_${secret}=not_available"
+            fi
+          done
