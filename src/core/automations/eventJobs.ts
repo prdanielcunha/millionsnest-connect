@@ -103,6 +103,12 @@ export class FirestoreAutomationJobStore implements AutomationJobStore {
   async lease(job: AutomationJob, now: Date) {
     const current = await this.read(job.id);
     if (!current || ['complete', 'needs_review'].includes(current.job.state) || Date.parse(current.job.availableAt) > +now || current.job.state === 'processing' && Date.parse(current.job.leaseExpiresAt || '') > +now) return null;
+    if (current.job.attempts >= 3) {
+      const reviewed: AutomationJob = { ...current.job, state: 'needs_review', resultCode: 'lease_retry_limit_reached' };
+      const r = await this.request(`/connectAutomationJobs/${job.id}?currentDocument.updateTime=${encodeURIComponent(current.updateTime)}`, { method: 'PATCH', body: JSON.stringify({ fields: this.fields(reviewed, now) }) });
+      if (!r.ok && ![409, 412].includes(r.status)) throw new Error('AUTOMATION_STORAGE_UNAVAILABLE');
+      return null;
+    }
     const next: AutomationJob = { ...current.job, state: 'processing', attempts: current.job.attempts + 1, leaseToken: randomUUID(), leaseExpiresAt: new Date(+now + 120000).toISOString() };
     const r = await this.request(`/connectAutomationJobs/${job.id}?currentDocument.updateTime=${encodeURIComponent(current.updateTime)}`, { method: 'PATCH', body: JSON.stringify({ fields: this.fields(next, now) }) });
     if ([409, 412].includes(r.status)) return null;
@@ -121,8 +127,9 @@ export class InternalAutomationWorker {
   constructor(private readonly store: AutomationJobStore, private readonly execute: (event: InternalAutomationEvent) => Promise<'complete' | 'needs_review'>, private readonly now = () => new Date()) {}
   async run(limit = 10) {
     let processed = 0;
-    for (const candidate of await this.store.pending(Math.max(1, Math.min(limit, 10)))) {
-      if (processed >= limit) break;
+    const batchLimit = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 10)) : 10;
+    for (const candidate of await this.store.pending(batchLimit)) {
+      if (processed >= batchLimit) break;
       const job = await this.store.lease(candidate, this.now()); if (!job) continue;
       processed++;
       try {

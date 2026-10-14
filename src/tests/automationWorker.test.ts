@@ -81,3 +81,11 @@ const readHandler = createAutomationJobsReadHandler(store, { async resolve() { r
 res = response(); await readHandler({ query: { organizationId: 'org-b' }, headers: { authorization: 'Bearer test' } } as any, res as any); assert.equal(res.statusCode, 403);
 res = response(); await readHandler({ query: { organizationId: 'org-a' }, headers: { authorization: 'Bearer test' } } as any, res as any); assert.equal(res.statusCode, 200);
 assert(!JSON.stringify(res.payload).includes('recipientUid')); assert(!JSON.stringify(res.payload).includes('leaseToken'));
+
+const exhaustedJob: AutomationJob = { id: jobId(event), event, state: 'processing', attempts: 3, availableAt: now.toISOString(), leaseToken: 'old', leaseExpiresAt: new Date(+now - 1000).toISOString() };
+let writtenState = '';
+const exhaustedStore = new FirestoreAutomationJobStore('millionsnest', async (_url, init) => {
+  if (init?.method === 'PATCH') { writtenState = JSON.parse(String(init.body)).fields.state.stringValue; return new Response('{}'); }
+  return new Response(JSON.stringify({ updateTime: 'version', fields: { recordJson: { stringValue: JSON.stringify(exhaustedJob) } } }));
+}, { async getAccessToken() { return 'runtime-only'; } });
+assert.equal(await exhaustedStore.lease(exhaustedJob, now), null); assert.equal(writtenState, 'needs_review', 'expired third lease cannot execute a fourth external attempt');
