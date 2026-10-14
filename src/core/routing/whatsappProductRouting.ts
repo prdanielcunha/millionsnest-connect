@@ -48,7 +48,12 @@ export class WhatsAppProductRouting {
       const product = decision.product;
       if (decision.kind === 'route' && product) {
         const owner = this.options.owners?.[product];
-        if (owner && await this.options.directory.verify({ organizationId: scope.organizationId, uid: owner })) {
+        let verifiedOwner = false;
+        if (owner) {
+          try { verifiedOwner = await this.options.directory.verify({ organizationId: scope.organizationId, uid: owner }); }
+          catch { /* Unavailable directory cannot authorize an assignee. Queue for human review. */ }
+        }
+        if (owner && verifiedOwner) {
           await this.commands.handoff({ ...scope, requestId: `wa-20-product-handoff-${id}`, evidenceRef,
             assigneeType: 'user', assigneeRef: owner, reasonCode: `product_${product}_human_required` });
         } else {

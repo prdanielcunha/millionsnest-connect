@@ -49,11 +49,11 @@ const routes: ProductRouteStore = { async decide(i, at, key) {
   const scope = routingId(i.organizationId, i.conversationId), next = applyProductRoute(states.get(scope) ?? null, i, at, key);
   states.set(scope, next.state); return next.decision;
 } };
-let stored: any; const sent = new Map<string, string>(); let forged = false, authorizedOwner = false;
+let stored: any; const sent = new Map<string, string>(); let forged = false, authorizedOwner = false, directoryUnavailable = false;
 const routing = new WhatsAppProductRouting({ registry, routes, threads, now: () => clock,
   messages: { async getByProviderMessageId() { return forged ? { ...stored, organizationId: 'org-b' } : stored; } } as unknown as ConnectMessageContentStore,
   replies: { async send(i) { sent.set(i.requestId, i.text); return { kind: 'sent', providerMessageId: 'accepted', messageId: 'id' }; } },
-  directory: { async list() { return []; }, async verify() { return authorizedOwner; } }, owners: { nestfinance: 'verified-operator' },
+  directory: { async list() { return []; }, async verify() { if (directoryUnavailable) throw new Error('PRIVATE directory failure'); return authorizedOwner; } }, owners: { nestfinance: 'verified-operator' },
 });
 async function receive(text: string, index: number, occurredAt?: Date, from = 'private-phone') {
   clock = new Date(+now - 10000 + index * 1000);
@@ -83,5 +83,9 @@ current = await receive('NestFinance', 6, new Date(+now - 25 * 3600000)); const 
 authorizedOwner = true; current = await receive('NestFinance', 7, undefined, 'synthetic-second-phone'); await routing.route([current.event]); assert.equal((await threads.load(current.scope))?.assignedTo?.ref, 'verified-operator');
 current = await receive('MusicScale: qual é minha próxima escala?', 8, undefined, 'synthetic-second-phone'); assert.equal((await routing.route([current.event])).length, 0, 'human assignment blocks automation');
 assert.equal(states.get(routingId(current.scope.organizationId, current.scope.conversationId))?.product, 'musicscale', 'product switch persists while human retains control');
+directoryUnavailable = true; current = await receive('NestFinance', 9, undefined, 'synthetic-third-phone'); await routing.route([current.event]);
+assert.equal((await threads.load(current.scope))?.status, 'waiting_team', 'unavailable directory also queues instead of assigning or dropping the request');
+assert.equal((await threads.load(current.scope))?.assignedTo, undefined);
+assert(![...sent.values()].some(text => text.includes('PRIVATE')));
 assert(!JSON.stringify([...states.values()]).includes('private-phone')); assert(!JSON.stringify([...states.values()]).includes('documento pendente'));
 console.log('Product routing: same number/3 apps, clarification, persistent switches, signed-origin verification, tenant isolation, delayed retries, Meta window, verified human owner and human control passed.');
