@@ -1,3 +1,4 @@
+import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
@@ -138,6 +139,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let whatsappIngestor: WhatsAppInboxIngestor | null = null;
   let inboxPush: InboxPushService | null = null;
   let productRouting: WhatsAppProductRouting | null = null;
+  let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
   let automationJobs: FirestoreAutomationJobStore | null = null;
   let automationWorker: InternalAutomationWorker | null = null;
   let automationEventHandler: ReturnType<typeof createAutomationEventHandler> | null = null;
@@ -421,6 +423,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                   messages: messageStore, threads: gatedStore, replies: assistReplyService,
                   directory: operatorDirectory, owners, originSecret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
                 });
+                if (env.CONNECT_SUPPORT_ORIGIN_SECRET && env.CONNECT_SUPPORT_ORIGIN_SECRET.length >= 32) {
+                  supportOriginHandler = createSupportOriginHttpHandler(inboxContextProvider, env.CONNECT_SUPPORT_ORIGIN_SECRET);
+                }
               }
 
               whatsappAssistOrchestrator = new WhatsAppAssistOrchestrator({
@@ -456,6 +461,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               });
               whatsappAssistOrchestrator = null;
               productRouting = null;
+              supportOriginHandler = null;
               channelLinkConfirmHandler = null;
             }
           }
@@ -576,6 +582,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   });
 
   app.use(express.json({ limit: '32kb' }));
+  app.post('/api/core/support/origin', (req, res) => {
+    if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
+    return supportOriginHandler(req, res);
+  });
   app.use('/api/core/inbox/push', (req, res, next) => {
     if (!pushRouter) { res.status(404).json({ code: 'PUSH_DISABLED' }); return; }
     return pushRouter(req, res, next);
