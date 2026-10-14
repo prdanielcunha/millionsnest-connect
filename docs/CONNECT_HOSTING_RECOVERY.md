@@ -1,0 +1,5 @@
+# Exact Hosting recovery
+
+The guarded Core release captures the existing live Hosting version before runtime mutation. A failed release restores the prior serving Cloud Run revision as before. Hosting is restored only if its publication step began, using Firebase CLI15.26.0 `hosting:clone site@captured-version site:live` on the existing Connect site. Earlier build/runtime failures cannot publish an unchanged Hosting site. Invalid/wrong-site source versions and CLI failures fail closed; a restored marker is printed only on success.
+
+`src/tests/connectProductionReleasePolicy.test.ts` executes the actual shell script against a fake CLI, proving skipped publication, input rejection, exact pinned clone arguments and failure propagation. This is command-level recovery validation. No production failure is induced and an actual cloud rollback is not claimed as exercised. The release retains existing WIF, authentication, domain smoke gates and runtime traffic recovery. No Meta, billing or business data configuration changes.

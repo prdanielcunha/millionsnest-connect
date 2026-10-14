@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const release = fs.readFileSync('.github/workflows/connect-core-production-release.yml', 'utf8');
 const hosting = fs.readFileSync('.github/workflows/firebase-hosting-deploy.yml', 'utf8');
@@ -474,9 +477,36 @@ console.log('Connect production release policy: OK');
 // Recover both serving surfaces even if a deploy/route step fails before final smoke.
 assert(release.indexOf('Capture existing Hosting version before any serving mutation') < release.indexOf('name: Deploy Connect Core revision'));
 assert.match(release, /Restore serving revision and Hosting on any release failure\n\s+if: failure\(\)/);
-assert.match(release, /releases\?versionName=\$PREVIOUS_HOSTING_VERSION/);
+assert.doesNotMatch(release, /releases\?versionName=\$PREVIOUS_HOSTING_VERSION/);
 assert.match(release, /CONNECT_FAILURE_RUNTIME_TRAFFIC_RESTORED/);
-assert.match(release, /CONNECT_FAILURE_HOSTING_VERSION_RESTORED/);
+assert.match(release, /if ! bash scripts\/restore-connect-hosting.sh; then\s+rollback_failed=1/);
+assert(release.indexOf('echo CONNECT_HOSTING_RELEASE_STARTED=true') < release.indexOf('deploy --only hosting:connect'));
+
+// Execute the actual recovery script with an isolated fake CLI, never cloud access.
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'connect-hosting-recovery-'));
+try {
+  const argsFile = path.join(temp, 'args');
+  fs.writeFileSync(path.join(temp, 'npx'), '#!/usr/bin/env bash\nset -euo pipefail\nprintf "%s\\n" "$@" > "$RECOVERY_TEST_ARGS"\nexit "${RECOVERY_TEST_EXIT:-0}"\n', { mode: 0o700 });
+  const run = (overrides: Record<string, string> = {}) => spawnSync('bash', ['scripts/restore-connect-hosting.sh'], {
+    encoding: 'utf8', env: { PATH: `${temp}:${process.env.PATH}`, PROJECT_ID: 'synthetic-project', RECOVERY_TEST_ARGS: argsFile,
+      CONNECT_HOSTING_RELEASE_STARTED: 'false', PREVIOUS_HOSTING_VERSION: 'sites/mn-connect-555464791734/versions/synthetic-version', ...overrides },
+  });
+  assert.equal(run().status, 0);
+  assert.equal(fs.existsSync(argsFile), false, 'Failure before Hosting publication must not call Firebase');
+  for (const version of ['', 'sites/another-site/versions/v1', 'sites/mn-connect-555464791734/versions/../escape', 'sites/mn-connect-555464791734/versions/v1\n']) {
+    assert.notEqual(run({ CONNECT_HOSTING_RELEASE_STARTED: 'true', PREVIOUS_HOSTING_VERSION: version }).status, 0);
+    assert.equal(fs.existsSync(argsFile), false);
+  }
+  const restored = run({ CONNECT_HOSTING_RELEASE_STARTED: 'true' });
+  assert.equal(restored.status, 0);
+  assert.match(restored.stdout, /CONNECT_FAILURE_HOSTING_VERSION_RESTORED/);
+  assert.deepEqual(fs.readFileSync(argsFile, 'utf8').trim().split('\n'), ['-y', 'firebase-tools@15.26.0', 'hosting:clone',
+    'mn-connect-555464791734@synthetic-version', 'mn-connect-555464791734:live', '--project', 'synthetic-project', '--non-interactive']);
+  const failed = run({ CONNECT_HOSTING_RELEASE_STARTED: 'true', RECOVERY_TEST_EXIT: '7' });
+  assert.equal(failed.status, 7);
+  assert.doesNotMatch(failed.stdout, /CONNECT_FAILURE_HOSTING_VERSION_RESTORED/);
+} finally { fs.rmSync(temp, { recursive: true, force: true }); }
+console.log('Connect Hosting recovery command and failure gates: OK');
 
 assert.match(release, /CONNECT_SUPPORT_DRAFT_ENABLED=true/, 'Release mounts only the authenticated manual support draft');
 assert.match(release, /test "\$SUPPORT_DRAFT_STATUS" = "401"/, 'Release must prove support drafts reject unauthenticated callers');
