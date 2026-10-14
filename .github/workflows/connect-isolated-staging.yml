@@ -1,0 +1,118 @@
+name: Connect Isolated Staging
+on:
+  push:
+    branches: [production]
+    paths: [.github/workflows/connect-isolated-staging.yml]
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: connect-isolated-staging
+  cancel-in-progress: false
+env:
+  SOURCE_SHA: 7029123c2cc2f044fe6d80847ea964688d6c0b3a
+  PROJECT_ID: millionsnest
+  REGION: us-central1
+  SERVICE: connect-api-staging
+  IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api-staging:7029123c2cc2f044fe6d80847ea964688d6c0b3a
+jobs:
+  isolated-staging:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 7029123c2cc2f044fe6d80847ea964688d6c0b3a
+      - name: Require successful full quality gate for exact source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/prdanielcunha/millionsnest-connect/actions/runs/38566676373 > /tmp/gate.json
+          jq -e --arg sha "$SOURCE_SHA" '.head_sha == $sha and .conclusion == "success" and .name == "Connect Quality"' /tmp/gate.json >/dev/null
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build live frontend for preview only
+        env:
+          VITE_CONNECT_LIVE_ENABLED: 'true'
+          VITE_FIREBASE_API_KEY: AIzaSyAhXY8TV8qoXz8Pd2u5jFHUTVssZmi3kMs
+        run: npm run build
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Snapshot production and verify isolated target
+        run: |
+          set -euo pipefail
+          test "$SERVICE" = connect-api-staging
+          gcloud run services describe connect-api --project "$PROJECT_ID" --region "$REGION" --format=json > /tmp/production-before.json
+          jq -S '{spec,traffic:.status.traffic,ready:.status.latestReadyRevisionName}' /tmp/production-before.json > /tmp/production-before-snapshot.json
+          test "$(jq -r '.spec.template.spec.serviceAccountName' /tmp/production-before.json)" = mn-connect-runtime@millionsnest.iam.gserviceaccount.com
+          rm /tmp/production-before.json
+      - name: Build and publish exact source container
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          docker build -f Dockerfile.core -t "$IMAGE" .
+          docker push "$IMAGE"
+      - name: Deploy separate staging service with all delivery and storage writes disabled
+        run: |
+          set -euo pipefail
+          test "$SERVICE" = connect-api-staging
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE" --service-account mn-connect-runtime@millionsnest.iam.gserviceaccount.com \
+            --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
+            --concurrency 20 --timeout 30 --quiet \
+            --set-env-vars "CONNECT_RELEASE_SHA=$SOURCE_SHA,GOOGLE_CLOUD_PROJECT=millionsnest,FIREBASE_PROJECT_ID=millionsnest,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,CONNECT_INBOX_DURABLE_ENABLED=false,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=false,CONNECT_WHATSAPP_INGESTION_ENABLED=false,CONNECT_WHATSAPP_ASSIST_ENABLED=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false"
+      - name: Exercise deployed API gates and exact SHA
+        run: |
+          set -euo pipefail
+          STAGING_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          curl --fail --silent --show-error --retry 3 "$STAGING_URL/api/health" > /tmp/staging-health.json
+          jq -e --arg sha "$SOURCE_SHA" '.success == true and .releaseSha == $sha' /tmp/staging-health.json >/dev/null
+          probe() {
+            test "$(curl --silent --show-error -X "$1" -H 'Content-Type: application/json' -d '{}' -o /tmp/staging-probe.json -w '%{http_code}' "$STAGING_URL$2")" = "$3"
+            jq -e --arg code "$4" '.code == $code' /tmp/staging-probe.json >/dev/null
+          }
+          probe POST /api/core/support/origin 404 SUPPORT_ORIGIN_DISABLED
+          probe POST /api/core/inbox/push/devices 404 PUSH_DISABLED
+          probe POST /api/core/automations/worker 404 AUTOMATION_EXECUTION_DISABLED
+          probe POST /api/channels/whatsapp/webhook 404 WHATSAPP_WEBHOOK_DISABLED
+          echo "CONNECT_STAGING_API_SHA=$SOURCE_SHA"
+          echo "CONNECT_STAGING_API_URL=$STAGING_URL"
+      - name: Publish expiring Firebase preview only
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          d=json.load(open('firebase.json'))
+          for rewrite in d['hosting']['rewrites']:
+              if 'run' in rewrite:
+                  rewrite['run']['serviceId']='connect-api-staging'
+          json.dump(d,open('firebase.staging.json','w'))
+          PY
+          npx -y firebase-tools@15.33.0 hosting:channel:deploy connect-completion --project millionsnest --only connect --expires 7d --config firebase.staging.json --non-interactive --json > /tmp/staging-preview.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/staging-preview.json'))
+          assert d.get('status') == 'success', 'Firebase preview deployment failed'
+          print('CONNECT_STAGING_PREVIEW_RESULT='+json.dumps(d.get('result',{})))
+          PY
+      - name: Verify production spec and traffic remain identical
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/production-before-snapshot.json ]; then
+            gcloud run services describe connect-api --project "$PROJECT_ID" --region "$REGION" --format=json > /tmp/production-after.json
+            jq -S '{spec,traffic:.status.traffic,ready:.status.latestReadyRevisionName}' /tmp/production-after.json > /tmp/production-after-snapshot.json
+            cmp /tmp/production-before-snapshot.json /tmp/production-after-snapshot.json
+            rm /tmp/production-after.json
+            echo CONNECT_PRODUCTION_SPEC_AND_TRAFFIC_UNCHANGED
+          fi
