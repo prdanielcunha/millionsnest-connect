@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { listInternalAutomationJobs, type InternalAutomationJobView } from '../../core/client/liveAutomationJobsClient';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -42,8 +43,8 @@ const copy = {
     cost: 'Política de custo',
     audit: 'Auditoria obrigatória',
     blockers: 'Bloqueios atuais',
-    noExecution: 'Execução continua desligada',
-    noExecutionDesc: 'O Connect ainda não monta o worker de automações nem recebe eventos oficiais do MusicScale. Isso impede disparos acidentais antes de Inbox/canais estarem prontos.',
+    noExecution: 'Automações dos aplicativos ainda não liberadas',
+    noExecutionDesc: 'As automações de membros e ações dos aplicativos ainda dependem dos seus contratos e permissões oficiais. A fila de alertas internos aparece abaixo quando estiver habilitada.',
     channels: 'Ver canais',
     error: 'Não foi possível validar os canais agora.',
   },
@@ -62,8 +63,8 @@ const copy = {
     cost: 'Cost policy',
     audit: 'Audit required',
     blockers: 'Current blockers',
-    noExecution: 'Execution remains disabled',
-    noExecutionDesc: 'Connect does not yet mount the automation worker or receive official MusicScale events. This prevents accidental dispatch before Inbox/channels are ready.',
+    noExecution: 'App automations are not released yet',
+    noExecutionDesc: 'Member notifications and app actions still require official contracts and permissions. The internal alert queue appears below when enabled.',
     channels: 'View channels',
     error: 'Could not validate channels right now.',
   },
@@ -82,8 +83,8 @@ const copy = {
     cost: 'Política de costo',
     audit: 'Auditoría obligatoria',
     blockers: 'Bloqueos actuales',
-    noExecution: 'La ejecución sigue desactivada',
-    noExecutionDesc: 'Connect todavía no monta el worker de automatizaciones ni recibe eventos oficiales de MusicScale. Esto evita envíos accidentales antes de que Inbox/canales estén listos.',
+    noExecution: 'Automatizaciones de aplicaciones aún no habilitadas',
+    noExecutionDesc: 'Las notificaciones a miembros y acciones de aplicaciones necesitan contratos y permisos oficiales. La cola interna aparece abajo cuando está habilitada.',
     channels: 'Ver canales',
     error: 'No fue posible validar los canales ahora.',
   },
@@ -137,19 +138,30 @@ export const LiveAutomationsPage: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const sequence = useRef(0);
+  const scope = `${session.expectedOrganizationId}:${session.context.user.uid}`;
+  const [queue, setQueue] = useState<{ scope: string; jobs: InternalAutomationJobView[] } | null>(null);
+  const [queueError, setQueueError] = useState(false);
+  const jobs = queue?.scope === scope ? queue.jobs : null;
+  const q = currentLang === 'pt-BR'
+    ? { title: 'Fila de alertas internos', hint: 'Avaliado não significa entregue no aparelho. Falhas ambíguas exigem revisão; nenhum reenvio comercial acontece aqui.', empty: 'Nenhum alerta registrado nesta organização.', pending: 'Aguardando', processing: 'Em processamento', complete: 'Avaliado', needs_review: 'Precisa de revisão', error: 'Não foi possível consultar a fila agora.', attempts: 'Tentativas' }
+    : currentLang === 'es-ES'
+      ? { title: 'Cola de avisos internos', hint: 'Evaluado no significa recibido en el dispositivo. Los fallos ambiguos necesitan revisión; no hay reenvíos comerciales.', empty: 'Sin avisos registrados en esta organización.', pending: 'Pendiente', processing: 'Procesando', complete: 'Evaluado', needs_review: 'Necesita revisión', error: 'No se pudo consultar la cola.', attempts: 'Intentos' }
+      : { title: 'Internal alert queue', hint: 'Evaluated does not mean delivered to a device. Ambiguous failures need review; no commercial resend occurs here.', empty: 'No alerts recorded for this organization.', pending: 'Pending', processing: 'Processing', complete: 'Evaluated', needs_review: 'Needs review', error: 'Could not read the queue.', attempts: 'Attempts' };
+
   const load = async () => {
-    setLoading(true);
-    try {
-      setReadiness(await client.getReadiness());
-      setError('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t.error);
-    } finally {
-      setLoading(false);
-    }
+    const current = ++sequence.current;
+    setLoading(true); setQueueError(false);
+    const [channels, internal] = await Promise.allSettled([client.getReadiness(), listInternalAutomationJobs(session)]);
+    if (current !== sequence.current) return;
+    if (channels.status === 'fulfilled') { setReadiness(channels.value); setError(''); }
+    else setError(t.error);
+    if (internal.status === 'fulfilled') setQueue(internal.value === null ? null : { scope, jobs: internal.value });
+    else { setQueue(null); setQueueError(true); }
+    setLoading(false);
   };
 
-  useEffect(() => { void load(); }, [client]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [client]);
 
   return (
     <main className="mx-auto w-full max-w-[1500px] space-y-4 pb-28 lg:pb-8">
@@ -180,6 +192,16 @@ export const LiveAutomationsPage: React.FC<Props> = ({
           {t.channels} <ArrowRight size={13} />
         </button>
       </section>
+
+      {jobs !== null && <section className="connect-surface rounded-xl border border-[#2B3A4D] p-4" aria-label={q.title}>
+        <h2 className="text-sm font-semibold text-[#E7EEF4]">{q.title}</h2>
+        <p className="mt-1 text-xs leading-5 text-[#8DA1B5]">{q.hint}</p>
+        {jobs.length === 0 ? <p className="mt-3 text-xs text-[#8DA1B5]">{q.empty}</p> : <ul className="mt-3 divide-y divide-[#2B3A4D]">{jobs.map(job => <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs">
+          <span className="text-[#C8D4DE]">{job.sourceApp === 'whatsapp' ? 'WhatsApp' : job.sourceApp} · {new Date(job.occurredAt).toLocaleString(currentLang)}</span>
+          <span className={job.state === 'needs_review' ? 'text-amber-200' : 'text-[#8DA1B5]'}>{q[job.state]} · {q.attempts}: {job.attempts}</span>
+        </li>)}</ul>}
+      </section>}
+      {queueError && <p role="status" className="text-xs text-amber-200">{q.error}</p>}
 
       {error && <div className="rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-sm text-rose-100">{t.error} <span className="text-rose-100/50">{error}</span></div>}
 

@@ -279,7 +279,7 @@ export class WhatsAppAssistOrchestrator {
         phoneNumberId: original.recipientRef,
         timestamp: String(Math.floor(new Date(original.occurredAt).getTime() / 1000)),
         messageType: 'text',
-        text: original.body,
+        text: this.options.resumeGuard ? original.body.replace(/\[mn-origin:[^\]]*\]/g, '').trim() : original.body,
       };
       if (!this.options.resumeGuard || await this.options.resumeGuard(event)) {
         await this.processMessage(event);

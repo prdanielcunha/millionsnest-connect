@@ -25,6 +25,7 @@ export class InboxPushService {
     private readonly registry: WhatsAppConnectionRegistry, private readonly now = () => new Date(),
     private readonly logger?: { info(message: string, meta?: Record<string, unknown>): void; warn?(message: string, meta?: Record<string, unknown>): void }) {}
   async afterIngest(events: WhatsAppNormalizedEvent[]) {
+    const aggregate = { accepted: 0, failed: 0 };
     for (const event of events) {
       if (event.kind !== 'message') continue;
       const binding = this.registry.resolve(event.phoneNumberId);
@@ -37,29 +38,49 @@ export class InboxPushService {
       // A stale webhook retry must not alert after a later reply/resolve.
       const messageId = createProviderMessageIndexId('whatsapp', event.providerMessageId);
       if (thread.lastEvidenceRef !== createMessageEvidenceRef('whatsapp', event.providerMessageId)) continue;
-      const devices = await this.store.list(scope.organizationId);
+      const outcome = await this.notifyThread(scope, messageId);
+      aggregate.accepted += outcome.accepted;
+      aggregate.failed += outcome.failed;
+    }
+    return aggregate;
+  }
+  async notifyAutomation(input: { organizationId: string; conversationId: string; recipientUid: string; eventId: string }) {
+    return this.notifyThread(input, input.eventId, input.recipientUid);
+  }
+  private async notifyThread(scope: { organizationId: string; conversationId: string }, messageId: string, recipientUid?: string) {
+    const outcome = { accepted: 0, failed: 0 };
+    const thread = await this.threads.load(scope);
+    if (!thread || ['resolved', 'archived', 'waiting_person'].includes(thread.status)) return outcome;
+    const devices = await this.store.list(scope.organizationId);
       let attempted = 0;
       for (const device of devices) {
         try {
+        if (recipientUid && device.actorUid !== recipientUid) continue;
         if (!device.enabled || Date.parse(device.expiresAt) <= this.now().getTime() || isQuiet(device, this.now())) continue;
         if (thread.assignedTo && (thread.assignedTo.type !== 'user' || thread.assignedTo.ref !== device.actorUid)) continue;
         // Cap upstream checks as well as sends so one webhook has bounded work.
         if (++attempted > 10) break;
         if (!await this.directory.verify({ organizationId: scope.organizationId, uid: device.actorUid })) continue;
         const readMarkers = await this.store.readMarkers(scope.organizationId, device.actorUid);
-        if (readMarkers[scope.conversationId]?.eventId === thread.lastEventId) continue;
+        if (!recipientUid && readMarkers[scope.conversationId]?.eventId === thread.lastEventId) continue;
         const currentDevice = await this.store.get(device.id);
         if (!currentDevice || JSON.stringify(currentDevice) !== JSON.stringify(device)) continue;
         // Recheck canonical thread after potentially slow authority lookup.
         const latest = await this.threads.load(scope);
         if (!latest || latest.lastEventId !== thread.lastEventId) continue;
         const id = pushId(scope.organizationId, messageId, device.id);
-        if (!await this.store.claim(id, new Date(this.now().getTime() + 30 * 86400000).toISOString())) continue;
+        if (!await this.store.claim(id, new Date(this.now().getTime() + 30 * 86400000).toISOString())) {
+          const status = await this.store.deliveryStatus(id);
+          if (status !== 'accepted_by_push_service' && status !== 'expired') outcome.failed++;
+          continue;
+        }
         try {
           await this.send(device, privatePushPayload({ ...scope, messageId }));
           await this.store.result(id, 'accepted_by_push_service');
+          outcome.accepted++;
           this.logger?.info('CONNECT_WEB_PUSH_PROVIDER_ACCEPTED');
         } catch (error) {
+          outcome.failed++;
           const status = (error as { statusCode?: number }).statusCode;
           if (status === 404 || status === 410) await this.store.remove(scope.organizationId, device.actorUid, device.id);
           // Ambiguous network errors are not automatically retried (could already have delivered).
@@ -68,9 +89,10 @@ export class InboxPushService {
         }
         } catch {
           // One revoked/broken device or failed lookup must not prevent other recipients.
+          outcome.failed++;
           this.logger?.warn?.('CONNECT_WEB_PUSH_DEVICE_UNAVAILABLE');
         }
       }
-    }
+    return outcome;
   }
 }

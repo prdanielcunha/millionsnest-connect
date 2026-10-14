@@ -24,6 +24,7 @@ const vapid = webPush.generateVAPIDKeys();
 assert.equal(typeof createWebPushSender(vapid.publicKey, vapid.privateKey, 'mailto:ops@example.test'), 'function');
 const readStates = new Map<string, Record<string, { eventId: string; recordedAt: string }>>();
 const store: PushStore & { devices: PushDevice[]; claims: Set<string>; statuses: string[] } = {
+  async deliveryStatus() { return 'accepted_by_push_service'; },
   async readMarkers(org, uid) { return readStates.get(JSON.stringify([org, uid])) ?? {}; },
   async markRead(org, uid, conversationId, eventId) {
     const key = JSON.stringify([org, uid]);
