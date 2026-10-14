@@ -204,6 +204,19 @@ jobs:
           echo "PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION" >> "$GITHUB_ENV"
           echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
 
+      - name: Capture existing Hosting version before any serving mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+          echo "::add-mask::$ACCESS_TOKEN"
+          curl --fail --silent --show-error --max-time 20 -H "Authorization: Bearer $ACCESS_TOKEN" \
+            'https://firebasehosting.googleapis.com/v1beta1/sites/mn-connect-555464791734/releases?pageSize=1' > /tmp/connect-hosting-before.json
+          PREVIOUS_HOSTING_VERSION="$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/connect-hosting-before.json','utf8'));const v=d.releases?.[0]?.version?.name;if(typeof v!=='string'||!/^sites\/mn-connect-555464791734\/versions\/[a-zA-Z0-9_-]+$/.test(v))process.exit(1);process.stdout.write(v)")"
+          echo "PREVIOUS_HOSTING_VERSION=$PREVIOUS_HOSTING_VERSION" >> "$GITHUB_ENV"
+          rm /tmp/connect-hosting-before.json
+          echo CONNECT_PREVIOUS_HOSTING_VERSION_CAPTURED
+
       - name: Deploy Connect Core revision
         shell: bash
         run: |
@@ -449,3 +462,31 @@ jobs:
           echo "CONNECT_PRODUCTION_RELEASE_OK"
           echo "CONNECT_LIVE_MODE=${{ github.event_name == 'push' || inputs.live_mode == true }}"
           trap - ERR
+
+      - name: Restore serving revision and Hosting on any release failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rollback_failed=0
+          if [ -n "${PREVIOUS_TRAFFIC_REVISION:-}" ]; then
+            if gcloud run services update-traffic "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
+              --to-revisions="$PREVIOUS_TRAFFIC_REVISION=100" --quiet; then
+              echo CONNECT_FAILURE_RUNTIME_TRAFFIC_RESTORED
+            else
+              rollback_failed=1
+            fi
+          fi
+          if [ -n "${PREVIOUS_HOSTING_VERSION:-}" ]; then
+            [[ "$PREVIOUS_HOSTING_VERSION" =~ ^sites/mn-connect-555464791734/versions/[a-zA-Z0-9_-]+$ ]]
+            ACCESS_TOKEN="$(gcloud auth print-access-token)"
+            echo "::add-mask::$ACCESS_TOKEN"
+            curl --fail --silent --show-error --max-time 30 -X POST \
+              -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+              -d '{"message":"Connect guarded release rollback"}' \
+              "https://firebasehosting.googleapis.com/v1beta1/sites/mn-connect-555464791734/releases?versionName=$PREVIOUS_HOSTING_VERSION" > /tmp/connect-hosting-rollback.json
+            node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('/tmp/connect-hosting-rollback.json','utf8'));if(d.version?.name!==process.env.PREVIOUS_HOSTING_VERSION)process.exit(1)"
+            rm /tmp/connect-hosting-rollback.json
+            echo CONNECT_FAILURE_HOSTING_VERSION_RESTORED
+          fi
+          test "$rollback_failed" = 0
