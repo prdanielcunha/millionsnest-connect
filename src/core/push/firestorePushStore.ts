@@ -3,6 +3,7 @@ import type { PushDevice } from './pushPolicy';
 
 export interface PushStore {
   save(device: PushDevice): Promise<void>;
+  get(deviceId: string): Promise<PushDevice | null>;
   list(organizationId: string): Promise<PushDevice[]>;
   remove(organizationId: string, actorUid: string, deviceId: string): Promise<void>;
   claim(id: string, expiresAt: string): Promise<boolean>;
@@ -22,6 +23,14 @@ export class FirestorePushStore implements PushStore {
     return this.fetchImpl(`${this.base}${path}`, { ...init, signal: AbortSignal.timeout(8000), headers: {
       Authorization: `Bearer ${await this.token.getAccessToken()}`, 'Content-Type': 'application/json',
     } });
+  }
+  async get(deviceId: string): Promise<PushDevice | null> {
+    if (!/^[a-f0-9]{64}$/.test(deviceId)) throw new Error('INVALID_DEVICE_ID');
+    const r = await this.request(`/connectPushDevices/${deviceId}`);
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('PUSH_STORAGE_UNAVAILABLE');
+    const doc = await r.json() as { fields: { recordJson: { stringValue: string } } };
+    return JSON.parse(doc.fields.recordJson.stringValue) as PushDevice;
   }
   async save(device: PushDevice) {
     const r = await this.request(`/connectPushDevices/${device.id}`, { method: 'PATCH', body: JSON.stringify({ fields: {

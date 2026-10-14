@@ -1,3 +1,4 @@
+import { readInboxPushLink } from './core/client/connectPushClient';
 /**
  * MillionsNest Connect - Main Application Entry
  * Demo and staged live Core remain deliberately separated.
@@ -190,7 +191,7 @@ const controlledLabel: Record<LanguageCode, string> = {
 };
 
 function initialLiveRoute() {
-  return resolveJourneyFollowupId(window.location.pathname) ? 'journey-followup' : 'overview';
+  return resolveJourneyFollowupId(window.location.pathname) ? 'journey-followup' : readInboxPushLink(window.location.href) ? 'inbox' : 'overview';
 }
 
 export default function App() {
@@ -219,12 +220,16 @@ export default function App() {
     setLiveBootState('loading');
     setLiveBootErrorCode(null);
     bootstrapLiveConnectSession()
-      .then((session) => {
+      .then(async (session) => {
+        const pushLink = readInboxPushLink(window.location.href);
+        if (pushLink && pushLink.organizationId !== session.expectedOrganizationId) {
+          session = await session.selectOrganization(pushLink.organizationId);
+        }
         if (!mounted) return;
         setLiveSession(session);
         // Everyone lands on the adaptive home. Relationship Intelligence remains
         // an optional capability instead of becoming the identity of Connect.
-        setActiveRoute((current) => current === 'journey-followup' ? current : 'overview');
+        setActiveRoute((current) => current === 'journey-followup' || pushLink ? current : 'overview');
         setPreviewConfig({
           view: 'real',
           organizationId: session.context.activeOrganization.id,

@@ -1,5 +1,5 @@
 import webPush from 'web-push';
-import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../inbox/messageContentStore';
+import { createConversationIdFromChannelIdentity, createProviderMessageIndexId, createMessageEvidenceRef } from '../inbox/messageContentStore';
 import type { WhatsAppNormalizedEvent } from '../channels/whatsappOfficial';
 import type { WhatsAppConnectionRegistry } from '../channels/whatsappConnectionRegistry';
 import type { ConnectThreadStore } from '../inbox/threadStore';
@@ -35,18 +35,20 @@ export class InboxPushService {
       if (!thread || ['resolved', 'archived', 'waiting_person'].includes(thread.status)) continue;
       // A stale webhook retry must not alert after a later reply/resolve.
       const messageId = createProviderMessageIndexId('whatsapp', event.providerMessageId);
-      const { createMessageEvidenceRef } = await import('../inbox/messageContentStore');
       if (thread.lastEvidenceRef !== createMessageEvidenceRef('whatsapp', event.providerMessageId)) continue;
       const devices = await this.store.list(scope.organizationId);
       let attempted = 0;
       for (const device of devices) {
         if (!device.enabled || Date.parse(device.expiresAt) <= this.now().getTime() || isQuiet(device, this.now())) continue;
         if (thread.assignedTo && (thread.assignedTo.type !== 'user' || thread.assignedTo.ref !== device.actorUid)) continue;
+        // Cap upstream checks as well as sends so one webhook has bounded work.
+        if (++attempted > 10) break;
         if (!await this.directory.verify({ organizationId: scope.organizationId, uid: device.actorUid })) continue;
+        const currentDevice = await this.store.get(device.id);
+        if (!currentDevice || JSON.stringify(currentDevice) !== JSON.stringify(device)) continue;
         // Recheck canonical thread after potentially slow authority lookup.
         const latest = await this.threads.load(scope);
         if (!latest || latest.lastEventId !== thread.lastEventId) continue;
-        if (++attempted > 25) break;
         const id = pushId(scope.organizationId, messageId, device.id);
         if (!await this.store.claim(id, new Date(this.now().getTime() + 30 * 86400000).toISOString())) continue;
         try {

@@ -24,6 +24,7 @@ const vapid = webPush.generateVAPIDKeys();
 assert.equal(typeof createWebPushSender(vapid.publicKey, vapid.privateKey, 'mailto:ops@example.test'), 'function');
 const store: PushStore & { devices: PushDevice[]; claims: Set<string>; statuses: string[] } = {
   devices: [], claims: new Set(), statuses: [],
+  async get(id) { return this.devices.find(d => d.id === id) ?? null; },
   async save(d) { this.devices = [...this.devices.filter(old => old.id !== d.id), d]; },
   async list(org) { return this.devices.filter(d => d.organizationId === org); },
   async remove(org, uid, id) {

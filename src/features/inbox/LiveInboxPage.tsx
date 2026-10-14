@@ -1,3 +1,5 @@
+import { InboxPushControls } from '../notifications/InboxPushControls';
+import { readInboxPushLink } from '../../core/client/connectPushClient';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -418,10 +420,22 @@ function nextStep(status: LiveInboxConversation['status'], t: typeof copy['pt-BR
 export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigate }) => {
   const t = copy[currentLang];
   const client = useMemo(() => new LiveInboxClient(session), [session]);
+  useEffect(() => {
+    const link = readInboxPushLink(window.location.href);
+    if (!link || link.organizationId !== session.expectedOrganizationId) return;
+    let active = true;
+    void client.getConversation(link.conversationId).then(thread => {
+      if (!active) return;
+      setOpenedRemote(thread);
+      setSelectedId(thread.conversationId);
+    }).catch(() => { if (active) setError('INBOX_CONVERSATION_UNAVAILABLE'); });
+    return () => { active = false; };
+  }, [client, session.expectedOrganizationId]);
   const nestAi = useMemo(() => new ConnectNestAiClient(session, currentLang), [session, currentLang]);
   const [readiness, setReadiness] = useState<LiveInboxReadiness | null>(null);
   const [conversations, setConversations] = useState<LiveInboxConversation[]>([]);
   const [selectedId, setSelectedId] = useState('');
+  const pushLink = readInboxPushLink(window.location.href);
   const [messages, setMessages] = useState<LiveInboxMessage[]>([]);
   const [filter, setFilter] = useState<ConversationFilter>('all');
   const [query, setQuery] = useState('');
@@ -494,7 +508,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       if (sequence !== loadSequenceRef.current) return;
       setConversations(page.conversations);
       setNextCursor(page.nextCursor);
-      setSelectedId((current) => current && page.conversations.some((item) => item.conversationId === current) ? current : '');
+      setSelectedId((current) => current && (page.conversations.some((item) => item.conversationId === current) || pushLink?.conversationId === current && pushLink.organizationId === session.expectedOrganizationId) ? current : '');
     } catch (e) {
       if (sequence === loadSequenceRef.current) setError(e instanceof Error ? e.message : 'INBOX_READINESS_FAILED');
     } finally {
@@ -1101,6 +1115,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           </button>
         </div>
       </header>
+
+      <InboxPushControls session={session} language={currentLang} />
 
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-[#FF9AA7]/20 bg-[#FF9AA7]/[0.06] px-4 py-3 text-xs text-[#FFD0D5]">
