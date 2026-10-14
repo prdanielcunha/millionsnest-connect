@@ -146,3 +146,7 @@ The Core can dispatch private Web Push after durable WhatsApp ingestion. Device 
 ## Single-number product routing (#224 — default off)
 
 `CONNECT_PRODUCT_ROUTING_ENABLED`, `CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED` and `CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED` gate the durable router after official inbound ingestion. MusicScale retains its real Hub/Tool Gateway path; NestFinance/NestJourney route to human support until official domain contracts exist. See `docs/CONNECT_PRODUCT_ROUTING_CONTRACT.md` for signed-origin consumer, storage and upstream gaps. Product hints never authorize identity or tenant access.
+
+## Internal event worker (#225 — default off)
+
+The internal worker queues real Inbox notification references, uses durable leases/idempotency and an atomic 100-job daily tenant quota, exposes a Hub-authorized audit API, and accepts signed official-app operator-alert events. It does not dispatch commercial WhatsApp or claim domain/member automations are live. Recovery scheduling, secret/private-storage configuration and upstream app publishers remain pending. See `docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md`.

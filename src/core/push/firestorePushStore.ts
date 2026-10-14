@@ -10,6 +10,7 @@ export interface PushStore {
   get(deviceId: string): Promise<PushDevice | null>;
   list(organizationId: string): Promise<PushDevice[]>;
   remove(organizationId: string, actorUid: string, deviceId: string): Promise<void>;
+  deliveryStatus(id: string): Promise<string | null>;
   claim(id: string, expiresAt: string): Promise<boolean>;
   result(id: string, status: string): Promise<void>;
 }
@@ -95,6 +96,13 @@ export class FirestorePushStore implements PushStore {
     if (d.organizationId !== organizationId || d.actorUid !== actorUid) throw new Error('PUSH_DEVICE_SCOPE_DENIED');
     const deleted = await this.request(`${path}?currentDocument.updateTime=${encodeURIComponent(doc.updateTime)}`, { method: 'DELETE' });
     if (!deleted.ok && deleted.status !== 404) throw new Error('PUSH_STORAGE_UNAVAILABLE');
+  }
+  async deliveryStatus(id: string): Promise<string | null> {
+    const r = await this.request(`/connectPushDeliveries/${id}`);
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('PUSH_STORAGE_UNAVAILABLE');
+    const doc = await r.json() as { fields: { status?: { stringValue?: string } } };
+    return doc.fields.status?.stringValue ?? null;
   }
   async claim(id: string, expiresAt: string) {
     const r = await this.request(`/connectPushDeliveries/${id}?currentDocument.exists=false`, { method: 'PATCH', body: JSON.stringify({ fields: {
