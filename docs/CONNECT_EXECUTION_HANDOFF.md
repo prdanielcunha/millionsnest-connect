@@ -1,3 +1,13 @@
+# Checkpoint — 2026-10-14: scoped support entry release
+
+- Connect live confirmed remains `acb8a01e530982aee055550a9aae03934d4f89a3` (#252); main `b6bdc4c85a40c11abb066db92c134fbab4a9d4e5`. This increment enables only authenticated manual support drafts in the production workflow and adds a required canonical 401 gate. No Meta configuration/credentials, provider sends, data or billing changes.
+- Work branch: `chatgpt/support-draft-activation-20261014`; related #224/#226, MusicScale #511/#512. Latest valid parent is main `b6bdc4c`; the incremental commit is the Git history containing this checkpoint. Deployment of this increment is not yet confirmed.
+- MusicScale production advanced independently to `28f90e1b32b150d3a812be062c14115bd4d441be`; do not use the stale 2602517 production baseline. Scoped release #512 is persisted at `9e07231aee2074473f7f95ae6ab9ad1ce0b2418c`, branch `chatgpt/connect-support-release-20261014`, based on current production; only #511 support slice plus canonical version 0.11.1-beta.2 and marker. UI flag remains off. Full QA run 38645865403 pending at checkpoint.
+- CI 38646087549 exposed a pre-existing random secret-bundle fixture failure: Node ECDH exports leading-zero private scalars compactly, whereas VAPID correctly requires 32 bytes. Fixture now uses deterministic padded scalar 1; production key validation unchanged. Follow-up exact-SHA CI is required.
+- Local tests passed: product routing/origin/draft/Finance boundary, production-release policy, Hosting policy, TypeScript, diff check; MusicScale relay security checks, Release Guard 4/4, version progression and diff check. No claim of local MusicScale full suite.
+- Next: merge only after exact-SHA CI; release Connect via production PR and confirm Cloud Run/canonical SHA plus SUPPORT_DRAFT_AUTHORITY_OK. Complete #512 full QA and publish through official workflows; verify actual runtime/Hosting SHA. Then enable the MusicScale entry in a reviewed build and exercise authenticated manual draft without sending a message. Meta metadata permission/number uniqueness remain live integration gates, not proven by a 401.
+- Physical installed iPhone closed/locked delivery is still pending; authenticated desktop Inbox and denied notification permission were observed previously. Keep real push, automated product routing and automation execution off. Finance production/Hub optional grants, Journey consent/contracts and actual source-app event automations remain unfinished. #222 untouched.
+
 # Connect execution handoff — 2026-10-14
 
 ## Source-button continuation — saved 2026-10-14
