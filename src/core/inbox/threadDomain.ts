@@ -14,6 +14,7 @@ export type ConnectThreadEventType =
   | 'HUMAN_REPLY_SENT'
   | 'THREAD_ASSIGNED'
   | 'HANDOFF_CREATED'
+  | 'HUMAN_REVIEW_REQUESTED'
   | 'THREAD_WAITING_PERSON'
   | 'THREAD_RESOLVED'
   | 'THREAD_REOPENED'
@@ -92,6 +93,7 @@ function resultingStatus(eventType: ConnectThreadEventType): ConnectThreadStatus
     case 'THREAD_REOPENED':
       return 'in_progress';
     case 'HANDOFF_CREATED':
+    case 'HUMAN_REVIEW_REQUESTED':
       return 'waiting_team';
     case 'HUMAN_REPLY_SENT':
     case 'THREAD_WAITING_PERSON':
@@ -265,8 +267,10 @@ export function projectConnectThread(
         // An inbound person reply must never silently continue automation.
         next.automationPaused = true;
         next.mode = state.mode === 'automatic' ? 'approval' : state.mode;
+        if (state.status === 'waiting_team' && state.mode === 'human' && !state.assignedTo) next.status = 'waiting_team';
         break;
       case 'HUMAN_REPLY_SENT':
+      case 'HUMAN_REVIEW_REQUESTED':
         next.automationPaused = true;
         next.mode = 'human';
         break;
