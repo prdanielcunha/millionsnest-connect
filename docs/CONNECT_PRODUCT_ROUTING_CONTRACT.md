@@ -20,3 +20,7 @@ Apps/Hub must authenticate and authorize the caller before signing an origin. Th
 ## Outstanding contracts
 
 Hub must expose canonical `appAccess.nestfinance`/`appAccess.nestjourney` and their capability/consent evidence before a domain tool can run. Each app must independently revalidate identity, organization, required permission and consent via its official tool endpoint. Financial/pastoral scopes cannot be inferred from MusicScale access. Keep human fallback until those contracts are implemented and verified.
+
+## Authenticated origin issuing endpoint
+
+When product routing is actually mounted and the dedicated origin secret is configured, `POST /api/core/support/origin` accepts exactly `{product, organizationId}` with the user's Firebase Bearer. The Hub resolves organization and that product's current canonical access; mismatches/denials return 403. Output is `{product, expiresAt, originHint}` with the signed hint above, containing no UID, tenant, bearer or phone. Caller retains the existing official support number and appends the hint to its support draft. Missing routing/secret keeps the endpoint disabled (404). No browser receives signing keys. Actual upstream buttons must call this endpoint rather than fabricate a signed hint.
