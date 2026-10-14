@@ -1,3 +1,4 @@
+import { resolveExecutionSecretBundle } from './executionSecretBundle';
 import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
@@ -115,7 +116,7 @@ export interface CreateConnectServerOptions {
 export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
   const logger = options.logger ?? console;
-  const env = options.env ?? process.env;
+  const env = resolveExecutionSecretBundle(options.env ?? process.env);
   if (env.CONNECT_HOMOLOGATION_READ_ONLY === 'true') app.use(homologationReadOnly);
   const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
   const storageReadinessProbeEnabled =
