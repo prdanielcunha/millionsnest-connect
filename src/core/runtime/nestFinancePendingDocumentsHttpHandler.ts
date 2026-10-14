@@ -23,7 +23,7 @@ export function createNestFinancePendingDocumentsHttpHandler(options: {
       // Entity is only a requested selector: Finance revalidates its actual membership scope.
       const response = await (options.fetchImpl ?? fetch)(ENDPOINT, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(8000),
-        headers: { Authorization: authToken, 'x-organization-id': authority.context.organizationId, 'Content-Type': 'application/json' },
+        headers: { Authorization: authToken, 'X-Connect-User-Authorization': authToken, 'x-organization-id': authority.context.organizationId, 'Content-Type': 'application/json' },
         body: JSON.stringify({ financeEntityId: body.financeEntityId }),
       });
       if (!response.ok) {
