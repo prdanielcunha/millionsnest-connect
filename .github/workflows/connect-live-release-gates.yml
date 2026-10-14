@@ -1,0 +1,66 @@
+name: Connect Live Release Gates
+on:
+  push:
+    branches: [production]
+    paths: [.github/workflows/connect-live-release-gates.yml]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: connect-live-release-gates
+  cancel-in-progress: false
+jobs:
+  release-preconditions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify live upstream authentication gates without credentials
+        run: |
+          set -euo pipefail
+          failed=0
+          probe() {
+            local name="$1" url="$2" status
+            status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 --retry 1 -o /tmp/connect-public-gate.json -w '%{http_code}' "$url")" || status=transport_failed
+            echo "CONNECT_LIVE_AUTH_GATE=$name:$status"
+            if [ "$status" != 401 ]; then failed=1; fi
+            rm -f /tmp/connect-public-gate.json
+          }
+          probe hub-session https://www.millionsnest.com/api/ecosystem/connect/session-context
+          probe musicscale-next https://musicscale.millionsnest.com/api/v1/connect/next-schedule
+          probe musicscale-repertoire https://musicscale.millionsnest.com/api/v1/connect/next-schedule/repertoire
+          probe musicscale-presence https://musicscale.millionsnest.com/api/v1/connect/next-schedule/presence
+          probe musicscale-chart 'https://musicscale.millionsnest.com/api/v1/connect/next-schedule/chart?title=release-smoke'
+          test "$failed" = 0
+      - name: Authenticate for read-only activation metadata
+        if: always()
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Check only required push retention metadata and provisioning permissions
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+          echo "::add-mask::$ACCESS_TOKEN"
+          curl --fail --silent --show-error -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+            -d '{"permissions":["secretmanager.secrets.create","secretmanager.versions.add","secretmanager.secrets.setIamPolicy","datastore.indexes.update","run.services.update"]}' \
+            https://cloudresourcemanager.googleapis.com/v1/projects/millionsnest:testIamPermissions > /tmp/connect-permissions.json
+          python3 - <<'PY'
+          import json
+          allowed=set(json.load(open('/tmp/connect-permissions.json')).get('permissions',[]))
+          for p in ['secretmanager.secrets.create','secretmanager.versions.add','secretmanager.secrets.setIamPolicy','datastore.indexes.update','run.services.update']:
+              print('CONNECT_PROVISION_PERMISSION='+p+':'+str(p in allowed).lower())
+          PY
+          for collection in connectPushDevices connectPushDeliveries connectPushReadStates connectProductRoutes connectAutomationJobs connectAutomationBudgets; do
+            CODE="$(curl --silent --show-error --connect-timeout 10 --max-time 20 -H "Authorization: Bearer $ACCESS_TOKEN" -o /tmp/connect-ttl-field.json -w '%{http_code}' "https://firestore.googleapis.com/v1/projects/millionsnest/databases/(default)/collectionGroups/$collection/fields/expiresAt")"
+            if [ "$CODE" = 200 ]; then
+              STATE="$(python3 -c "import json;print(json.load(open('/tmp/connect-ttl-field.json')).get('ttlConfig',{}).get('state','NOT_ENABLED'))")"
+              echo "CONNECT_RETENTION_GATE=$collection:$STATE"
+            else
+              echo "CONNECT_RETENTION_GATE=$collection:metadata_http_$CODE"
+            fi
+          done
+          rm -f /tmp/connect-permissions.json /tmp/connect-ttl-field.json
