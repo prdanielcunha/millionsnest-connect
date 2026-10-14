@@ -1,3 +1,6 @@
+import { FirestorePushStore } from '../core/push/firestorePushStore';
+import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
+import { createPushRouter } from '../core/push/pushHttpRouter';
 import express from 'express';
 import {
   ConnectCoreService,
@@ -128,6 +131,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const whatsappWebhookVerificationHandler = createWhatsAppWebhookVerificationHandler({ env, logger });
   let whatsappWebhookIngressHandler = createWhatsAppWebhookIngressHandler({ env, logger });
   let whatsappIngestor: WhatsAppInboxIngestor | null = null;
+  let inboxPush: InboxPushService | null = null;
+  let pushRouter: express.Router | null = null;
   let whatsappAssistOrchestrator: WhatsAppAssistOrchestrator | null = null;
   let channelLinkConfirmHandler: ReturnType<typeof createConnectChannelLinkConfirmHttpHandler> | null = null;
   let radarCloudSyncRouter: ReturnType<typeof createRadarCloudSyncRouter> | null = null;
@@ -317,6 +322,18 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             ?? new WhatsAppConnectionRegistry(parseWhatsAppConnectionBindings(env));
         }
 
+        if (registry && env.CONNECT_WEB_PUSH_ENABLED === 'true' && env.CONNECT_WEB_PUSH_TTL_CONFIRMED === 'true') {
+          try {
+            const publicKey = env.CONNECT_WEB_PUSH_PUBLIC_KEY || '';
+            const sender = createWebPushSender(publicKey, env.CONNECT_WEB_PUSH_PRIVATE_KEY || '', env.CONNECT_WEB_PUSH_SUBJECT || '');
+            const pushStore = new FirestorePushStore(projectId, options.fetchImpl);
+            inboxPush = new InboxPushService(pushStore, gatedStore, operatorDirectory, sender, registry);
+            pushRouter = createPushRouter(inboxContextProvider, pushStore, publicKey);
+          } catch {
+            logger.warn?.('CONNECT_WEB_PUSH_CONFIGURATION_INVALID');
+          }
+        }
+
         if (registry && whatsappIngestionEnabled) {
           if (registry.size > 0) {
             whatsappIngestor = new WhatsAppInboxIngestor(
@@ -426,9 +443,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             env,
             logger,
             ingestor: whatsappIngestor,
-            afterIngest: whatsappAssistOrchestrator
-              ? (events) => whatsappAssistOrchestrator!.afterIngest(events)
-              : undefined,
+            afterIngest: async (events) => {
+              // Assist runs first so a resolved conversation never produces a stale alert.
+              if (whatsappAssistOrchestrator) {
+                try { await whatsappAssistOrchestrator.afterIngest(events); }
+                catch { logger.warn?.('CONNECT_WHATSAPP_ASSIST_POST_INGEST_FAILED'); }
+              }
+              if (inboxPush) {
+                try { await inboxPush.afterIngest(events); }
+                catch { logger.warn?.('CONNECT_WEB_PUSH_POST_INGEST_FAILED'); }
+              }
+            },
           });
         }
 
@@ -471,6 +496,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   );
 
   app.use(express.json({ limit: '32kb' }));
+  app.use('/api/core/inbox/push', (req, res, next) => {
+    if (!pushRouter) { res.status(404).json({ code: 'PUSH_DISABLED' }); return; }
+    return pushRouter(req, res, next);
+  });
 
   app.post('/api/core/channel-link/confirm', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');

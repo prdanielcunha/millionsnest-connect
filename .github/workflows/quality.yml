@@ -23,6 +23,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: npm run test:push
       - run: npm run lint
       - run: npm run test:core-http
       - run: npm run test:whatsapp-assist

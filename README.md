@@ -138,3 +138,7 @@ Consulte:
 * `docs/PRODUCT.md`
 * `docs/SECURITY.md`
 * `docs/TOOL_PROTOCOL.md`
+
+## Web Push (P0 #223 — default off)
+
+The Core can dispatch private Web Push after durable WhatsApp ingestion. Device APIs use Hub-authorized Inbox management and revalidate operator membership before dispatch. VAPID keys belong in Secret Manager, never the repository. Enable only after staging proves Firestore client denial, IAM and `expiresAt` TTL for `connectPushDevices` and `connectPushDeliveries`: `CONNECT_WEB_PUSH_ENABLED` + `CONNECT_WEB_PUSH_TTL_CONFIRMED`. Configure `CONNECT_WEB_PUSH_PUBLIC_KEY`, `CONNECT_WEB_PUSH_PRIVATE_KEY`, `CONNECT_WEB_PUSH_SUBJECT`. See `docs/CONNECT_EXECUTION_HANDOFF.md` for physical-device gates and exact continuation. No physical push delivery or production activation is certified by these local tests.
