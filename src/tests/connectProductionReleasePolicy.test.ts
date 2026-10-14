@@ -470,3 +470,10 @@ assert.doesNotMatch(
 );
 
 console.log('Connect production release policy: OK');
+
+// Recover both serving surfaces even if a deploy/route step fails before final smoke.
+assert(release.indexOf('Capture existing Hosting version before any serving mutation') < release.indexOf('name: Deploy Connect Core revision'));
+assert.match(release, /Restore serving revision and Hosting on any release failure\n\s+if: failure\(\)/);
+assert.match(release, /releases\?versionName=\$PREVIOUS_HOSTING_VERSION/);
+assert.match(release, /CONNECT_FAILURE_RUNTIME_TRAFFIC_RESTORED/);
+assert.match(release, /CONNECT_FAILURE_HOSTING_VERSION_RESTORED/);
