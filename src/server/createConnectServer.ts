@@ -1,3 +1,4 @@
+import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
@@ -114,6 +115,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const app = express();
   const logger = options.logger ?? console;
   const env = options.env ?? process.env;
+  if (env.CONNECT_HOMOLOGATION_READ_ONLY === 'true') app.use(homologationReadOnly);
   const releaseSha = env.CONNECT_RELEASE_SHA?.trim();
   const storageReadinessProbeEnabled =
     env.CONNECT_STORAGE_READINESS_PROBE_ENABLED?.trim().toLowerCase() === 'true';
