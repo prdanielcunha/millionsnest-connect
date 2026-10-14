@@ -1,3 +1,4 @@
+# Combined release: preserve live401 gates and validate against current main before publication.
 name: Connect Core Production Release
 
 on:
