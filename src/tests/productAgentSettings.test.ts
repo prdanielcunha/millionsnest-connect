@@ -3,6 +3,10 @@ import { defaultAgentSettings, parseAgentSettings, parseAgentSettingsRecord, rev
 import { FirestoreProductAgentSettingsStore } from '../core/agents/firestoreProductAgentSettingsStore';
 import { createProductAgentProfilesHandler, createProductAgentSettingsHandler } from '../core/agents/productAgentProfilesHttp';
 import type { CanonicalContextProvider } from '../core/runtime/connectCore';
+import express from 'express';
+import type { AddressInfo } from 'node:net';
+import { listProductAgentProfiles, saveProductAgentSettings } from '../core/client/productAgentProfilesClient';
+import type { LiveConnectSession } from '../core/client/liveConnectSession';
 
 const now = new Date('2026-10-15T13:00:00Z');
 const input = { organizationId: 'org-a', product: 'musicscale' as const, actorUid: 'synthetic-manager', requestId: 'synthetic_request_0001', expectedVersion: 0, settings: defaultAgentSettings('musicscale') };
@@ -95,4 +99,31 @@ assert.equal((await invoke(put, { body: { ...body(), requestId: 'synthetic_reque
 storageDown = true; assert.equal((await invoke(get)).status, 503); storageDown = false;
 assert.equal((await invoke(createProductAgentSettingsHandler({ ...options, settingsStore: undefined }))).status, 404);
 assert(resolves > 10);
+// Real HTTP round trip with the actual client and handlers, synthetic Hub and
+// tenant storage. This does not claim a positive real-account integration.
+const app = express(); app.use(express.json({ limit: '32kb' }));
+app.get('/api/core/agents/product-profiles', get);
+app.put('/api/core/agents/product-profiles/:product', put);
+const server = app.listen(0, '127.0.0.1');
+try {
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const transport: typeof fetch = (url, init) => fetch(new URL(String(url), origin), init);
+  const session = { expectedOrganizationId: 'org-a', idToken: 'synthetic-transient-only' } as LiveConnectSession;
+  const before = await listProductAgentProfiles(session, undefined, transport);
+  assert.equal(before[0].version, 1); assert.equal(before[0].settingsEditable, true);
+  const update = { product: 'musicscale' as const, expectedVersion: before[0].version, requestId: 'synthetic_http_request_001', publicKnowledgeConfirmed: true,
+    settings: { ...input.settings, enabled: false, overview: { ...input.settings.overview, 'pt-BR': 'Orientação pública aprovada via HTTP.' } } };
+  const result = await saveProductAgentSettings(session, update, undefined, transport);
+  assert.equal(result.version, 2);
+  assert.equal((await saveProductAgentSettings(session, update, undefined, transport)).replayed, true);
+  const after = await listProductAgentProfiles(session, undefined, transport);
+  assert.equal(after[0].enabled, false); assert.equal(after[0].version, 2);
+  assert.equal(after[0].overview['pt-BR'], 'Orientação pública aprovada via HTTP.');
+  assert.deepEqual(after[0].allowedToolRefs, before[0].allowedToolRefs);
+  await assert.rejects(() => saveProductAgentSettings(session, { ...update, requestId: 'synthetic_http_request_002' }, undefined, transport), /AGENT_SETTINGS_CONFLICT/);
+  const beforeForeign = saves;
+  await assert.rejects(() => saveProductAgentSettings({ ...session, expectedOrganizationId: 'org-b' }, update, undefined, transport), /AGENT_ACCESS_DENIED/);
+  assert.equal(saves, beforeForeign);
+} finally { await new Promise<void>(resolve => server.close(() => resolve())); }
 console.log('Agent settings: strict public multilingual fields, immutable domain authority, scoped CAS REST persistence, revision audit, retries/conflicts, fresh Hub manager/owner checks and sanitized failures passed');
