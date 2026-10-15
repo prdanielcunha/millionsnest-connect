@@ -35,8 +35,10 @@ export async function writeProof(dist, sha) {
 }
 
 /** GET-only verification of the actual served HTML/JS/CSS/auth entry, with no credentials. */
-export async function verifyPublishedProof(origin, sha, { fetchImpl = fetch, attempts = 30, delay = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export async function verifyPublishedProof(origin, sha, { expectedProof, fetchImpl = fetch, attempts = 30, delay = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   if (!ORIGINS.has(origin) || !SHA.test(sha) || !Number.isInteger(attempts) || attempts < 1 || attempts > 30) fail();
+  // The serving domain cannot define its own expected artifact hashes.
+  const expected = JSON.stringify(validateProof(expectedProof, sha));
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const signal = AbortSignal.timeout(10000);
@@ -53,7 +55,7 @@ export async function verifyPublishedProof(origin, sha, { fetchImpl = fetch, att
       if (![regular, immutable].every(value => /^application\/json\b/i.test(value.type)) || !/^text\/html\b/i.test(index.type)) fail();
       const proof = validateProof(JSON.parse(regular.body.toString('utf8')), sha);
       const second = validateProof(JSON.parse(immutable.body.toString('utf8')), sha);
-      if (JSON.stringify(proof) !== JSON.stringify(second) || hash(index.body) !== proof.indexSha256) fail();
+      if (JSON.stringify(proof) !== expected || JSON.stringify(second) !== expected || hash(index.body) !== proof.indexSha256) fail();
       await Promise.all(proof.assets.map(async asset => { if (hash((await get(asset.path)).body) !== asset.sha256) fail(); }));
       return true;
     } catch { /* Stale CDN, HTML SPA fallback and transport failures cannot certify a release. */ }
@@ -63,10 +65,15 @@ export async function verifyPublishedProof(origin, sha, { fetchImpl = fetch, att
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [command, target, sha] = process.argv.slice(2);
+  const [command, target, sha, dist = 'dist'] = process.argv.slice(2);
   try {
     if (command === 'write') { await writeProof(target, sha); console.log(`CONNECT_HOSTING_ARTIFACT_READY=${sha}`); }
-    else if (command === 'verify') { await verifyPublishedProof(target, sha); console.log(`CONNECT_HOSTING_EXACT_ARTIFACT_OK=${sha}`); }
+    else if (command === 'verify') {
+      if (!SHA.test(sha)) fail();
+      const expectedProof = JSON.parse(await readFile(resolve(dist, `connect-release-${sha}.json`), 'utf8'));
+      await verifyPublishedProof(target, sha, { expectedProof });
+      console.log(`CONNECT_HOSTING_EXACT_ARTIFACT_OK=${sha}`);
+    }
     else fail();
   } catch { console.error('CONNECT_HOSTING_PROOF_FAILED'); process.exitCode = 1; }
 }
