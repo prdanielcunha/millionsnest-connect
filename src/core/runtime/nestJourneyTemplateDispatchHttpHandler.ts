@@ -120,7 +120,7 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       const response=await fetchImpl(url.toString(),{
         method:'GET',
         headers:{Authorization:authorization,Accept:'application/json','Cache-Control':'no-store'},
-        cache:'no-store',signal:AbortSignal.timeout(8000),
+        cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000),
       });
       if(!response.ok)return res.status(403).json({success:false,code:'FOLLOWUP_NOT_AUTHORIZED'});
       live=await response.json();
@@ -166,7 +166,7 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       const current=await fetchImpl(currentUrl.toString(),{
         method:'GET',
         headers:{Authorization:authorization,Accept:'application/json','Cache-Control':'no-store'},
-        cache:'no-store',signal:AbortSignal.timeout(8000),
+        cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000),
       });
       const payload=current.ok?await current.json().catch(()=>null):null;
       if(!current.ok||payload?.success!==true

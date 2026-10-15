@@ -76,6 +76,7 @@ let allowed=true,consentProof=true;
 const fetchImpl:typeof fetch=async(_url,init)=>{
   hubCalls++;
   equal((init?.headers as any)?.Authorization,'Bearer token','Hub receives bearer');
+  equal(init?.redirect,'error','authorization cannot follow redirects');
   if(!allowed)return new Response(JSON.stringify({success:false}),{status:403});
   return new Response(JSON.stringify({
     success:true,consentContract:consentProof?'whatsapp_explicit_v1':undefined,organization:{id:'org-a'},
@@ -91,11 +92,11 @@ equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
 {
   consentProof=false;
   const r=res();await handler(req(body),r);
-  equal(r.statusCode,403,'legacy Hub without explicit-consent contract cannot initiate Meta dispatch');
-  equal(providerCalls,0,'no Meta send without Hub consent proof');
+  equal(r.statusCode,403,'legacy Hub cannot authorize Meta without explicit consent proof');
+  equal(providerCalls,0,'no provider call without consent proof');
+  equal(dispatchCalls,0,'missing initial proof consumes no dispatch');
   consentProof=true;
 }
-
 equal(isJourneyTemplateDispatchConfigured({...env,CONNECT_NESTJOURNEY_TEMPLATE_APPROVED_LANGUAGES:'zz'}),false,'invalid locale is not activated');
 {
   const r=res();await handler(req({...body,language:'es'}),r);
@@ -120,7 +121,7 @@ equal(isJourneyTemplateDispatchConfigured({...env,CONNECT_NESTJOURNEY_TEMPLATE_A
   equal(r.statusCode,200,'repeat accepted');
   equal(r.body.kind,'duplicate','repeats do not send');
   equal(providerCalls,1,'still one external call');
-  equal(hubCalls,3,'Hub checked twice before Meta and once on repeat');
+  equal(hubCalls,4,'legacy rejection plus two checks before Meta and one on repeat');
 }
 {
   allowed=false;
@@ -131,5 +132,39 @@ equal(isJourneyTemplateDispatchConfigured({...env,CONNECT_NESTJOURNEY_TEMPLATE_A
 {
   const r=res();await handler(req({...body,organizationId:'org-b'}),r);
   equal(r.statusCode,409,'unmapped org has no sender');
+}
+// Proof must still be present after reserving the durable dispatch. A rejected
+// second check consumes the attempt and must never contact Meta, even on retry.
+for(const changed of ['missing_proof','wrong_proof','wrong_tenant','wrong_followup','changed_phone','revoked','redirect','timeout','malformed'] as const){
+  stored=null;
+  let calls=0;
+  const beforeProvider=providerCalls;
+  const currentHandler=createJourneyTemplateDispatchHandler({
+    contextProvider:ctx,hubOrigin:'https://www.millionsnest.com',
+    registry:binding,dispatchStore,messageStore,provider:meta,env,
+    fetchImpl:async(_url,init)=>{
+      equal(init?.redirect,'error','fresh consent check rejects redirect');
+      calls++;
+      if(calls===2&&['redirect','timeout'].includes(changed))throw new Error(changed);
+      if(calls===2&&changed==='malformed')return new Response('not-json');
+      const payload:any={success:true,consentContract:'whatsapp_explicit_v1',organization:{id:'org-a'},followup:{id:'followup-1'},person:{phone:'5543999991234'}};
+      if(calls===2){
+        if(changed==='missing_proof')delete payload.consentContract;
+        if(changed==='wrong_proof')payload.consentContract='implicit_v0';
+        if(changed==='wrong_tenant')payload.organization.id='org-b';
+        if(changed==='wrong_followup')payload.followup.id='followup-other';
+        if(changed==='changed_phone')payload.person.phone='5543999995678';
+        if(changed==='revoked')return new Response('{}',{status:403});
+      }
+      return new Response(JSON.stringify(payload));
+    },
+  });
+  const r=res();await currentHandler(req(body),r);
+  equal(r.statusCode,403,changed+' immediately before Meta is rejected');
+  equal(providerCalls,beforeProvider,changed+' makes no Meta call');
+  equal((stored as HumanReplyDispatchRecord|null)?.status,'failed',changed+' retains failed reservation');
+  const retry=res();await currentHandler(req(body),retry);
+  equal(retry.statusCode,409,changed+' cannot automatically reuse consumed dispatch');
+  equal(providerCalls,beforeProvider,changed+' retry makes no Meta call');
 }
 console.log('Official NestJourney template dispatch contract: '+assertions+' checks passed');

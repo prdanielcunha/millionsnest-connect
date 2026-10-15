@@ -42,6 +42,7 @@ env:
   PROJECT_ID: millionsnest
   REGION: us-central1
   SERVICE: connect-api
+  CONNECT_AGENT_READER_ROLLBACK_SHA: 64979f40c0b4554d4fe73dbd3b3952af99f0062d
   REPOSITORY: millionsnest-web
   RUNTIME_SA: mn-connect-runtime@millionsnest.iam.gserviceaccount.com
   IMAGE: us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${{ github.sha }}
@@ -121,6 +122,15 @@ jobs:
 
           echo "CONNECT_LIVE_UPSTREAM_ROUTE_PROOFS_OK"
 
+          for operation in connect-entities connect-pending-documents; do
+            BODY='{}'
+            if [ "$operation" = connect-pending-documents ]; then BODY='{"financeEntityId":"release-smoke"}'; fi
+            STATUS="$(curl --silent --show-error --max-time 20 --retry 3 --retry-delay 2 -o /tmp/connect-finance-upstream.json -w '%{http_code}' \
+              -X POST "https://nestfinance.millionsnest.com/api/finance-gateway?operation=$operation" -H 'Content-Type: application/json' --data "$BODY")"
+            test "$STATUS" = 401
+          done
+          echo CONNECT_FINANCE_UPSTREAM_READ_ROUTES_OK
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
@@ -130,6 +140,7 @@ jobs:
         run: |
           npm run lint
           npm run test:core-http
+          npm run test:product-routing
           npm run test:whatsapp-assist
           npm run test:radar-pilot
           npm run test:zerocost
@@ -218,6 +229,17 @@ jobs:
             --format=json > /tmp/connect-service-before.json
           PREVIOUS_TRAFFIC_REVISION="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-service-before.json','utf8'));const t=(x?.status?.traffic||[]).find(v=>Number(v.percent)===100&&v.revisionName);process.stdout.write(t?.revisionName||'')")"
           test -n "$PREVIOUS_TRAFFIC_REVISION"
+          gcloud run revisions describe "$PREVIOUS_TRAFFIC_REVISION" \
+            --project "$PROJECT_ID" --region "$REGION" --format=json > /tmp/connect-agent-reader-before.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const x = JSON.parse(fs.readFileSync('/tmp/connect-agent-reader-before.json', 'utf8'));
+          const env = Object.fromEntries((x?.spec?.containers?.[0]?.env || []).map(e => [e.name, e.value]));
+          if (env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED !== 'true' || env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED !== 'true') process.exit(1);
+          if (!['true', 'false'].includes(env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED)) process.exit(1);
+          if (env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED === 'false' && env.CONNECT_RELEASE_SHA !== process.env.CONNECT_AGENT_READER_ROLLBACK_SHA) process.exit(1);
+          console.log('CONNECT_AGENT_READER_ROLLBACK_TARGET_VERIFIED');
+          NODE
           echo "PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION" >> "$GITHUB_ENV"
           echo "CONNECT_PREVIOUS_TRAFFIC_REVISION=$PREVIOUS_TRAFFIC_REVISION"
 
@@ -257,7 +279,7 @@ jobs:
             --timeout 60 \
             --allow-unauthenticated \
             --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED=true,CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=true,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
@@ -280,6 +302,7 @@ jobs:
           if (!ready) process.exit(1);
           if (env.CONNECT_RELEASE_SHA !== process.env.GITHUB_SHA) process.exit(1);
           if (env.CONNECT_RELEASE_RUN_ID !== process.env.GITHUB_RUN_ID) process.exit(1);
+          if (env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED !== 'true' || env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED !== 'true' || env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED !== 'true') process.exit(1);
           NODE
               then
                 EXACT_READY=true
@@ -425,6 +448,20 @@ jobs:
           AGENT_PROFILES_STATUS="$(curl --silent --show-error --max-time 30 -o /tmp/connect-agent-profiles-auth.json -w '%{http_code}' "$BASE/api/core/agents/product-profiles?organizationId=release-smoke")"
           test "$AGENT_PROFILES_STATUS" = 401
           echo CONNECT_PRODUCT_AGENT_PROFILES_AUTHORITY_OK
+
+          for product in musicscale nestfinance nestjourney; do
+            STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-agent-settings-auth.json -w '%{http_code}' \
+              -X PUT "$BASE/api/core/agents/product-profiles/$product?organizationId=release-smoke" -H 'Content-Type: application/json' --data '{}')"
+            test "$STATUS" = 401
+          done
+          echo CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_AUTHORITY_OK
+
+          for operation in entities pending-documents; do
+            STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-finance-auth.json -w '%{http_code}' \
+              -X POST "$BASE/api/core/tools/nestfinance/$operation" -H 'Content-Type: application/json' --data '{}')"
+            test "$STATUS" = 401
+          done
+          echo CONNECT_FINANCE_READ_TOOL_AUTHORITY_OK
 
           STORAGE_READY=false
           for attempt in {1..20}; do

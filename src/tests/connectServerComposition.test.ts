@@ -69,6 +69,20 @@ async function withServer(run: (origin: string) => Promise<void>, env: Record<st
 
 console.log('--- Running Connect Server Composition Tests ---');
 
+for (const [env, expected] of [[{}, 404], [{ CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED: 'true' }, 404], [{ CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED: 'true', MILLIONSNEST_HUB_ORIGIN: 'https://www.millionsnest.com' }, 401]] as const) {
+  const app = createConnectServer({ env, core: createCore(), logger: { info() {}, warn() {}, error() {} } });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    for (const path of ['entities', 'pending-documents']) {
+      const response = await fetch(`${origin}/api/core/tools/nestfinance/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      // Missing Hub composition cannot be activated merely by setting a flag.
+      checkEqual(response.status, expected, 'Finance mounts only with Hub composition and always requires identity');
+    }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+}
+
 await withServer(async origin => {
   const result = await (await fetch(`${origin}/api/health`)).json() as any;
   checkEqual(result.productRouting.requested, true, 'requested routing flag is reported accurately');
@@ -78,6 +92,9 @@ await withServer(async origin => {
 // Actual server composition, synthetic credentials, no domain/provider network requests.
 for (const [change, expected] of [
   [{}, true],
+  [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED: 'true' }, true],
+  [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED: 'true' }, true],
+  [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true' }, false],
   [{ CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED: 'false' }, false],
   [{ CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED: 'false' }, false],
   [{ CONNECT_SUPPORT_ORIGIN_SECRET: 'short' }, false],
@@ -106,6 +123,8 @@ for (const [change, expected] of [
     checkEqual(result.productRouting.mounted, expected, 'mounted readiness reflects real server prerequisites');
     const profileResponse = await fetch(`${origin}/api/core/agents/product-profiles?organizationId=synthetic-org`);
     checkEqual(profileResponse.status, expected ? 401 : 404, 'profiles API mounts only with valid router configuration and requires identity');
+    const updateResponse = await fetch(`${origin}/api/core/agents/product-profiles/musicscale?organizationId=synthetic-org`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    checkEqual(updateResponse.status, expected && change.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && change.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED === 'true' ? 401 : 404, 'settings API is default off, privately stored, editing gated and requires canonical identity');
     for (const forbidden of ['synthetic-meta-token', 'synthetic-support-org', 'synthetic-phone', 'synthetic-origin-secret']) {
       checkEqual(JSON.stringify(result).includes(forbidden), false, 'readiness never reveals credentials or tenant/number configuration');
     }

@@ -1,5 +1,5 @@
 import { resolveExecutionSecretBundle } from './executionSecretBundle';
-import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
+import { createNestFinancePendingDocumentsHttpHandler, createNestFinanceEntitiesHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
@@ -9,7 +9,8 @@ import { createConversationIdFromChannelIdentity, createProviderMessageIndexId }
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
 import { parseProductSupportOwners } from '../core/routing/productRouting';
-import { createProductAgentProfilesHandler } from '../core/agents/productAgentProfilesHttp';
+import { createProductAgentProfilesHandler, createProductAgentSettingsHandler } from '../core/agents/productAgentProfilesHttp';
+import { FirestoreProductAgentSettingsStore } from '../core/agents/firestoreProductAgentSettingsStore';
 import { FirestorePushStore } from '../core/push/firestorePushStore';
 import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
 import { createPushRouter } from '../core/push/pushHttpRouter';
@@ -150,6 +151,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let inboxPush: InboxPushService | null = null;
   let productRouting: WhatsAppProductRouting | null = null;
   let productAgentProfilesHandler: ReturnType<typeof createProductAgentProfilesHandler> | null = null;
+  let productAgentSettingsHandler: ReturnType<typeof createProductAgentSettingsHandler> | null = null;
   let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
   let supportDraftHandler: ReturnType<typeof createSupportDraftHttpHandler> | null = null;
   let automationJobs: FirestoreAutomationJobStore | null = null;
@@ -459,11 +461,17 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               if (env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true' && env.CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED === 'true') {
                 if (!env.CONNECT_SUPPORT_ORIGIN_SECRET || env.CONNECT_SUPPORT_ORIGIN_SECRET.length < 32) throw new Error('PRODUCT_ROUTING_ORIGIN_SECRET_REQUIRED');
                 const owners = parseProductSupportOwners(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON);
-                productAgentProfilesHandler = createProductAgentProfilesHandler({ contextProvider: inboxContextProvider, directory: operatorDirectory, owners });
+                if (env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED !== 'true') throw new Error('PRODUCT_AGENT_SETTINGS_PRIVATE_STORAGE_REQUIRED');
+                const settingsStore = env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED === 'true'
+                  ? new FirestoreProductAgentSettingsStore(projectId, options.fetchImpl, undefined, undefined, env.CONNECT_SUPPORT_ORIGIN_SECRET) : undefined;
+                const agentOptions = { contextProvider: inboxContextProvider, directory: operatorDirectory, owners, settingsStore,
+                  settingsEditable: env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED === 'true' };
+                productAgentProfilesHandler = createProductAgentProfilesHandler(agentOptions);
+                productAgentSettingsHandler = createProductAgentSettingsHandler(agentOptions);
                 productRouting = new WhatsAppProductRouting({
                   registry, routes: new FirestoreProductRouteStore(projectId, options.fetchImpl),
                   messages: messageStore, threads: gatedStore, replies: assistReplyService,
-                  directory: operatorDirectory, owners, originSecret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
+                  directory: operatorDirectory, owners, settingsStore, originSecret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
                 });
                 if (env.CONNECT_SUPPORT_ORIGIN_SECRET && env.CONNECT_SUPPORT_ORIGIN_SECRET.length >= 32) {
                   supportOriginHandler = createSupportOriginHttpHandler(inboxContextProvider, env.CONNECT_SUPPORT_ORIGIN_SECRET);
@@ -504,6 +512,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               whatsappAssistOrchestrator = null;
               productRouting = null;
               productAgentProfilesHandler = null;
+              productAgentSettingsHandler = null;
               supportOriginHandler = null;
               channelLinkConfirmHandler = null;
             }
@@ -628,6 +637,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const financePendingDocuments = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
     ? createNestFinancePendingDocumentsHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
       audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  const financeEntities = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
+    ? createNestFinanceEntitiesHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
+      audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  app.post('/api/core/tools/nestfinance/entities', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!financeEntities) return res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' });
+    return financeEntities(req, res);
+  });
   app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
     if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
     return financePendingDocuments(req, res);
@@ -640,6 +657,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
     res.setHeader('Cache-Control', 'no-store');
     if (!productAgentProfilesHandler) return res.status(404).json({ code: 'PRODUCT_AGENTS_DISABLED' });
     return productAgentProfilesHandler(req, res);
+  });
+  app.put('/api/core/agents/product-profiles/:product', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!productAgentSettingsHandler) return res.status(404).json({ code: 'AGENT_SETTINGS_DISABLED' });
+    return productAgentSettingsHandler(req, res);
   });
   app.post('/api/core/support/origin', (req, res) => {
     if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
