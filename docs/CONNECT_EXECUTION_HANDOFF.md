@@ -1,3 +1,13 @@
+## Recovery hourly OIDC execution proof — source only, 2026-10-15
+
+- The Cloud Run recovery job and one signed smoke are REAL: `connect-inbound-alert-recovery-v1-n2dr9`, production workflow `38799816305` SUCCESS with serving Core SHA `4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107`.
+- Default-branch `main` contains a GitHub Actions hourly schedule but no successful `schedule`-event run was observed in the latest inspection. To establish the exact **GitHub OIDC -> protected Cloud Run Job** run path immediately, this small source change adds one scoped `push` trigger for workflow/script changes to the *same* guarded workflow. It does not grant new permissions or activate a push/Meta/paid service.
+- A successful push-triggered run will prove OIDC and job invocation but **not** prove that GitHub's hourly cron actually fired. Cron is best effort; no guaranteed execution time.
+- NEXT: PR CI -> merge main -> inspect workflow run and exact protected job execution result; keep Cloud Scheduler API disabled. Then proceed with official domain publishers and real #226 matrix. Push real remains disabled until locked iPhone proof.
+
+
+---
+
 # 2026-10-15 — ACTUAL HMAC RECOVERY JOB PROOF, NOT CRON PROOF
 
 - Cloud Scheduler API dependency was rejected without enabling billable services by production workflow `38798802527` (`RECOVERY_BLOCKED_CLOUD_SCHEDULER_API_NOT_ENABLED`). No Cloud Scheduler job exists from that workflow.
