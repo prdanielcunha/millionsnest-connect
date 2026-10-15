@@ -520,7 +520,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           }
         }
 
-        if (env.CONNECT_AUTOMATION_EXECUTION_ENABLED === 'true' && env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_AUTOMATION_TTL_CONFIRMED === 'true') {
+        if ((env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED === 'true' || env.CONNECT_AUTOMATION_EXECUTION_ENABLED === 'true') && env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_AUTOMATION_TTL_CONFIRMED === 'true') {
           try {
             const workerSecret = env.CONNECT_AUTOMATION_WORKER_SECRET || '';
             if (workerSecret.length < 32) throw new Error('AUTOMATION_WORKER_SECRET_REQUIRED');

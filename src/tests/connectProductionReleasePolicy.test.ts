@@ -520,5 +520,9 @@ assert(release.indexOf('Verify existing product routing private storage and acti
 assert.match(release, /CONNECT_CANONICAL_PRODUCT_ROUTING_MOUNTED_OK/);
 assert.match(release, /CONNECT_DIRECT_PRODUCT_ROUTING_MOUNTED_OK/);
 assert.match(release, /CONNECT_AUTOMATION_EXECUTION_ENABLED=false/, 'Manual draft activation must not enable automation');
+assert.match(release, /CONNECT_INTERNAL_ALERT_QUEUE_ENABLED=true/, 'Only the separately verified internal queue may activate');
+assert.match(release, /CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_AUTOMATION_TTL_CONFIRMED=true/);
+assert.match(release, /node scripts\/verify-internal-automation-storage\.mjs/);
+assert.match(release, /echo CONNECT_INTERNAL_AUTOMATION_QUEUE_AUTHORITY_OK/);
 
 assert.match(release, /--revision-suffix "\$REVISION_SUFFIX"\s+\\\s+--no-traffic/, "Candidate must not receive general traffic before exact revision gate");
