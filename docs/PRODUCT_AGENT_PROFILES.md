@@ -11,3 +11,7 @@ Actual app event publishers, reminders/follow-ups, editable per-organization age
 ## Live manager screen
 
 The Agents route now reads the mounted canonical manager endpoint using the current transient session bearer. It shows each product’s curated public knowledge, welcome message, style, available query count and verified-owner or real human-queue state in PT/EN/ES. It never renders raw owner IDs or provider bodies. Requests are cancelled on session change/unmount, time out after ten seconds, and previous-session results are hidden synchronously. Forbidden, expired-session and unavailable responses have separate states and a manual retry. No profile editing or outbound test send is claimed.
+
+## Exact Hosting publication gate
+
+The official Core release now generates strict public SHA metadata for the actual built HTML, JavaScript, CSS and authentication entry script. Before a release passes, both default and canonical Hosting domains must serve the same metadata, exact HTML and matching asset bytes. HTML SPA fallbacks, stale CDN content and mismatched versions fail a bounded retry gate and retain existing failed-release recovery. This proves artifact publication, not authenticated business flows or physical device delivery.
