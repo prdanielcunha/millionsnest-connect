@@ -414,6 +414,9 @@ jobs:
           test "$CORE_MATCHED" = "true"
           node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.productRouting?.requested!==true||x.productRouting?.mounted!==true)process.exit(1)"
           echo CONNECT_CANONICAL_PRODUCT_ROUTING_MOUNTED_OK
+          AGENT_PROFILES_STATUS="$(curl --silent --show-error --max-time 30 -o /tmp/connect-agent-profiles-auth.json -w '%{http_code}' "$BASE/api/core/agents/product-profiles?organizationId=release-smoke")"
+          test "$AGENT_PROFILES_STATUS" = 401
+          echo CONNECT_PRODUCT_AGENT_PROFILES_AUTHORITY_OK
 
           STORAGE_READY=false
           for attempt in {1..20}; do

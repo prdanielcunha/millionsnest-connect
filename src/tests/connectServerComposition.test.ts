@@ -104,6 +104,8 @@ for (const [change, expected] of [
     checkEqual(result.productRouting.requested, true, 'composed runtime records activation intent');
     if (expected && !result.productRouting.mounted) console.error('SYNTHETIC_CONFIGURATION_FAILURE', configErrors);
     checkEqual(result.productRouting.mounted, expected, 'mounted readiness reflects real server prerequisites');
+    const profileResponse = await fetch(`${origin}/api/core/agents/product-profiles?organizationId=synthetic-org`);
+    checkEqual(profileResponse.status, expected ? 401 : 404, 'profiles API mounts only with valid router configuration and requires identity');
     for (const forbidden of ['synthetic-meta-token', 'synthetic-support-org', 'synthetic-phone', 'synthetic-origin-secret']) {
       checkEqual(JSON.stringify(result).includes(forbidden), false, 'readiness never reveals credentials or tenant/number configuration');
     }

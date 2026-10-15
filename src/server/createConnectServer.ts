@@ -9,6 +9,7 @@ import { createConversationIdFromChannelIdentity, createProviderMessageIndexId }
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
 import { parseProductSupportOwners } from '../core/routing/productRouting';
+import { createProductAgentProfilesHandler } from '../core/agents/productAgentProfilesHttp';
 import { FirestorePushStore } from '../core/push/firestorePushStore';
 import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
 import { createPushRouter } from '../core/push/pushHttpRouter';
@@ -145,6 +146,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let whatsappIngestor: WhatsAppInboxIngestor | null = null;
   let inboxPush: InboxPushService | null = null;
   let productRouting: WhatsAppProductRouting | null = null;
+  let productAgentProfilesHandler: ReturnType<typeof createProductAgentProfilesHandler> | null = null;
   let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
   let supportDraftHandler: ReturnType<typeof createSupportDraftHttpHandler> | null = null;
   let automationJobs: FirestoreAutomationJobStore | null = null;
@@ -429,6 +431,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               if (env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true' && env.CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED === 'true') {
                 if (!env.CONNECT_SUPPORT_ORIGIN_SECRET || env.CONNECT_SUPPORT_ORIGIN_SECRET.length < 32) throw new Error('PRODUCT_ROUTING_ORIGIN_SECRET_REQUIRED');
                 const owners = parseProductSupportOwners(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON);
+                productAgentProfilesHandler = createProductAgentProfilesHandler({ contextProvider: inboxContextProvider, directory: operatorDirectory, owners });
                 productRouting = new WhatsAppProductRouting({
                   registry, routes: new FirestoreProductRouteStore(projectId, options.fetchImpl),
                   messages: messageStore, threads: gatedStore, replies: assistReplyService,
@@ -472,6 +475,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               });
               whatsappAssistOrchestrator = null;
               productRouting = null;
+              productAgentProfilesHandler = null;
               supportOriginHandler = null;
               channelLinkConfirmHandler = null;
             }
@@ -603,6 +607,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   app.post('/api/core/support/draft', (req, res) => {
     if (!supportDraftHandler) { res.status(404).json({ code: 'SUPPORT_DRAFT_DISABLED' }); return; }
     return supportDraftHandler(req, res);
+  });
+  app.get('/api/core/agents/product-profiles', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!productAgentProfilesHandler) return res.status(404).json({ code: 'PRODUCT_AGENTS_DISABLED' });
+    return productAgentProfilesHandler(req, res);
   });
   app.post('/api/core/support/origin', (req, res) => {
     if (!supportOriginHandler) { res.status(404).json({ code: 'SUPPORT_ORIGIN_DISABLED' }); return; }
