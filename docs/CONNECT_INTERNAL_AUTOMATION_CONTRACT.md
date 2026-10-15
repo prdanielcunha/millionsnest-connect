@@ -24,3 +24,7 @@ Private runtime IAM/client-denial/TTL required for `connectAutomationJobs.expire
 ## Recovery executable
 
 `npm run build:core` bundles `dist-core/recovery.cjs` alongside the API. Run `npm run start:recovery` in the existing container with secret-managed `CONNECT_AUTOMATION_WORKER_SECRET` and `CONNECT_AUTOMATION_RECOVERY_ORIGIN` set to the canonical Connect HTTPS origin or its isolated Cloud Run service URL. It signs a fresh timestamp and exact ten-job body, rejects unrelated origins/redirects, times out after 25 seconds and exits nonzero without exposing secrets or raw responses. It never retries an uncertain HTTP outcome; the durable queue owns retry/lease policy. Success logs only the processed count. A scheduler/Cloud Run Job must still be provisioned and verified before unattended recovery is claimed.
+
+## Source increment #284 (awaiting release verification)
+
+Incoming WhatsApp message and provider index now commit an atomic `alertOutboxStatus=pending` field. The existing HMAC worker catches up from durable messages (including bounded legacy cursor reconciliation) with canonical tenant/channel binding, at most three failed enqueue attempts, budget and idempotency. Unqueued failures become tenant-authorized `needs_review` entries in the queue read, without phone/body/uid. Index review listing is bounded (200 org records); do not claim exhaustive audit for bigger tenants. Physical push, Meta templates, general automations OFF. Unattended scheduler/real production trial not certified until separate proof.

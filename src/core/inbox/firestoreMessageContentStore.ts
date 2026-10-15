@@ -140,6 +140,11 @@ function providerIndexFields(record: ConnectMessageContentRecord): Record<string
     messageId: stringValue(record.messageId),
     channel: stringValue(record.channel),
     contentPath: stringValue(contentPath(record).join('/')),
+    // Atomic with the message + provider index commit: survives post-ingest
+    // job enqueue failure without an additional Firestore collection.
+    ...(record.channel === 'whatsapp' && record.direction === 'inbound'
+      ? { alertOutboxStatus: stringValue('pending'), alertOutboxAttempts: integerValue(0),
+          alertOutboxOccurredAt: stringValue(record.occurredAt) } : {}),
   };
 }
 
