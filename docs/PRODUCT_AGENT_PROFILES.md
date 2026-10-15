@@ -7,3 +7,7 @@ These profiles execute deterministic public support knowledge, with no generativ
 `GET /api/core/agents/product-profiles?organizationId=...` requires fresh Hub-resolved organization equality and existing Connect Inbox manage authority. It returns public profile knowledge/tool bounds and an owner UID only after current same-organization directory verification. Provider failures cannot expose owner configuration or response bodies. No mutation endpoint or editable per-tenant knowledge is claimed; configuration comes from server defaults plus existing product owners. No new storage/Rules/IAM or paid service is introduced.
 
 Actual app event publishers, reminders/follow-ups, editable per-organization agent customization, generative AI and missing Finance/Journey domain capabilities remain separate unfinished work. Automated fixtures and deployment401 gates do not certify real-account Meta conversations or physical iPhone notifications.
+
+## Live manager screen
+
+The Agents route now reads the mounted canonical manager endpoint using the current transient session bearer. It shows each product’s curated public knowledge, welcome message, style, available query count and verified-owner or real human-queue state in PT/EN/ES. It never renders raw owner IDs or provider bodies. Requests are cancelled on session change/unmount, time out after ten seconds, and previous-session results are hidden synchronously. Forbidden, expired-session and unavailable responses have separate states and a manual retry. No profile editing or outbound test send is claimed.
