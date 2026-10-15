@@ -1,3 +1,16 @@
+# Current checkpoint — agent editor release, 2026-10-15
+
+- Actually serving Connect: 64979f40c0b4554d4fe73dbd3b3952af99f0062d. Official Core run38764473374/job116523964132 SUCCESS: exact direct/canonical SHA, BOTH trusted local-build Hosting proofs, READER_ROLLBACK_READY, PRODUCTION_RELEASE_OK. GCP and SSO also SUCCESS. Reader/private enabled; editing disabled. This is the rollback target for opening edits.
+- Hub ACTUAL published Rules397b3208917fdae9a68fd768d40edd127a4cbb397e3c30fa0420baec8420c182 independently passed259 private-storage checks in38764226998/job116523122327. Hub PR376 mergeddd82c0ae2b1fd881d9d04b881d3f376343ad0f68. Candidate3e0 Rules is NOT published; do not confuse source and active Rules or repeat speculative compiler changes.
+- Agent settings API/editor/router implementation saved in merged274/276 and reader275. Main484b940b6114819f8abb77d5cdf8c8b2783c784d. Final source87254e05ab06fe02b39cdfdd46d70cc9577486c9 and reader6178f72ad9921cabc6f2d635969ccc70e4bc927a passed complete exact-head Quality and upstream authority gates. HMAC tenant provenance, current Hub authority, owner validation, CAS/idempotency, bounded audit, human fallback, and real HTTP synthetic round trip included.
+- This increment changes only the release workflow: verify previous reader/private revision before any serving mutation, pin first reader rollback SHA above, enable EDITING, verify exact released flags, require unauthenticated PUT401 for all3 products. No customer writes in release smoke. Local release-policy/Hosting tests, YAML/bash syntax and diff checks passed.
+- NEXT EXACT: inspect full Quality and Live Upstream Auth for source/editor and editor-release PRs; merge only exact passing heads. Reader deployment is already proven. After writer release, verify exact runtime/canonical SHA, BOTH Hosting proofs, CONNECT_AGENT_READER_ROLLBACK_TARGET_VERIFIED and CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_AUTHORITY_OK plus PRODUCTION_RELEASE_OK. Update this checkpoint with actual deployed SHA. Never equate Git merge with active deploy.
+- Routing and Finance guided reads ON; pushOFF/testmodeON; automationOFF. Physical installed/closed/locked iPhone delivery still pending. Actual domain event publishers/reminders/followups and positive real-account manager/Meta/domain QA unfinished. Deterministic support profiles are not generative AI or completed business automation. No100% claim. Preserve Meta credentials/number/webhooks, Hub/RBAC/tenancy/Gateway/data/subscriptions and #222 untouched.
+
+- SAVED functional source commit1eba94037f8dfbf014db16ba6d7bc95c8d347d97 on chatgpt/connect-agent-settings-editor-20261015, PR277. Release commit2c6a947e0d1c3fff83218331773acf1de3f2b1c8 on chatgpt/connect-agent-settings-editor-release-20261015, PR278. Exact-head Quality38765060544/38765067187 running; source upstream38765061154 SUCCESS, release upstream38765067032 pending. Both workflow and functional handoff are persisted. Do not create duplicate PRs or restart the investigation.
+
+## Historical checkpoints (superseded)
+
 # Verified Finance publication and agent configuration continuation — 2026-10-15
 
 ## Current checkpoint — 2026-10-15 (supersedes all history below)
