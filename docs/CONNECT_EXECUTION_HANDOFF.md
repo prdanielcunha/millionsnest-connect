@@ -1,3 +1,8 @@
+# Exact Hub traffic fix merged — actual deployment pending, 2026-10-15
+
+- Hub379MERGED main816753796d0d139059e1ad180fdb019e86ac3127, Hub380MERGED production CANDIDATEe8aaae0f6376597078f4a42878f1a00a58c664db. Source69bac569a4045381bdde570989db615ddafd69c4 passed2exactgates38777679849/38777679861; releasea83679e9313aab58602501c110445a552a358f78 fullQA38777691125/job116569491259 inclsecurityemulator +infra38777691243SUCCESS. AllcodeSAVED. No newphaseuntilofficialdeploymentverified/recoverable.
+- NEXT EXACT: inspect officialCloudRunPrivateDeploy for e8aaae0...; require exactrun-specificrevision100% andimageSHA, rollbacktarget, publicJourney401, paidMusicScale integrityUNCHANGED andPRODUCTION_RELEASE_OK. Previousfailedae108 attempt safelyrestoredmillionsnest-api-cg38654350176 and didnotdeployHosting. Do notclaimHubupdateduntilsuccess. Connectalreadyservesd1e8f780; flagsunchanged. Detailsbelow.
+
 # CURRENT BLOCKER/FIX SAVED — Hub pinned traffic, 2026-10-15
 
 - Hub official38777162757/job116567684712 FAILED exact serving guard. gcloud created new revision but retained100% traffic on previously pinnedmillionsnest-api-cg38654350176. AutomaticHUB_PREVIOUS_TRAFFIC_RESTORED succeeded. Candidateae108fdf is NOT verifiedserving; no Hostingdeploy was reached. Do not blindlyrerun unchangedworkflow or claimproduction updated.
