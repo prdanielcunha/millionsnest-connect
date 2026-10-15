@@ -3,6 +3,13 @@ name: Connect Free Hourly Recovery
 # Default branch main is the only GitHub schedule source. Changes to its
 # security contract must pass standard PR gates before scheduled execution.
 on:
+  # A one-time automatic production-boundary smoke on initial merge of this
+  # workflow: same OIDC/Cloud Run Job execution path as hourly cron.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/connect-hourly-internal-recovery.yml'
+      - 'scripts/provision-connect-recovery-scheduler.sh'
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
