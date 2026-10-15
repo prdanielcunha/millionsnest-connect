@@ -5,6 +5,7 @@ import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHtt
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent } from '../core/automations/eventJobs';
 import { createInternalAlertExecutor } from '../core/automations/internalAlertExecutor';
+import { FirestoreInboundAlertCatchup } from '../core/automations/inboundAlertOutbox';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
@@ -534,7 +535,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
             automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
-            automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret);
+            if (!registry || registry.size === 0 || !whatsappIngestor) throw new Error('OUTBOX_CANONICAL_WHATSAPP_UNAVAILABLE');
+            const catchup = new FirestoreInboundAlertCatchup({
+              projectId, messages: messageStore, registry, jobs: automationJobs, fetchImpl: options.fetchImpl,
+            });
+            automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret, undefined, catchup);
           } catch {
             automationJobs = null; automationWorker = null; automationEventHandler = null; automationWorkerHandler = null; automationJobsReadHandler = null;
             logger.warn?.('CONNECT_AUTOMATION_CONFIGURATION_INVALID');
