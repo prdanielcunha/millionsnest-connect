@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { LiveFinanceReadPanel } from './LiveFinanceReadPanel';
 import { ArrowUp, CheckCircle2, ExternalLink, FileMusic, ListMusic, Loader2, LockKeyhole, MessageSquareText, Music2, ShieldCheck, Sparkles } from 'lucide-react';
 import { LanguageCode } from '../../types';
 import { LiveConnectSession } from '../../core/client/liveConnectSession';
@@ -304,6 +305,7 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
         </div>
       </header>
 
+      {session.context.appAccess.some(access => access.appId === 'nestfinance' && access.access) ? <LiveFinanceReadPanel session={session} currentLang={currentLang} /> : null}
       <section className="connect-surface flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-[14px]">
         <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {messages.map((message) => {
