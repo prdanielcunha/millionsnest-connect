@@ -126,11 +126,11 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       live=await response.json();
     }catch{return res.status(503).json({success:false,code:'HUB_CONTEXT_UNAVAILABLE'})}
     const value=live as {
-      success?:boolean;organization?:{id?:string};followup?:{id?:string};
+      success?:boolean;consentContract?:string;organization?:{id?:string};followup?:{id?:string};
       person?:{phone?:string};
     }|null;
     const phone=normalizeWhatsAppPhone(value?.person?.phone);
-    if(value?.success!==true||value.organization?.id!==organizationId||
+    if(value?.success!==true||value.consentContract!=='whatsapp_explicit_v1'||value.organization?.id!==organizationId||
       value.followup?.id!==followupId||!phone)
       return res.status(403).json({success:false,code:'FOLLOWUP_NOT_AUTHORIZED'});
     const templateName=env.CONNECT_NESTJOURNEY_TEMPLATE_NAME!;
@@ -170,6 +170,7 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       });
       const payload=current.ok?await current.json().catch(()=>null):null;
       if(!current.ok||payload?.success!==true
+        ||payload?.consentContract!=='whatsapp_explicit_v1'
         ||payload?.organization?.id!==organizationId
         ||payload?.followup?.id!==followupId
         ||normalizeWhatsAppPhone(payload?.person?.phone)!==phone)
