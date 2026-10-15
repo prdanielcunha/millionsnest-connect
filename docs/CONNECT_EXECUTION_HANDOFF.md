@@ -1,3 +1,8 @@
+# Editor merged; publication confirmation pending — 2026-10-15
+
+- PR277 merged main80421b5b8aa0e4bd2d07d2651b277820e985f254; PR278 merged production CANDIDATE98ce9082f659a4381d53113c1f91d732ef5c21d2. Full exact-head Quality38765060544/38765067187 and upstream38765061154/38765067032 ALL SUCCESS. Source1eba94037f8dfbf014db16ba6d7bc95c8d347d97; release2c6a947e0d1c3fff83218331773acf1de3f2b1c8; branches/PRs below. Six isolated actual workflow rollback guard cases passed, including rejecting wrong reader SHA/unconfirmed privacy/pre-reader/unknown editing state.
+- Last VERIFIED ACTUALLY SERVING remains reader64979f40c0b4554d4fe73dbd3b3952af99f0062d until official editor release and both trusted Hosting proofs complete. NEXT EXACT: inspect official Core production run for98ce9082; require expected exact SHA direct/canonical, BOTH Hosting proofs, reader rollback verification, all3 settings PUT401, EDITING_AUTHORITY_OK and PRODUCTION_RELEASE_OK. Record actual evidence here; no new phase before completion/recovery. PushOFF/testmodeON, automationOFF, physical iPhone/domain events/real-account QA unfinished.
+
 # Current checkpoint — agent editor release, 2026-10-15
 
 - Actually serving Connect: 64979f40c0b4554d4fe73dbd3b3952af99f0062d. Official Core run38764473374/job116523964132 SUCCESS: exact direct/canonical SHA, BOTH trusted local-build Hosting proofs, READER_ROLLBACK_READY, PRODUCTION_RELEASE_OK. GCP and SSO also SUCCESS. Reader/private enabled; editing disabled. This is the rollback target for opening edits.
