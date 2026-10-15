@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { GoogleMetadataAccessTokenProvider, type ConnectRuntimeAccessTokenProvider } from '../inbox/firestoreThreadStore';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId, type ConnectMessageContentStore } from '../inbox/messageContentStore';
 import type { WhatsAppConnectionRegistry } from '../channels/whatsappConnectionRegistry';
@@ -141,6 +142,29 @@ export class FirestoreInboundAlertCatchup {
     const commit = await this.request(':commit', { method: 'POST', body: JSON.stringify({ writes: [write] }) });
     if (!commit.ok && ![409, 412].includes(commit.status)) throw new Error('OUTBOX_CURSOR_WRITE_FAILED');
     return { checked, recovered, review };
+  }
+
+  /** Same Hub-authorized operator view as normal jobs; no phone/body/uid included. */
+  async listReviewsForOrganization(organizationId: string) {
+    if (!organizationId || organizationId.length > 180 || /[\\/]/.test(organizationId)) throw new Error('INVALID_OUTBOX_SCOPE');
+    const r = await this.request(':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'connectProviderMessageIndex' }],
+      where: { fieldFilter: { field: { fieldPath: 'organizationId' }, op: 'EQUAL', value: { stringValue: organizationId } } },
+      limit: 200,
+    } }) });
+    if (!r.ok) throw new Error('OUTBOX_REVIEW_UNAVAILABLE');
+    const rows = (await r.json()) as Array<{ document?: IndexDocument }>;
+    return rows.flatMap(row => row.document ? [row.document] : []).filter(doc =>
+      this.string(doc, 'organizationId') === organizationId && this.string(doc, 'channel') === 'whatsapp' &&
+      this.string(doc, 'alertOutboxStatus') === 'needs_review',
+    ).slice(0, 10).map(doc => ({
+      id: createHash('sha256').update('outbox-review:' + organizationId + ':' + this.string(doc, 'messageId')).digest('hex'),
+      sourceApp: 'whatsapp', trigger: 'inbox.message_received',
+      conversationId: this.string(doc, 'conversationId'),
+      occurredAt: this.string(doc, 'alertOutboxOccurredAt') || this.now().toISOString(),
+      state: 'needs_review' as const, attempts: this.attempts(doc),
+      resultCode: this.string(doc, 'alertOutboxCode') || 'unqueued_inbound_human_review',
+    }));
   }
 
   async run(limit = 10): Promise<{ scanned: number; recovered: number; review: number; retry: number }> {
