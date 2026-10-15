@@ -1,0 +1,55 @@
+name: Connect Production Recovery Invoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-recovery-protected-production-run
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Prove exact serving state and invoke existing signed Cloud Run Job
+        shell: bash
+        env:
+          EXPECTED_CORE_SHA: 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107
+        run: |
+          set -euo pipefail
+          PROJECT=millionsnest
+          REGION=us-central1
+          JOB=connect-inbound-alert-recovery-v1
+          curl --fail --silent --show-error --max-time 20 --proto '=https' \
+            -H 'Cache-Control: no-store' 'https://connect.millionsnest.com/api/health?recovery-verified=1' > /tmp/connect-recovery-live.json
+          node - <<'NODE'
+          const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/connect-recovery-live.json','utf8'));
+          if(h.success!==true||h.service!=='millionsnest-connect-core'||h.releaseSha!==process.env.EXPECTED_CORE_SHA) process.exit(1);
+          console.log('RECOVERY_PRODUCTION_LIVE_SHA_OK');
+          NODE
+          gcloud run services describe connect-api --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-service.json
+          node - <<'NODE'
+          const fs=require('fs'); const d=JSON.parse(fs.readFileSync('/tmp/connect-recovery-service.json','utf8'));
+          const env=Object.fromEntries((d.spec?.template?.spec?.containers?.[0]?.env||[]).map(e=>[e.name,e.value]));
+          if(env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED!=='true'||env.CONNECT_AUTOMATION_EXECUTION_ENABLED!=='false'||env.CONNECT_WEB_PUSH_ENABLED!=='false') process.exit(1);
+          console.log('RECOVERY_QUEUE_ONLY_FLAGS_OK');
+          NODE
+          gcloud run jobs describe "$JOB" --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-job.json
+          node - <<'NODE'
+          const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/connect-recovery-job.json','utf8'));
+          const images=[j.spec?.template?.spec?.template?.spec?.containers?.[0]?.image,j.template?.template?.containers?.[0]?.image];
+          if(!images.some(i=>typeof i==='string'&&i.endsWith('connect-api:'+process.env.EXPECTED_CORE_SHA))) process.exit(1);
+          console.log('RECOVERY_PINNED_JOB_IMAGE_OK');
+          NODE
+          gcloud run jobs execute "$JOB" --project "$PROJECT" --region "$REGION" --wait --quiet
+          echo RECOVERY_GITHUB_PROD_OIDC_SIGNED_JOB_OK
