@@ -48,11 +48,11 @@ const store = new FirestoreProductAgentSettingsStore('millionsnest', async (raw,
   assert(url.includes(doc ? 'currentDocument.updateTime=' : 'currentDocument.exists=false'));
   if (conflict) return new Response('{}', { status: 412 });
   const body = JSON.parse(String(init?.body));
-  assert.deepEqual(Object.keys(body.fields).sort(), ['organizationId', 'product', 'recordJson']);
+  assert.deepEqual(Object.keys(body.fields).sort(), ['integrityMac', 'organizationId', 'product', 'recordJson']);
   assert(!JSON.stringify(body).includes('runtime-only')); assert(!JSON.stringify(body).includes('synthetic-manager'));
   doc = { ...body, updateTime: now.toISOString() };
   return Response.json(doc);
-}, { async getAccessToken() { return 'runtime-only'; } }, () => now);
+}, { async getAccessToken() { return 'runtime-only'; } }, () => now, 'synthetic-settings-signing-key-at-least-32-characters');
 assert.equal(await store.read(input), null);
 assert.equal((await store.save(input)).record.version, 1);
 assert.equal((await store.save(input)).replayed, true); assert.equal(patches, 1);
@@ -62,6 +62,12 @@ conflict = true; await assert.rejects(() => store.save(second), /CONFLICT/);
 conflict = false; assert.equal((await store.save(second)).record.version, 2);
 doc.fields.organizationId.stringValue = 'org-b'; await assert.rejects(() => store.read(input), /STORAGE_INVALID/);
 doc.fields.organizationId.stringValue = 'org-a';
+const signature = doc.fields.integrityMac; delete doc.fields.integrityMac;
+await assert.rejects(() => store.read(input), /STORAGE_INVALID/, 'unsigned pre-existing records cannot become server-owned authority');
+doc.fields.integrityMac = signature;
+const originalJson = doc.fields.recordJson.stringValue; doc.fields.recordJson.stringValue = originalJson.replace('MusicScale', 'ForgedScale');
+await assert.rejects(() => store.read(input), /STORAGE_INVALID/, 'stored knowledge cannot be modified without runtime integrity proof');
+doc.fields.recordJson.stringValue = originalJson;
 providerDown = true; await assert.rejects(() => store.read(input), /UNAVAILABLE/);
 const beforeInvalid = calls.length;
 await assert.rejects(() => store.read({ organizationId: '../org-b', product: 'musicscale' }));
@@ -98,6 +104,8 @@ directoryDown = true; assert.equal((await invoke(put, { body: ownerBody })).stat
 assert.equal((await invoke(put, { body: { ...body(), requestId: 'synthetic_request_conflict' } })).status, 409);
 storageDown = true; assert.equal((await invoke(get)).status, 503); storageDown = false;
 assert.equal((await invoke(createProductAgentSettingsHandler({ ...options, settingsStore: undefined }))).status, 404);
+assert.equal((await invoke(createProductAgentSettingsHandler({ ...options, settingsEditable: false }))).status, 404);
+assert.equal((await invoke(createProductAgentProfilesHandler({ ...options, settingsEditable: false }))).payload.profiles[0].settingsEditable, false);
 assert(resolves > 10);
 // Real HTTP round trip with the actual client and handlers, synthetic Hub and
 // tenant storage. This does not claim a positive real-account integration.

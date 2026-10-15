@@ -9,6 +9,7 @@ import { defaultAgentSettings, parseAgentSettings, validAgentProduct, validAgent
 type AgentHandlerOptions = {
   contextProvider: CanonicalContextProvider; directory: ConnectInboxOperatorDirectory; owners: Partial<Record<ConnectProduct, string>>;
   settingsStore?: ProductAgentSettingsStore;
+  settingsEditable?: boolean;
 };
 async function manager(req: express.Request, options: AgentHandlerOptions) {
   const token = req.headers.authorization, organizationId = req.query.organizationId;
@@ -35,7 +36,7 @@ export function createProductAgentProfilesHandler(options: AgentHandlerOptions) 
         const profile = productAgentProfile(product);
         return { ...profile, communicationStyle: settings.communicationStyle,
           knowledge: { ...profile.knowledge, overview: settings.overview, intake: settings.intake },
-          enabled: settings.enabled, version: stored?.version ?? 0, settingsEditable: !!options.settingsStore,
+          enabled: settings.enabled, version: stored?.version ?? 0, settingsEditable: !!options.settingsStore && options.settingsEditable !== false,
           owner: verified ? { state: 'verified', uid } : { state: 'unassigned', uid: null } };
       }));
       return res.json({ success: true, organizationId, configurationSource: options.settingsStore ? 'tenant_settings_and_verified_product_owners' : 'server_defaults_and_verified_product_owners', profiles });
@@ -46,7 +47,7 @@ export function createProductAgentProfilesHandler(options: AgentHandlerOptions) 
 export function createProductAgentSettingsHandler(options: AgentHandlerOptions) {
   return async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (!options.settingsStore) return res.status(404).json({ code: 'AGENT_SETTINGS_DISABLED' });
+    if (!options.settingsStore || options.settingsEditable === false) return res.status(404).json({ code: 'AGENT_SETTINGS_DISABLED' });
     try {
       const authority = await manager(req, options);
       if (authority.status !== 200) return res.status(authority.status).json({ code: authority.code });
