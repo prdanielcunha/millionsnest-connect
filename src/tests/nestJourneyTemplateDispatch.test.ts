@@ -88,6 +88,12 @@ const handler=createJourneyTemplateDispatchHandler({
 });
 equal(isJourneyTemplateDispatchConfigured(env),true,'explicit opt-in config');
 equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
+equal(isJourneyTemplateDispatchConfigured({...env,CONNECT_NESTJOURNEY_TEMPLATE_APPROVED_LANGUAGES:'zz'}),false,'invalid locale is not activated');
+{
+  const r=res();await handler(req({...body,language:'es'}),r);
+  equal(r.statusCode,409,'unapproved locale rejected before Meta dispatch');
+  equal(providerCalls,0,'no provider call for unapproved locale');
+}
 {
   const r=res();await handler(req({...body,acknowledgeTemplate:false}),r);
   equal(r.statusCode,400,'browser must acknowledge template');

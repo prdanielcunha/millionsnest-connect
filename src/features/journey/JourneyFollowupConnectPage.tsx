@@ -166,12 +166,14 @@ export function JourneyFollowupConnectPage({
       cache:'no-store',
     }).then(r=>r.ok?r.json():null).then(result=>{
       if(active)setTemplateInfo({
-        ready:result?.success===true&&result?.ready===true,
+        ready:result?.success===true&&result?.ready===true
+          && Array.isArray(result?.approvedLanguages)
+          && result.approvedLanguages.includes(currentLang==='en-US'?'en_US':currentLang==='es-ES'?'es':'pt_BR'),
         templateName:typeof result?.templateName==='string'?result.templateName:undefined,
       })
     }).catch(()=>{if(active)setTemplateInfo({ready:false})})
     return()=>{active=false}
-  },[context,followupId,session.idToken,session.expectedOrganizationId])
+  },[context,followupId,currentLang,session.idToken,session.expectedOrganizationId])
 
   async function sendOfficialTemplate(){
     if(!templateInfo.ready||!followupId||!context||actionGuard.current)return
