@@ -63,3 +63,23 @@ export function isSafeJourneyReturnUrl(value: string): boolean {
     return false;
   }
 }
+
+/** Revalidate the Hub-authorized follow-up on each manual copy/open action.
+ * A page-load authorization is not proof that consent remains valid. */
+export async function refreshAuthorizedJourneyFollowup(input:{
+  organizationId:string;followupId:string;idToken:string;fetchImpl?:typeof fetch
+}):Promise<NestJourneyFollowupContext>{
+  const q=new URLSearchParams({organizationId:input.organizationId,followupId:input.followupId})
+  const response=await (input.fetchImpl??fetch)(
+    '/api/core/nestjourney/followup?'+q.toString(),
+    {method:'GET',headers:{Authorization:'Bearer '+input.idToken,Accept:'application/json','Cache-Control':'no-store'},cache:'no-store'},
+  )
+  const payload=await response.json().catch(()=>null) as NestJourneyFollowupContext|null
+  if(!response.ok||payload?.success!==true||
+     payload.organization?.id!==input.organizationId||
+     payload.followup?.id!==input.followupId||
+     !payload.person?.phone?.trim()||
+     !isSafeJourneyReturnUrl(payload.returnTo))
+    throw new Error('FOLLOWUP_NOT_AUTHORIZED')
+  return payload
+}

@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Copy, ExternalLink, HeartHandshake, Loader2, MessageCircle, ShieldCheck } from 'lucide-react';
 import type { LanguageCode } from '../../types';
 import type { LiveConnectSession } from '../../core/client/liveConnectSession';
-import { openWhatsAppDraft } from '../../core/client/whatsappDelivery';
+import { buildWhatsAppDraftUrl, normalizeWhatsAppPhone } from '../../core/client/whatsappDelivery';
 import {
   buildFirstContactMessage,
   isSafeJourneyReturnUrl,
   resolveJourneyFollowupId,
+  refreshAuthorizedJourneyFollowup,
   type NestJourneyFollowupContext,
 } from './journeyFollowup';
 
@@ -29,6 +30,7 @@ const copy = {
     rule: 'Abrir o WhatsApp apenas prepara a conversa. O Connect não marca a mensagem como enviada e não encerra o cuidado. Depois do contato, volte ao NestJourney e registre somente o resultado observado.',
     source: 'Roteiro baseado no Manual de Cuidado e Conexão Raiz e Mesa 2026.',
     back: 'Voltar ao NestJourney',
+    templateHeading:'Envio oficial pelo Connect',templateInfo:'Somente template previamente aprovado pela Meta, em português. Pode gerar cobrança por mensagem. A confirmação significa aceite pela Meta, não entrega.',templateAck:'Revisei o template aprovado na Meta e aceito a possível cobrança pelo envio.',templateSend:'Enviar template oficial',templateSending:'Enviando com autorização atualizada…',templateAccepted:'Template aceito pela Meta. Acompanhe o status de entrega pela caixa de entrada.',templateFailed:'O envio não foi confirmado. Não tente reenviar automaticamente: verifique a situação no atendimento.',
   },
   'en-US': {
     kicker: 'NestJourney · Resolve Loop',
@@ -48,6 +50,7 @@ const copy = {
     rule: 'Opening WhatsApp only prepares the conversation. Connect does not mark the message as sent and does not close the care item. After contact, return to NestJourney and record only the observed outcome.',
     source: 'Script based on the Raiz e Mesa 2026 Care & Connection Manual.',
     back: 'Back to NestJourney',
+    templateHeading:'Official Connect delivery',templateInfo:'Only a previously approved Meta template, in Portuguese. Messaging charges may apply. Accepted by Meta does not mean delivered.',templateAck:'I reviewed the approved template at Meta and accept potential messaging fees.',templateSend:'Send official template',templateSending:'Checking authorization and sending…',templateAccepted:'Meta accepted the template. Follow delivery in the inbox.',templateFailed:'Delivery acceptance is not confirmed. Check the inbox before attempting another send.',
   },
   'es-ES': {
     kicker: 'NestJourney · Resolve Loop',
@@ -67,6 +70,7 @@ const copy = {
     rule: 'Abrir WhatsApp solo prepara la conversación. Connect no marca el mensaje como enviado ni cierra el cuidado. Después del contacto, vuelve a NestJourney y registra solamente el resultado observado.',
     source: 'Guion basado en el Manual de Cuidado y Conexión Raiz e Mesa 2026.',
     back: 'Volver a NestJourney',
+    templateHeading:'Envío oficial de Connect',templateInfo:'Solo una plantilla aprobada por Meta, en portugués. Puede tener un coste. La aceptación por Meta no confirma la entrega.',templateAck:'Revisé la plantilla aprobada en Meta y acepto los posibles costes.',templateSend:'Enviar plantilla oficial',templateSending:'Comprobando autorización y enviando…',templateAccepted:'Meta aceptó la plantilla. Compruebe la entrega en la bandeja.',templateFailed:'El envío no está confirmado. Verifique el estado antes de un nuevo intento.',
   },
 } satisfies Record<LanguageCode, Record<string, string>>;
 
@@ -89,6 +93,13 @@ export function JourneyFollowupConnectPage({
   const [message, setMessage] = useState('');
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
+  const [revalidating,setRevalidating]=useState(false);
+  const actionBusy=useRef(false);
+  const [templateReady,setTemplateReady]=useState(false);
+  const [templateName,setTemplateName]=useState('');
+  const [templateAcknowledged,setTemplateAcknowledged]=useState(false);
+  const [templateSending,setTemplateSending]=useState(false);
+  const [templateOutcome,setTemplateOutcome]=useState<'accepted'|'failed'|null>(null);
 
   useEffect(() => {
     if (!followupId) {
@@ -132,15 +143,63 @@ export function JourneyFollowupConnectPage({
     return () => { mounted = false; };
   }, [currentLang, followupId, session]);
 
-  async function copyMessage() {
-    if (!message) return;
-    try {
-      await navigator.clipboard.writeText(message);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
+
+  async function authorizeManualAction(action:'copy'|'whatsapp'){
+    if(actionBusy.current||!context||!followupId||!message.trim())return;
+    actionBusy.current=true;setRevalidating(true);setCopied(false);
+    try{
+      const fresh=await refreshAuthorizedJourneyFollowup({
+        organizationId:session.expectedOrganizationId,followupId,idToken:session.idToken,
+      });
+      const from=normalizeWhatsAppPhone(context.person.phone);
+      const to=normalizeWhatsAppPhone(fresh.person.phone);
+      if(!to||from!==to||fresh.followup.careRequestId!==context.followup.careRequestId)
+        throw new Error('FOLLOWUP_RECIPIENT_CHANGED');
+      if(action==='copy'){
+        await navigator.clipboard.writeText(message);
+        setCopied(true);
+        window.setTimeout(()=>setCopied(false),1800);
+      }else{
+        const url=buildWhatsAppDraftUrl(message,fresh.person.phone);
+        if(!url)throw new Error('INVALID_WHATSAPP_DRAFT');
+        window.location.assign(url);
+      }
+    }catch{
+      // Fail closed: do not expose an actionable draft once authorization fails.
+      setMessage('');setContext(null);setState('error');
+    }finally{
+      actionBusy.current=false;setRevalidating(false);
     }
+  }
+
+
+  useEffect(()=>{
+    let alive=true;
+    const query=new URLSearchParams({organizationId:session.expectedOrganizationId});
+    void fetch('/api/core/nestjourney/followup/template-readiness?'+query.toString(),{
+      method:'GET',headers:{Authorization:'Bearer '+session.idToken,Accept:'application/json','Cache-Control':'no-store'},cache:'no-store',
+    }).then(async response=>response.ok?response.json():null).then(payload=>{
+      if(!alive)return;
+      setTemplateReady(payload?.success===true&&payload?.ready===true&&typeof payload?.templateName==='string');
+      setTemplateName(typeof payload?.templateName==='string'?payload.templateName:'');
+    }).catch(()=>{if(alive)setTemplateReady(false)});
+    return()=>{alive=false};
+  },[session.expectedOrganizationId,session.idToken]);
+
+  async function sendOfficialTemplate(){
+    if(actionBusy.current||!context||!followupId||!templateReady||!templateAcknowledged)return;
+    actionBusy.current=true;setTemplateSending(true);setTemplateOutcome(null);
+    try{
+      const response=await fetch('/api/core/nestjourney/followup/send-template',{
+        method:'POST',headers:{Authorization:'Bearer '+session.idToken,'Content-Type':'application/json',Accept:'application/json','Cache-Control':'no-store'},cache:'no-store',
+        body:JSON.stringify({organizationId:session.expectedOrganizationId,followupId,language:'pt_BR',acknowledgeTemplate:true}),
+      });
+      const result=await response.json().catch(()=>null);
+      if(!response.ok||result?.success!==true||!['accepted','duplicate'].includes(result?.kind))throw new Error('TEMPLATE_DISPATCH_UNCONFIRMED');
+      setTemplateOutcome('accepted');setTemplateAcknowledged(false);
+    }catch{
+      setTemplateOutcome('failed');setTemplateAcknowledged(false);
+    }finally{actionBusy.current=false;setTemplateSending(false);}
   }
 
   function goBack() {
@@ -195,7 +254,7 @@ export function JourneyFollowupConnectPage({
         <div className="rounded-3xl border border-white/10 bg-black/20 p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="journey-first-contact" className="text-sm font-semibold">{t.message}</label>
-            <button type="button" onClick={() => void copyMessage()} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05]">
+            <button type="button" disabled={revalidating} onClick={() => void authorizeManualAction('copy')} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05]">
               {copied ? <CheckCircle2 size={14}/> : <Copy size={14}/>} {copied ? t.copied : t.copy}
             </button>
           </div>
@@ -203,13 +262,26 @@ export function JourneyFollowupConnectPage({
           <p className="mt-3 text-xs leading-5 text-slate-500">{t.editHint}</p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button type="button" disabled={!message.trim()} onClick={()=>openWhatsAppDraft(message, context.person.phone)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
+            <button type="button" disabled={revalidating||!message.trim()} onClick={()=>void authorizeManualAction('whatsapp')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
               <MessageCircle size={17}/>{t.openWhatsApp}<ExternalLink size={14}/>
             </button>
             <button type="button" onClick={goBack} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white">
               <ArrowLeft size={16}/>{t.return}
             </button>
           </div>
+          {templateReady?<section className="mt-6 border-t border-white/10 pt-5" aria-label={t.templateHeading}>
+            <h2 className="text-sm font-semibold">{t.templateHeading}</h2>
+            <p className="mt-2 text-xs leading-5 text-slate-400">{t.templateInfo}</p>
+            <p className="mt-2 text-xs font-medium text-slate-300">{templateName} · pt_BR</p>
+            <label className="mt-4 flex items-start gap-3 text-xs leading-5 text-slate-300">
+              <input type="checkbox" checked={templateAcknowledged} disabled={templateSending||templateOutcome==='accepted'} onChange={event=>setTemplateAcknowledged(event.target.checked)} className="mt-1"/>
+              <span>{t.templateAck}</span>
+            </label>
+            <button type="button" onClick={()=>void sendOfficialTemplate()} disabled={!templateAcknowledged||templateSending||revalidating||templateOutcome==='accepted'} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-white/20 bg-white px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
+              {templateSending?t.templateSending:t.templateSend}
+            </button>
+            {templateOutcome?<p role="status" className="mt-3 text-xs leading-5 text-slate-300">{templateOutcome==='accepted'?t.templateAccepted:t.templateFailed}</p>:null}
+          </section>:null}
           <p className="mt-5 text-[11px] leading-5 text-slate-600">{t.source}</p>
         </div>
       </div>
