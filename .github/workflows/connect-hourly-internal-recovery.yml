@@ -1,43 +1,41 @@
 name: Connect Free Hourly Recovery
-# GitHub Actions cron: lower cost, best effort (may delay; no strict SLA).
-# Default branch main is the only GitHub schedule source. Changes to its
-# security contract must pass standard PR gates before scheduled execution.
+# The default-branch cron has NO GCP identity. Production-only WIF rejects
+# main, so it dispatches an isolated workflow on the protected production ref.
 on:
-  # A one-time automatic production-boundary smoke on initial merge of this
-  # workflow: same OIDC/Cloud Run Job execution path as hourly cron.
   push:
     branches: [main]
     paths:
       - '.github/workflows/connect-hourly-internal-recovery.yml'
-      - 'scripts/provision-connect-recovery-scheduler.sh'
+      - '.github/workflows/connect-production-recovery-invoke.yml'
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
+  actions: write
 
 concurrency:
-  group: connect-recovery-hourly-production
+  group: connect-recovery-hourly-dispatch
   cancel-in-progress: false
 
 jobs:
-  invoke:
+  dispatch:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
-    env:
-      CONNECT_RECOVERY_RUN_ONLY: 'true'
-      CONNECT_RECOVERY_EXPECTED_SERVING_SHA: 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
-          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
-      - name: Verify live SHA, queue-only policy and execute scoped Cloud Run Job
+      - name: Request bounded signed worker on protected production ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/provision-connect-recovery-scheduler.sh
+          test "$GITHUB_REF" = refs/heads/main
+          test "$REPO" = prdanielcunha/millionsnest-connect
+          # GitHub workflow_dispatch is an allowed GITHUB_TOKEN workflow trigger.
+          # This runner cannot obtain GCP credentials or access HMAC secrets.
+          gh api --method POST "/repos/$REPO/actions/workflows/connect-production-recovery-invoke.yml/dispatches" \
+            -f ref=production
+          echo CONNECT_PRODUCTION_RECOVERY_DISPATCH_ACCEPTED
