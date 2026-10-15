@@ -1,3 +1,17 @@
+# 2026-10-15 — VERIFIED PRODUCTION-BOUND GITHUB RECOVERY EXECUTION
+
+- Prior main GitHub OIDC run 38817845735 FAILED with unauthorized_client attribute condition. **No IAM trust relaxation**.
+- Protected production workflow PR #292 merged: production 3c0241e08e7ac9fb7f601d1a3c1c1aa021fb6dd5; source QA run 38818163949 SUCCESS.
+- Default-branch cron dispatcher PR #293 merged: main 680c7e8796fe42847cb2642cad7f067298bf97c7; exact source QA 38818341182 SUCCESS.
+- Actual controlled main-push dispatch run 38818447406 SUCCESS → production-ref workflow_dispatch run 38818456153 SUCCESS. Production job 116708889369 verified actual serving Core 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107, internal queue ON, general automation OFF, real Web Push OFF, pinned Cloud Run Job image, then real execution connect-inbound-alert-recovery-v1-sggrl completed. Log includes RECOVERY_GITHUB_PROD_OIDC_SIGNED_JOB_OK.
+- This is proof of an actual triggered unattended-compatible end-to-end GitHub→production WIF→signed worker execution, **not yet proof of a schedule-triggered hourly run**. GitHub cron is best-effort; maintain durable catch-up and human review. One signed job executes a bounded ten-job batch; do not claim zero backlog.
+- No Meta phone/webhook/credential/billing changes, no send, no iPhone physical push proof, no broad automation activation. Existing Core release remains 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107 though production workflow SHA differs.
+- MusicScale source PR #527 adds optional canonical scale.published→operator-queue event after the official transaction (OFF unless source key, authorized org→conversation/operator mapping and live acceptance). Its best-effort post-commit publisher is NOT durable; MusicScale must gain a durable source outbox for guaranteed replay. Its own member notifications must never be duplicated. Follow with presence/pending, NestFinance and NestJourney canonical emitters and Tool Gateway checks.
+- #226 stays OPEN: real 3-app routing/Meta/manager acceptance, device-locked iPhone Web Push, domain source callbacks, real consents and operator mapping still pending. #222 untouched.
+
+NEXT EXACT: await/repair MusicScale PR #527 QA, merge source only if green; verify first real scheduled cron event and backlog review; implement a proven MusicScale durable upstream event outbox before enabling source key; continue NestFinance/Journey integrations. Preserve last deployed Core and all customer data.
+
+---
 ## Default-branch OIDC recovery blocker and safe production dispatch (2026-10-15)
 
 - A controlled main push attempted the existing low-cost recovery workflow: run 38817845735 failed at google-github-actions/auth with unauthorized_client because the GCP WIF attribute condition rejects the branch main. This correctly preserved least privilege; **do not change the GCP provider trust**.
