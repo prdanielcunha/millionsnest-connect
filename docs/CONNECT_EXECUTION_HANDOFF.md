@@ -1,3 +1,12 @@
+## 2026-10-15 — scheduled cron PROVEN and Inbox same-ms fix
+
+- Real scheduled GitHub event [38821460998](https://github.com/prdanielcunha/millionsnest-connect/actions/runs/38821460998) (`event=schedule`) SUCCESS, dispatching protected `production` ref [38821469215](https://github.com/prdanielcunha/millionsnest-connect/actions/runs/38821469215) SUCCESS. Protected run verified live Core SHA, internal-only flags, pinned job image and executed HMAC signed worker successfully (`RECOVERY_GITHUB_PROD_OIDC_SIGNED_JOB_OK`). This closes the *first scheduled-run evidence* gate, but GitHub schedule remains best-effort without strict SLA and no guarantee of empty backlog/physical push.
+- Updating this handoff initially exposed `CONVERSATION_OPEN_REQUIRED` in Connect Quality #38823065329: canonical opener and immediate reply shared the same millisecond but lexical request IDs put reply before open. Targeted fix source PR #297 passed exact Quality #38823275476 and merged main at `48f6600812514b9648670f1c9f69eff6efc785d0`. Only same-millisecond `CONVERSATION_OPENED` is prioritized in thread projection, preserving orphan-reply and all tenant/transition checks. Focused production forward-port PR #298 is *pending* exact Quality/release; do not claim live Inbox fix until it is published and verified.
+- MusicScale source PR #529 (`scale.presence_pending` operator-only on canonical new response creation) passed full source QA #38821579211 and merged main at `94eeb5bdeafb2fab8546e38fe23a73b41379fecc`; separate beta.7 prod candidate #530 is still gated. It does not create musician reminders or Meta sends.
+
+
+---
+
 # CHECKPOINT 2026-10-15 — VERIFIED MUSIC/FI BACKEND RELEASES; #226 STILL OPEN
 
 - **NestFinance canonical source integration**: source PR #249 merged main `29ff59cf8f4fd02b51e657a3ce62761f6f700364` (15 exact-head source CI green). Focused production PR #250 merged `77469f26b963ed067b2f5df43e64dfc4a4f842c2` (16 branch CI green), but first official deployment run `38821242358` FAILED: direct Cloud Run answered *previous* `e38913053894`; Hosting was skipped. Never count this failed attempt as published.
