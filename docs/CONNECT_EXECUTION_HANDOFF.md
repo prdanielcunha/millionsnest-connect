@@ -1,3 +1,14 @@
+## Default-branch OIDC recovery blocker and safe production dispatch (2026-10-15)
+
+- A controlled main push attempted the existing low-cost recovery workflow: run 38817845735 failed at google-github-actions/auth with unauthorized_client because the GCP WIF attribute condition rejects the branch main. This correctly preserved least privilege; **do not change the GCP provider trust**.
+- A separate production-ref workflow was reviewed in PR #292 and merged into production at 3c0241e08e7ac9fb7f601d1a3c1c1aa021fb6dd5. It has ID token permission on the already authorized production ref only, reads the live Core SHA and queue-only flags, checks the pinned job image, then executes the existing HMAC-signed Cloud Run Job.
+- This source increment replaces direct GCP OIDC on main with a minimal GitHub Actions workflow_dispatch call using only the repository-scoped GITHUB_TOKEN with actions:write. The same production invoke workflow is registered on default main so workflow_dispatch is allowed; the actual job always executes on production. No GCP IAM, API, billing, Meta, push, Hub, or data mutation is introduced.
+- PR CI and a first main-push dispatch PLUS actual resulting production Job SUCCESS are mandatory before marking the cross-branch invocation operational. The hourly GitHub schedule remains best-effort with no latency SLA. Do not confuse dispatch accepted with successful execution.
+- MusicScale official producer is separately developed (source PR #527), feature OFF without the distinct signing key and actual authorized Connect Inbox operator/conversation mapping. Member-facing reminders and three-app automation remain incomplete. Physical locked iPhone push remains OFF pending real proof.
+
+NEXT: verify source Quality, merge main, check both GitHub dispatch run and protected production workflow Job; document any actions:write/WIF failure. Then continue MusicScale publisher gate, NestFinance/Journey source contracts, #226. #222 untouched.
+
+---
 ## Recovery hourly OIDC execution proof — source only, 2026-10-15
 
 - The Cloud Run recovery job and one signed smoke are REAL: `connect-inbound-alert-recovery-v1-n2dr9`, production workflow `38799816305` SUCCESS with serving Core SHA `4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107`.
