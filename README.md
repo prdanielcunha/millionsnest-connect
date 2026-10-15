@@ -149,4 +149,6 @@ The Core can dispatch private Web Push after durable WhatsApp ingestion. Device 
 
 ## Internal event worker (#225 — default off)
 
+Organization-specific support profiles now have a server-owned revisioned configuration API and an explicit manager editor, initially disabled until published Rules privacy proof. See `docs/PRODUCT_AGENT_SETTINGS.md` for activation, immutable domain permissions, audit/idempotency and human fallback. This does not activate domain event automations or physical push delivery.
+
 The internal worker queues real Inbox notification references, uses durable leases/idempotency and an atomic 100-job daily tenant quota, exposes a Hub-authorized audit API, and accepts signed official-app operator-alert events. It does not dispatch commercial WhatsApp or claim domain/member automations are live. Recovery scheduling, secret/private-storage configuration and upstream app publishers remain pending. See `docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md`.
