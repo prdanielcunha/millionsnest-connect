@@ -49,10 +49,10 @@ function createCore(): ConnectCoreService {
   return new ConnectCoreService(context, tool, audit);
 }
 
-async function withServer(run: (origin: string) => Promise<void>) {
+async function withServer(run: (origin: string) => Promise<void>, env: Record<string, string> = {}) {
   const app = createConnectServer({
     core: createCore(),
-    env: { CONNECT_RELEASE_SHA: 'test-release-sha' },
+    env: { CONNECT_RELEASE_SHA: 'test-release-sha', ...env },
   });
   const server = app.listen(0, '127.0.0.1');
   try {
@@ -69,12 +69,55 @@ async function withServer(run: (origin: string) => Promise<void>) {
 
 console.log('--- Running Connect Server Composition Tests ---');
 
+await withServer(async origin => {
+  const result = await (await fetch(`${origin}/api/health`)).json() as any;
+  checkEqual(result.productRouting.requested, true, 'requested routing flag is reported accurately');
+  checkEqual(result.productRouting.mounted, false, 'flag alone cannot claim a router without dependencies');
+}, { CONNECT_PRODUCT_ROUTING_ENABLED: 'true' });
+
+// Actual server composition, synthetic credentials, no domain/provider network requests.
+for (const [change, expected] of [
+  [{}, true],
+  [{ CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED: 'false' }, false],
+  [{ CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED: 'false' }, false],
+  [{ CONNECT_SUPPORT_ORIGIN_SECRET: 'short' }, false],
+  [{ CONNECT_PRODUCT_SUPPORT_OWNERS_JSON: '[]' }, false],
+] as Array<[Record<string, string>, boolean]>) {
+  const configErrors: unknown[] = [];
+  const app = createConnectServer({ core: createCore(), logger: { info() {}, warn(code, details) { configErrors.push([code, details]); }, error(code, details) { configErrors.push([code, details]); } },
+    env: { MILLIONSNEST_HUB_ORIGIN: 'https://www.millionsnest.com', CONNECT_PUBLIC_ORIGIN: 'https://connect.millionsnest.com',
+      CONNECT_FIREBASE_API_KEY: 'synthetic-public-key', CONNECT_INBOX_DURABLE_ENABLED: 'true', CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
+      CONNECT_WHATSAPP_ASSIST_ENABLED: 'true', CONNECT_WHATSAPP_INGESTION_ENABLED: 'true', CONNECT_INBOX_HUMAN_REPLY_ENABLED: 'true',
+      CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED: 'true', CONNECT_WHATSAPP_REPLY_POLICY_ACK: 'CONNECT_WHATSAPP_REPLY_POLICY_READY',
+      CONNECT_WHATSAPP_ACCESS_TOKEN: 'synthetic-meta-token', CONNECT_WHATSAPP_GRAPH_API_VERSION: 'v25.0',
+      CONNECT_WHATSAPP_APP_SECRET: 'synthetic-meta-root-secret-at-least-32-characters',
+      CONNECT_WHATSAPP_CONNECTIONS_JSON: JSON.stringify([{ organizationId: 'synthetic-support-org', phoneNumberId: 'synthetic-phone', connectionRef: 'synthetic-official', enabled: true }]),
+      CONNECT_PRODUCT_ROUTING_ENABLED: 'true', CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED: 'true', CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED: 'true',
+      CONNECT_SUPPORT_ORIGIN_SECRET: 'synthetic-origin-secret-at-least-32-characters', ...change },
+    fetchImpl: async () => { throw new Error('UNEXPECTED_EXTERNAL_CALL'); },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const result = await (await fetch(`${origin}/api/health`)).json() as any;
+    checkEqual(result.productRouting.requested, true, 'composed runtime records activation intent');
+    if (expected && !result.productRouting.mounted) console.error('SYNTHETIC_CONFIGURATION_FAILURE', configErrors);
+    checkEqual(result.productRouting.mounted, expected, 'mounted readiness reflects real server prerequisites');
+    for (const forbidden of ['synthetic-meta-token', 'synthetic-support-org', 'synthetic-phone', 'synthetic-origin-secret']) {
+      checkEqual(JSON.stringify(result).includes(forbidden), false, 'readiness never reveals credentials or tenant/number configuration');
+    }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+}
+
 await withServer(async (origin) => {
   const health = await fetch(`${origin}/api/health`);
   const healthPayload = await health.json() as any;
   checkEqual(health.status, 200, 'health endpoint is reachable');
   checkEqual(healthPayload.service, 'millionsnest-connect-core', 'health identifies Core service');
   checkEqual(healthPayload.releaseSha, 'test-release-sha', 'health exposes immutable release sha when configured');
+  checkEqual(healthPayload.productRouting.requested, false, 'routing stays opt-in');
+  checkEqual(healthPayload.productRouting.mounted, false, 'health cannot claim a missing router is mounted');
   checkEqual(health.headers.get('cache-control'), 'no-store', 'health is not cacheable');
 
   const disabledStorageProbe = await fetch(`${origin}/api/health/storage-readiness`);

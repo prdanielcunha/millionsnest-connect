@@ -6,6 +6,16 @@ export const CONNECT_PRODUCTS = {
   nestfinance: { label: 'NestFinance', tools: [] },
   nestjourney: { label: 'NestJourney', tools: [] },
 } as const;
+/** Optional product owners are requested assignees, never an authorization grant. */
+export function parseProductSupportOwners(raw: string | undefined): Partial<Record<ConnectProduct, string>> {
+  if (raw === undefined) return {};
+  try {
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.entries(value).some(([product, uid]) =>
+      !Object.hasOwn(CONNECT_PRODUCTS, product) || typeof uid !== 'string' || !uid.trim() || uid !== uid.trim() || uid.length > 180 || /[\\/\u0000-\u001f]/.test(uid))) throw new Error();
+    return value;
+  } catch { throw new Error('PRODUCT_SUPPORT_OWNERS_INVALID'); }
+}
 export type ProductRouteDecision = {
   product: ConnectProduct | null; kind: 'route' | 'clarify';
   source: 'explicit_product' | 'signed_origin' | 'conversation_context' | 'music_intent' | 'ambiguous';
@@ -36,7 +46,10 @@ export function routeProduct(text: string, current: ConnectProduct | null, nowMs
   }
   if (explicit.length === 1) return { product: explicit[0], kind: 'route', source: signed ? 'signed_origin' : 'explicit_product' };
   if (signed) return { product: signed, kind: 'route', source: 'signed_origin' };
-  if (current) return { product: current, kind: 'route', source: 'conversation_context' };
+  if (current) {
+    if (current !== 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown') return { product: current, kind: 'clarify', source: 'ambiguous' };
+    return { product: current, kind: 'route', source: 'conversation_context' };
+  }
   if (resolveConnectCoreIntent(clean) !== 'unknown') return { product: 'musicscale', kind: 'route', source: 'music_intent' };
   return { product: null, kind: 'clarify', source: 'ambiguous' };
 }

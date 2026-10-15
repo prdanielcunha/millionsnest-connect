@@ -8,6 +8,7 @@ import { createAutomationEventHandler, createAutomationWorkerHandler, createAuto
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
+import { parseProductSupportOwners } from '../core/routing/productRouting';
 import { FirestorePushStore } from '../core/push/firestorePushStore';
 import { InboxPushService, createWebPushSender } from '../core/push/inboxPushService';
 import { createPushRouter } from '../core/push/pushHttpRouter';
@@ -426,8 +427,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               });
 
               if (env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true' && env.CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED === 'true') {
-                let owners = {};
-                try { owners = JSON.parse(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON || '{}'); } catch { throw new Error('PRODUCT_SUPPORT_OWNERS_INVALID'); }
+                if (!env.CONNECT_SUPPORT_ORIGIN_SECRET || env.CONNECT_SUPPORT_ORIGIN_SECRET.length < 32) throw new Error('PRODUCT_ROUTING_ORIGIN_SECRET_REQUIRED');
+                const owners = parseProductSupportOwners(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON);
                 productRouting = new WhatsAppProductRouting({
                   registry, routes: new FirestoreProductRouteStore(projectId, options.fetchImpl),
                   messages: messageStore, threads: gatedStore, replies: assistReplyService,
@@ -636,6 +637,10 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
       service: 'millionsnest-connect-core',
       protocolVersion: '1.0.0',
       releaseSha: releaseSha || undefined,
+      productRouting: {
+        requested: env.CONNECT_PRODUCT_ROUTING_ENABLED === 'true',
+        mounted: productRouting !== null,
+      },
     });
   });
 

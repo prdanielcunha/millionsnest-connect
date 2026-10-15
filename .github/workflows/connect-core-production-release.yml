@@ -186,6 +186,15 @@ jobs:
           test "$RUNTIME_EMAIL" = "$RUNTIME_SA"
           echo "CONNECT_RUNTIME_IDENTITY_VERIFIED"
 
+      - name: Verify existing product routing private storage and active TTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+          echo "::add-mask::$ACCESS_TOKEN"
+          printf '%s' "$ACCESS_TOKEN" | node scripts/verify-product-routing-storage.mjs
+          unset ACCESS_TOKEN
+
       - name: Configure Docker authentication
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
@@ -233,6 +242,7 @@ jobs:
             --region "$REGION" \
             --image "$IMAGE" \
             --revision-suffix "$REVISION_SUFFIX" \
+            --no-traffic \
             --service-account "$RUNTIME_SA" \
             --port 8080 \
             --cpu 1 \
@@ -243,7 +253,7 @@ jobs:
             --timeout 60 \
             --allow-unauthenticated \
             --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=false,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
@@ -328,6 +338,8 @@ jobs:
           done
           test "$DIRECT_MATCHED" = "true"
           echo "CONNECT_DIRECT_RELEASE_SHA_OK=$GITHUB_SHA"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-direct-health.json','utf8'));if(x.productRouting?.requested!==true||x.productRouting?.mounted!==true)process.exit(1)"
+          echo CONNECT_DIRECT_PRODUCT_ROUTING_MOUNTED_OK
 
       - name: Verify Cloud Run readiness
         run: |
@@ -400,6 +412,8 @@ jobs:
             sleep 3
           done
           test "$CORE_MATCHED" = "true"
+          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/connect-health.json','utf8'));if(x.productRouting?.requested!==true||x.productRouting?.mounted!==true)process.exit(1)"
+          echo CONNECT_CANONICAL_PRODUCT_ROUTING_MOUNTED_OK
 
           STORAGE_READY=false
           for attempt in {1..20}; do

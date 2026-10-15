@@ -511,5 +511,10 @@ console.log('Connect Hosting recovery command and failure gates: OK');
 assert.match(release, /CONNECT_SUPPORT_DRAFT_ENABLED=true/, 'Release mounts only the authenticated manual support draft');
 assert.match(release, /test "\$SUPPORT_DRAFT_STATUS" = "401"/, 'Release must prove support drafts reject unauthenticated callers');
 assert.match(release, /CONNECT_WEB_PUSH_ENABLED=false/, 'Physical push gate remains closed');
-assert.match(release, /CONNECT_PRODUCT_ROUTING_ENABLED=false/, 'Manual draft activation must not enable automated routing');
+assert.match(release, /CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true/, 'Dedicated routing release requires all storage gates');
+assert(release.indexOf('Verify existing product routing private storage and active TTL') < release.indexOf('name: Deploy Connect Core revision'));
+assert.match(release, /CONNECT_CANONICAL_PRODUCT_ROUTING_MOUNTED_OK/);
+assert.match(release, /CONNECT_DIRECT_PRODUCT_ROUTING_MOUNTED_OK/);
 assert.match(release, /CONNECT_AUTOMATION_EXECUTION_ENABLED=false/, 'Manual draft activation must not enable automation');
+
+assert.match(release, /--revision-suffix "\$REVISION_SUFFIX"\s+\\\s+--no-traffic/, "Candidate must not receive general traffic before exact revision gate");
