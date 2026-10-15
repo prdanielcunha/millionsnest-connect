@@ -1,5 +1,5 @@
 import { resolveExecutionSecretBundle } from './executionSecretBundle';
-import { createNestFinancePendingDocumentsHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
+import { createNestFinancePendingDocumentsHttpHandler, createNestFinanceEntitiesHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
@@ -600,6 +600,14 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   const financePendingDocuments = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
     ? createNestFinancePendingDocumentsHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
       audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  const financeEntities = inboxContextProvider && env.CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED === 'true'
+    ? createNestFinanceEntitiesHttpHandler({ contextProvider: inboxContextProvider, fetchImpl: options.fetchImpl as typeof fetch,
+      audit: event => logger.info?.('CONNECT_FINANCE_TOOL_AUDIT', event) }) : null;
+  app.post('/api/core/tools/nestfinance/entities', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!financeEntities) return res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' });
+    return financeEntities(req, res);
+  });
   app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
     if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
     return financePendingDocuments(req, res);

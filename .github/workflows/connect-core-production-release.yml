@@ -119,6 +119,15 @@ jobs:
 
           echo "CONNECT_LIVE_UPSTREAM_ROUTE_PROOFS_OK"
 
+          for operation in connect-entities connect-pending-documents; do
+            BODY='{}'
+            if [ "$operation" = connect-pending-documents ]; then BODY='{"financeEntityId":"release-smoke"}'; fi
+            STATUS="$(curl --silent --show-error --max-time 20 --retry 3 --retry-delay 2 -o /tmp/connect-finance-upstream.json -w '%{http_code}' \
+              -X POST "https://nestfinance.millionsnest.com/api/finance-gateway?operation=$operation" -H 'Content-Type: application/json' --data "$BODY")"
+            test "$STATUS" = 401
+          done
+          echo CONNECT_FINANCE_UPSTREAM_READ_ROUTES_OK
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
@@ -255,7 +264,7 @@ jobs:
             --timeout 60 \
             --allow-unauthenticated \
             --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=false,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=true,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
@@ -423,6 +432,13 @@ jobs:
           AGENT_PROFILES_STATUS="$(curl --silent --show-error --max-time 30 -o /tmp/connect-agent-profiles-auth.json -w '%{http_code}' "$BASE/api/core/agents/product-profiles?organizationId=release-smoke")"
           test "$AGENT_PROFILES_STATUS" = 401
           echo CONNECT_PRODUCT_AGENT_PROFILES_AUTHORITY_OK
+
+          for operation in entities pending-documents; do
+            STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-finance-auth.json -w '%{http_code}' \
+              -X POST "$BASE/api/core/tools/nestfinance/$operation" -H 'Content-Type: application/json' --data '{}')"
+            test "$STATUS" = 401
+          done
+          echo CONNECT_FINANCE_READ_TOOL_AUTHORITY_OK
 
           STORAGE_READY=false
           for attempt in {1..20}; do
