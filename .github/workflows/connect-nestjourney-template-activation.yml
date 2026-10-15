@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       template_name:
-        description: "Approved, parameter-free Meta template (requires pt_BR)"
+        description: "Meta-approved, parameter-free template (pt_BR only; charged by Meta)"
         type: string
         required: true
 
@@ -107,7 +107,7 @@ jobs:
           trap rollback ERR
           gcloud run services update "$SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
-            --update-env-vars="CONNECT_NESTJOURNEY_TEMPLATE_SEND_ENABLED=true,CONNECT_NESTJOURNEY_TEMPLATE_POLICY_ACK=APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED,CONNECT_NESTJOURNEY_TEMPLATE_NAME=$INPUT_TEMPLATE_NAME" \
+            --update-env-vars="CONNECT_NESTJOURNEY_TEMPLATE_SEND_ENABLED=true,CONNECT_NESTJOURNEY_TEMPLATE_POLICY_ACK=APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED,CONNECT_NESTJOURNEY_TEMPLATE_NAME=$INPUT_TEMPLATE_NAME,CONNECT_NESTJOURNEY_TEMPLATE_APPROVED_LANGUAGES=pt_BR" \
             --quiet
           STATUS=$(curl --silent --show-error \
             --output /tmp/nestjourney-template-unauth.json \
