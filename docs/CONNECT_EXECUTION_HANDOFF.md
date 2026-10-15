@@ -1,3 +1,15 @@
+# Saved internal alert queue increment — 2026-10-15
+
+- Source280 51f8a9cad74e906473fd70856c0aaace0c0f67b2, branchchatgpt/connect-internal-alert-queue-20261015; production281 dafc5820c18d842b4f98e31d7a86aad6d22a7225, branchchatgpt/connect-internal-alert-queue-release-20261015. Bothreal-codePRsSAVED (10files). FullCoreHTTP102composition/108template +newactualHTTPqueue tests/lint/web+CorebuildsPASS. New exact-head CIrunning. LastactuallyverifiedservingConnectd1e8f780/Hub e8aaae0f unchanged.
+- NEXT EXACT: finish280/281CI; reviewminimalruntimeexecutor diff then mergeexacttestedheads. PublishwithautomationOFF, verifyofficialbackend+bothHostingSHA, inspectnew READ-ONLY InternalAutomationStorageProof actualRules397+ACTIVEjobs/budgetsTTL. OnlyifproofPASS, makeSECONDgatedactivation ofinternalqueue preservingpushOFF/testmodeON/templatesOFF; physicaldeliveryandmemberfacingdomainpublisherstillpending. Do notblindlyactivatefrommocktests.
+
+# Current increment — independent internal alert queue, 2026-10-15
+
+- Last verified live Connectd1e8f7802c201d46c4746ad0f1301fa30e81b5f4, Hube8aaae0f6376597078f4a42878f1a00a58c664db. Existing routing, agent editor and Finance reads preserved. PushOFF/testmodeON, templatesOFF, automationOFF until separate actual storage proof and gated activation.
+- Implemented queue mounting/real signed Meta post-ingest independently of push; no-push actionable alerts become needs_review, resolved/superseded alerts suppressed. Executor verifies canonical message/thread scopes and operator membership, refuses shared source/worker keys. No Meta/domain writes or physical delivery claims. Actual HTTP signed webhook -> real ingestor/Firestore job adapter/worker tested with synthetic external storage: duplicate -> one job/attempt; failed queue retains durable message and200ACK; unauthorized and foreign-tenant queue reads denied. All new execution/metadata tests, lint and web/Core buildsPASS. FullCoreHTTP running; exact-head CI required before merge.
+- New production-only READ-ONLY metadata proof checks actual approved Rules397 hash and existing ACTIVE TTL for connectAutomationJobs/connectAutomationBudgets, reusing routing proof. No IAM/Rules/TTL/data mutations. Test covers hash drift, each inactiveTTL and upstream denial. Published private259 proof already includes both root groups. Probe must actually succeed before queue activation; do not equate code with enabled runtime.
+- Working branch chatgpt/connect-internal-alert-queue-20261015; source/release PRs created with this functional increment. NEXT EXACT: finish CI and publish code with current automationOFF, inspect official exactSHA/Hosting and independent storage proof. If proofSUCCESS, make a second small gated release enabling only internal queue with existing secretbundle worker key; retain pushOFF/templatesOFF, no app publisher keys invented. Verify queueGET401/worker401 and internal mount on exact serving revision. Periodic recovery and official domain member publishers stillpending.
+
 # Connect execution handoff — verified checkpoint 2026-10-15 17:36 UTC
 
 ## Actual serving releases
