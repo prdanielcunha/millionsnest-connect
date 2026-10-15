@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-// Published Rules tested by Hub run38576220130 with156 denied-browser-access checks.
-export const APPROVED_RULES_SHA256 = '647ddd62c0a16dc9eaa32c11c8155b40ffe6d5190fb53e95c46381508d37e4d6';
+// Hub38760546756: 259 privacy checks and exact published-byte comparison.
+// Reader rollout additionally waits for the in-production post-publish proof.
+export const APPROVED_RULES_SHA256 = '397b3208917fdae9a68fd768d40edd127a4cbb397e3c30fa0420baec8420c182';
 export async function verifyProductRoutingStorage({ token, projectId = 'millionsnest', fetchImpl = fetch, approvedHash = APPROVED_RULES_SHA256 }) {
   if (typeof token !== 'string' || !token.trim() || token.length > 16384 || /[\r\n]/.test(token) || projectId !== 'millionsnest') throw new Error('ROUTING_STORAGE_PROBE_INPUT_INVALID');
   const read = async url => {
