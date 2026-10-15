@@ -156,6 +156,13 @@ export function createConnectThreadEvent(
 
 function compareEventOrder(a: ConnectThreadEvent, b: ConnectThreadEvent): number {
   if (a.occurredAt !== b.occurredAt) return a.occurredAt.localeCompare(b.occurredAt);
+  // Several authenticated actions can share one clock millisecond. An
+  // already-persisted thread opener must be projected before any subsequent
+  // event at that instant; lexical request IDs do not encode causality.
+  // Only this necessary opener invariant is prioritized. All other ties keep
+  // their established deterministic order and transition checks.
+  if (a.eventType === 'CONVERSATION_OPENED' && b.eventType !== 'CONVERSATION_OPENED') return -1;
+  if (b.eventType === 'CONVERSATION_OPENED' && a.eventType !== 'CONVERSATION_OPENED') return 1;
   return a.eventId.localeCompare(b.eventId);
 }
 
