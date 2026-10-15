@@ -89,6 +89,56 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     } catch { throw new Error('WHATSAPP_SUPPORT_NUMBER_UNAVAILABLE'); }
   }
 
+  /** Only Meta-approved, parameter-free templates; never arbitrary first-contact text. */
+  async sendApprovedTemplate(input:{
+    phoneNumberId:string
+    recipientPhone:string
+    templateName:string
+    language:'pt_BR'|'en_US'|'es'
+  }):Promise<WhatsAppProviderSendResult>{
+    const phoneNumberId=safeId(input.phoneNumberId,128);
+    const recipientPhone=safePhone(input.recipientPhone);
+    const templateName=input.templateName.trim();
+    if(!/^[a-z0-9_]{1,512}$/.test(templateName))throw new Error('WHATSAPP_TEMPLATE_NAME_INVALID');
+    if(!['pt_BR','en_US','es'].includes(input.language))throw new Error('WHATSAPP_TEMPLATE_LANGUAGE_INVALID');
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
+    try{
+      const response=await this.fetchImpl(
+        'https://graph.facebook.com/'+this.graphApiVersion+'/'+encodeURIComponent(phoneNumberId)+'/messages',{
+          method:'POST',
+          headers:{
+            Authorization:'Bearer '+this.accessToken,
+            'Content-Type':'application/json',Accept:'application/json',
+          },
+          body:JSON.stringify({
+            messaging_product:'whatsapp',
+            recipient_type:'individual',
+            to:recipientPhone,
+            type:'template',
+            template:{name:templateName,language:{code:input.language}},
+          }),
+          signal:controller.signal,cache:'no-store',
+        },
+      );
+      const payload=await response.json().catch(()=>({})) as {
+        messages?:Array<{id?:unknown}>;error?:{code?:unknown}
+      };
+      if(!response.ok){
+        const code=String(payload.error?.code??response.status).slice(0,40);
+        throw new Error('WHATSAPP_PROVIDER_REJECTED:'+code);
+      }
+      const providerMessageId=payload.messages?.[0]?.id;
+      if(typeof providerMessageId!=='string'||!providerMessageId.trim())
+        throw new Error('WHATSAPP_PROVIDER_RESPONSE_INVALID');
+      return {providerMessageId:providerMessageId.trim().slice(0,300)};
+    }catch(error){
+      if(error instanceof Error&&error.name==='AbortError')
+        throw new Error('WHATSAPP_PROVIDER_TIMEOUT');
+      throw error;
+    }finally{clearTimeout(timeout)}
+  }
+
   async sendText(input: WhatsAppProviderSendTextInput): Promise<WhatsAppProviderSendResult> {
     const phoneNumberId = safeId(input.phoneNumberId, 128);
     const recipientPhone = safePhone(input.recipientPhone);
