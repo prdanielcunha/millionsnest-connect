@@ -89,66 +89,6 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     } catch { throw new Error('WHATSAPP_SUPPORT_NUMBER_UNAVAILABLE'); }
   }
 
-  async sendText(input: WhatsAppProviderSendTextInput): Promise<WhatsAppProviderSendResult> {
-    const phoneNumberId = safeId(input.phoneNumberId, 128);
-    const recipientPhone = safePhone(input.recipientPhone);
-    const text = safeText(input.text);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    try {
-      const response = await this.fetchImpl(
-        `https://graph.facebook.com/${this.graphApiVersion}/${encodeURIComponent(phoneNumberId)}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: recipientPhone,
-            type: 'text',
-            text: {
-              preview_url: false,
-              body: text,
-            },
-          }),
-          signal: controller.signal,
-          cache: 'no-store',
-        },
-      );
-
-      const payload = await response.json().catch(() => ({})) as {
-        messages?: Array<{ id?: unknown }>;
-        error?: { code?: unknown; type?: unknown };
-      };
-
-      if (!response.ok) {
-        const providerCode =
-          typeof payload.error?.code === 'number' || typeof payload.error?.code === 'string'
-            ? String(payload.error.code).slice(0, 40)
-            : String(response.status);
-        throw new Error(`WHATSAPP_PROVIDER_REJECTED:${providerCode}`);
-      }
-
-      const providerMessageId = payload.messages?.[0]?.id;
-      if (typeof providerMessageId !== 'string' || !providerMessageId.trim()) {
-        throw new Error('WHATSAPP_PROVIDER_RESPONSE_INVALID');
-      }
-
-      return { providerMessageId: providerMessageId.trim().slice(0, 300) };
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('WHATSAPP_PROVIDER_TIMEOUT');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
   /** Only Meta-approved, parameter-free templates; never arbitrary first-contact text. */
   async sendApprovedTemplate(input:{
     phoneNumberId:string
