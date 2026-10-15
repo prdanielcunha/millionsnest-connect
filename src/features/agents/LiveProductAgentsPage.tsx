@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Bot, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { LanguageCode } from '../../types';
 import type { LiveConnectSession } from '../../core/client/liveConnectSession';
-import { listProductAgentProfiles, type ProductAgentView } from '../../core/client/productAgentProfilesClient';
+import { listProductAgentProfiles, listProductAgentOwners, type ProductAgentView, type ProductAgentOwnerChoice } from '../../core/client/productAgentProfilesClient';
+import { ProductAgentSettingsEditor } from './ProductAgentSettingsEditor';
 import { OperationWorkspaceHeader } from '../live/OperationWorkspaceHeader';
 
 const copy = {
@@ -11,7 +12,7 @@ const copy = {
   'es-ES': { title: 'Soporte por aplicación', description: 'Respuestas públicas y orientación de acceso. Las consultas personales requieren validar el acceso; las solicitudes sin herramienta disponible pasan al equipo.', refresh: 'Actualizar', loading: 'Cargando perfiles…', denied: 'Solo los responsables de soporte pueden consultar estos perfiles.', session: 'Tu sesión caducó. Inicia sesión de nuevo para consultar los perfiles.', error: 'No se pudieron consultar los perfiles. Inténtalo de nuevo.', knowledge: 'Conocimiento público', response: 'Mensaje de bienvenida', owner: 'Responsable validado en esta organización', queue: 'Cola de atención humana', tools: 'Consultas disponibles tras validar el acceso', noTools: 'Consultas privadas derivadas al equipo', cost: 'Respuestas públicas sin costo de modelo de IA', config: 'La configuración actual la gestiona el equipo técnico. La edición en esta pantalla aún no está disponible.', practical: 'Comunicación práctica', careful: 'Comunicación cuidadosa', welcoming: 'Comunicación acogedora' },
 } satisfies Record<LanguageCode, Record<string, string>>;
 
-type Result = { session: LiveConnectSession; profiles?: ProductAgentView[]; error?: string };
+type Result = { session: LiveConnectSession; profiles?: ProductAgentView[]; owners?: ProductAgentOwnerChoice[] | null; error?: string };
 export function LiveProductAgentsPage({ session, currentLang, onNavigate }: {
   session: LiveConnectSession; currentLang: LanguageCode; onNavigate: (route: string) => void;
 }) {
@@ -23,8 +24,9 @@ export function LiveProductAgentsPage({ session, currentLang, onNavigate }: {
     let active = true;
     setResult(null);
     const timeout = window.setTimeout(() => controller.abort(), 10000);
-    void listProductAgentProfiles(session, controller.signal).then(profiles => {
-      if (active) setResult({ session, profiles });
+    void listProductAgentProfiles(session, controller.signal).then(async profiles => {
+      const owners = profiles.some(profile => profile.settingsEditable) ? await listProductAgentOwners(session, controller.signal).catch(() => null) : null;
+      if (active) setResult({ session, profiles, owners });
     }).catch((error: unknown) => {
       if (active) setResult({ session, error: error instanceof Error ? error.message : 'AGENT_PROFILES_UNAVAILABLE' });
     }).finally(() => window.clearTimeout(timeout));
@@ -52,8 +54,12 @@ export function LiveProductAgentsPage({ session, currentLang, onNavigate }: {
         <p className="mt-1 text-xs leading-5 text-[#8093A6]">{profile.intake[currentLang]}</p>
         <p className="mt-4 flex items-center gap-2 text-xs text-[#C8D4DE]"><ShieldCheck size={14} aria-hidden="true" />{profile.ownerVerified ? t.owner : t.queue}</p>
         <p className="mt-3 text-xs leading-5 text-[#8093A6]">{profile.allowedToolRefs.length ? `${t.tools}: ${profile.allowedToolRefs.length}` : t.noTools}</p>
+        {profile.settingsEditable ? <ProductAgentSettingsEditor session={session} profile={profile} currentLang={currentLang} owners={current.owners ?? null}
+          onSaved={(settings, version) => setResult(previous => previous?.session === session ? { ...previous, profiles: previous.profiles?.map(item => item.product === profile.product ? {
+            ...item, ...settings, version, ownerVerified: !!settings.ownerUid,
+          } : item) } : previous)} /> : null}
       </article>)}</div> : null}
-      <p className="mt-5 text-xs leading-5 text-[#8093A6]">{t.cost} · {t.config}</p>
+      <p className="mt-5 text-xs leading-5 text-[#8093A6]">{t.cost}{current?.profiles?.some(profile => profile.settingsEditable) ? '' : ` · ${t.config}`}</p>
     </section>
   </main>;
 }
