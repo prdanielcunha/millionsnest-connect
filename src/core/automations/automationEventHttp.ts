@@ -18,7 +18,8 @@ export function createAutomationEventHandler(store: AutomationJobStore, keys: Re
     catch (e) { res.status(e instanceof Error && e.message === 'AUTOMATION_EVENT_ID_COLLISION' ? 409 : 503).json({ code: 'AUTOMATION_EVENT_NOT_ACCEPTED' }); }
   };
 }
-export function createAutomationWorkerHandler(worker: InternalAutomationWorker, secret: string, now = () => new Date()) {
+export function createAutomationWorkerHandler(worker: InternalAutomationWorker, secret: string, now = () => new Date(),
+  catchup?: { run(limit: number): Promise<{ scanned: number; recovered: number; review: number; retry: number }> }) {
   return async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-store');
     if (!Buffer.isBuffer(req.body) || !verifyAutomationSignature(req.body, 'worker', req.headers['x-connect-timestamp'], req.headers['x-connect-signature'], secret, +now())) {
@@ -30,8 +31,12 @@ export function createAutomationWorkerHandler(worker: InternalAutomationWorker, 
       if (Object.keys(body).some(k => k !== 'limit') || !Number.isInteger(body.limit) || body.limit < 1 || body.limit > 10) throw new Error();
       limit = body.limit;
     } catch { res.status(400).json({ code: 'INVALID_WORKER_BATCH' }); return; }
-    try { res.json(await worker.run(limit)); }
-    catch { res.status(503).json({ code: 'AUTOMATION_WORKER_UNAVAILABLE' }); }
+    try {
+      // Authenticated only. Durable Inbox reconciliation precedes existing
+      // leased-job execution; any failure leaves messages for the next run.
+      const recovery = catchup ? await catchup.run(limit) : null;
+      res.json({ ...await worker.run(limit), ...(recovery ? { recovery } : {}) });
+    } catch { res.status(503).json({ code: 'AUTOMATION_WORKER_UNAVAILABLE' }); }
   };
 }
 
