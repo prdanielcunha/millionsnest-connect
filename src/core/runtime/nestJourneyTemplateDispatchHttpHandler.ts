@@ -21,6 +21,14 @@ export interface JourneyTemplateDispatchOptions {
 const SAFE_ID=/^[A-Za-z0-9._:-]{1,180}$/;
 const SAFE_TEMPLATE=/^[a-z0-9_]{1,512}$/;
 const LANGUAGES=new Set<JourneyTemplateLanguage>(['pt_BR','en_US','es']);
+function approvedLanguages(env:NodeJS.ProcessEnv):JourneyTemplateLanguage[]{
+  const raw=(env.CONNECT_NESTJOURNEY_TEMPLATE_APPROVED_LANGUAGES||'pt_BR').split(',');
+  const langs=[...new Set(raw.map(v=>v.trim()))];
+  if(!langs.length||langs.some(v=>!LANGUAGES.has(v as JourneyTemplateLanguage)))
+    return [];
+  return langs as JourneyTemplateLanguage[];
+}
+
 function validString(input:unknown):string{
   return typeof input==='string'&&SAFE_ID.test(input)?input:'';
 }
@@ -29,6 +37,7 @@ export function isJourneyTemplateDispatchConfigured(env:NodeJS.ProcessEnv){
     && env.CONNECT_NESTJOURNEY_TEMPLATE_POLICY_ACK==='APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED'
     && env.CONNECT_WHATSAPP_PROVIDER_DISPATCH_ENABLED==='true'
     && SAFE_TEMPLATE.test(env.CONNECT_NESTJOURNEY_TEMPLATE_NAME||'')
+    && approvedLanguages(env).length > 0
     && Boolean(env.CONNECT_WHATSAPP_ACCESS_TOKEN?.trim())
     && /^v\d{1,3}\.\d{1,3}$/.test(env.CONNECT_WHATSAPP_GRAPH_API_VERSION||'');
 }
@@ -65,7 +74,7 @@ export function createJourneyTemplateReadinessHandler(options:JourneyTemplateDis
     return res.status(200).json({
       success:true,ready,
       // Template names are configuration metadata, not actual message content.
-      ...(ready?{templateName:env.CONNECT_NESTJOURNEY_TEMPLATE_NAME}:{}),
+      ...(ready?{templateName:env.CONNECT_NESTJOURNEY_TEMPLATE_NAME,approvedLanguages:approvedLanguages(env)}:{}),
     });
   };
 }
@@ -91,6 +100,8 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
     const language=req.body.language as JourneyTemplateLanguage;
     if(!organizationId||!followupId||!LANGUAGES.has(language)||req.body.acknowledgeTemplate!==true)
       return res.status(400).json({success:false,code:'INVALID_REQUEST'});
+    if(!approvedLanguages(env).includes(language))
+      return res.status(409).json({success:false,code:'TEMPLATE_LANGUAGE_NOT_APPROVED'});
     if(!isJourneyTemplateDispatchConfigured(env)||!options.provider||!options.registry||!options.dispatchStore||!options.messageStore)
       return res.status(409).json({success:false,code:'OFFICIAL_TEMPLATE_NOT_CONFIGURED'});
     const sender=options.registry.resolveOnlyForOrganization(organizationId);
