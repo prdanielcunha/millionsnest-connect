@@ -9,6 +9,7 @@ import { localeFromText } from '../runtime/whatsappAssistOrchestrator';
 import { resolveConnectCoreIntent } from '../runtime/connectCore';
 import { CONNECT_PRODUCTS, routingId, type ConnectProduct, type ProductRouteStore } from './productRouting';
 import { publicProductSupportReply } from '../agents/productAgentProfiles';
+import { defaultAgentSettings, type ProductAgentSettings, type ProductAgentSettingsStore } from '../agents/productAgentSettings';
 
 /** Runs only after durable signed-Meta ingestion; route hints cannot authorize domain data. */
 export class WhatsAppProductRouting {
@@ -17,6 +18,7 @@ export class WhatsAppProductRouting {
     registry: WhatsAppConnectionRegistry; routes: ProductRouteStore; messages: ConnectMessageContentStore;
     threads: ConnectThreadStore; replies: Pick<WhatsAppAssistReplyService, 'send'>;
     directory: ConnectInboxOperatorDirectory; owners?: Partial<Record<ConnectProduct, string>>;
+    settingsStore?: ProductAgentSettingsStore;
     originSecret?: string; now?: () => Date;
   }) { this.commands = new ConnectThreadCommandService(options.threads, options.now); }
   async route(events: WhatsAppNormalizedEvent[]): Promise<WhatsAppNormalizedEvent[]> {
@@ -48,13 +50,24 @@ export class WhatsAppProductRouting {
       const decision = await this.options.routes.decide({ ...scope, eventId: id, occurredAt: original.occurredAt, text: original.body ?? '' }, now.getTime(), this.options.originSecret);
       if (!decision || thread.mode === 'human' || thread.assignedTo?.type === 'user') continue;
       const clean = (original.body ?? '').replace(/\[mn-origin:[^\]]*\]/g, '').trim();
-      if (decision.kind === 'route' && decision.product === 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown') {
+      const product = decision.product;
+      let settings: ProductAgentSettings | null = null;
+      if (decision.kind === 'route' && product) {
+        try {
+          settings = (await this.options.settingsStore?.read({ organizationId: scope.organizationId, product }))?.settings ?? defaultAgentSettings(product, this.options.owners?.[product]);
+        } catch {
+          // An unavailable configuration cannot silently re-enable a disabled
+          // agent or forward a private query. Preserve the inbound and queue it.
+          await this.commands.requestHumanReview({ ...scope, requestId: `wa-20-product-config-${id}`, evidenceRef, reasonCode: 'product_agent_configuration_unavailable' });
+          continue;
+        }
+      }
+      if (settings?.enabled && decision.kind === 'route' && product === 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown') {
         pass.push({ ...event, text: clean });
         continue;
       }
-      const product = decision.product;
-      if (decision.kind === 'route' && product) {
-        const answer = publicProductSupportReply(product, clean, localeFromText(clean));
+      if (settings?.enabled && decision.kind === 'route' && product) {
+        const answer = publicProductSupportReply(product, clean, localeFromText(clean), settings);
         if (answer) {
           await this.options.replies.send({ ...scope, requestId: `product-agent-${id}`, phoneNumberId: event.phoneNumberId, recipientPhone: event.from, text: answer });
           await this.commands.waitForPerson({ ...scope, requestId: `wa-20-product-agent-${id}`, evidenceRef, reasonCode: `product_${product}_public_support_v1_answered` });
@@ -62,7 +75,7 @@ export class WhatsAppProductRouting {
         }
       }
       if (decision.kind === 'route' && product) {
-        const owner = this.options.owners?.[product];
+        const owner = settings?.ownerUid;
         let verifiedOwner = false;
         if (owner) {
           try { verifiedOwner = await this.options.directory.verify({ organizationId: scope.organizationId, uid: owner }); }
