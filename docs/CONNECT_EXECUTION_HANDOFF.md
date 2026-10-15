@@ -1,3 +1,13 @@
+# 2026-10-15: PRODUCTION SCHEDULER BLOCKER AND COST-AVOIDING RETRY
+
+Production scheduler release #287 merged at 19fc6338b22aaae47b22d3d4a087ca865b99fe6e; workflow 38798802527 FAILED at `RECOVERY_BLOCKED_CLOUD_SCHEDULER_API_NOT_ENABLED` after passing live SHA/queue-only probes. **No Cloud Scheduler service was created.** Inbound outbox Core remains serving prior image SHA 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107 and no push, broad automations, or Meta templates were activated.
+
+Current recovery fallback branch `chatgpt/connect-github-hourly-recovery-20261015` provisions the existing pinned signed Cloud Run Job without turning on Scheduler API, with proof of one real signed invocation; a new main-default-branch GitHub Actions cron executes that job best-effort hourly, without recurring IAM/config mutations. GitHub cron is not a guaranteed scheduler. Do not claim unattended recovery until actual provisioning and scheduled run both PASS. Persist every edit via PR; if permissions block Job provisioning, record the exact IAM error, don't create credentials or fake execution.
+
+NEXT: source and production PR/CI, real Cloud Run Job + cron proof; official MusicScale event publisher; NestFinance/NestJourney; #226. #222 untouched. Physical iPhone locked-screen push gate still incomplete.
+
+---
+
 # VERIFIED AFTER RELEASE #285 — 2026-10-15
 
 - Source PR #284 merged: `7bf5e49410c0cb9fc04d9835f3eeab566e6ee7d7`, CI `38796894277` and main CI `38797114147` SUCCESS.
