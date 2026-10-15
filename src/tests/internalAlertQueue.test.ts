@@ -59,7 +59,8 @@ const secret = 'synthetic-distinct-worker-secret-at-least-32-characters';
 // Actual production composition must mount the protected queue independently of
 // all P0 delivery/VAPID flags, while failing closed for every storage/key gate.
 for (const [change, expected] of [
-  [{}, 401], [{ CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED: 'false' }, 404],
+  [{}, 401], [{ CONNECT_INTERNAL_ALERT_QUEUE_ENABLED: 'true', CONNECT_AUTOMATION_EXECUTION_ENABLED: 'false' }, 401],
+  [{ CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED: 'false' }, 404],
   [{ CONNECT_AUTOMATION_TTL_CONFIRMED: 'false' }, 404], [{ CONNECT_AUTOMATION_EXECUTION_ENABLED: 'false' }, 404],
   [{ CONNECT_AUTOMATION_WORKER_SECRET: 'short' }, 404],
   [{ CONNECT_AUTOMATION_SOURCE_KEYS_JSON: JSON.stringify({ nestjourney: secret }) }, 404],
@@ -118,7 +119,7 @@ for (const [change, expected] of [
   const warnings: string[] = [];
   const app = createConnectServer({ env: { CONNECT_INBOX_DURABLE_ENABLED: 'true', CONNECT_INBOX_MESSAGE_CONTENT_ENABLED: 'true',
     CONNECT_WHATSAPP_INGESTION_ENABLED: 'true', CONNECT_WHATSAPP_WEBHOOK_ENABLED: 'true', CONNECT_WHATSAPP_APP_SECRET: secret,
-    CONNECT_AUTOMATION_EXECUTION_ENABLED: 'true', CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED: 'true',
+    CONNECT_AUTOMATION_EXECUTION_ENABLED: 'false', CONNECT_INTERNAL_ALERT_QUEUE_ENABLED: 'true', CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED: 'true',
     CONNECT_AUTOMATION_TTL_CONFIRMED: 'true', CONNECT_AUTOMATION_WORKER_SECRET: secret }, fetchImpl: external,
     inboxStore: inboundThreads,
     inboxMessageContentStore: {
