@@ -1,3 +1,9 @@
+# Internal-only queue activation merged — release proof pending, 2026-10-15
+
+- Source282MERGED main4c365ceeef7a9e21de1db722328946376c99c3a9; release283MERGED productionCANDIDATE70debe5a8f2c9ba8441f799ae86d8e2f1349ed8d. Finalsource dc1423aa3fa7dd5822a07f0d18eab0cf90aded69 and release908a399fffe415cf42dab553d095ffbeee37794e passed complete exacthead Quality38782179285/38782190356 plus upstreamAuth38782179201/38782190546ALLSUCCESS. AllsourceSAVED.
+- NEXT EXACT: officialCore38782472883 for70debe... mustfinish; require actualprivacyTTLproof, direct/canonicalexactSHA+BOTHtrustedHostingproofs, exactdeployednarrowflagTRUE/generalFALSE/pushFALSE and CONNECT_INTERNAL_AUTOMATION_QUEUE_AUTHORITY_OK (jobsGET401/workerPOST401), PRODUCTION_RELEASE_OK. Auth38782472695/SSO38782473616 alsoverify. Lastactuallyservingedd080...untilsuccess. No furtherimplementationbeforethis incrementpublished/recoverable.
+- This isinternaloperatorreview only: physicalpush/testmode/templates/generalautomationflagsunchangedOFF. Domainmemberpublishers andunattendedrecovery andphysicaliPhone/actualpositivecustomerQAunfinished. Do notclaim100%orapproveddomainautomation.
+
 # Current checkpoint — queue foundation published, internal activation saved, 2026-10-15
 
 - ACTUALLYserving Connectedd080664ccffe9449b2028b2657c791bcae177d. OfficialCore38781762898/job116583503643SUCCESS: exactdirect/canonicalSHA, BOTHtrustedHostingproofs andPRODUCTION_RELEASE_OK. IndependentREADONLYstorage38781762933/job116583502681SUCCESS: actualpublishedRules397 androuting/jobs/budgetsTTLsACTIVE. Main29a5e1d01bb4d4c37f2bc40d77eb0e6293d1afe5; 280/281merged; bothQuality38781407838/38781416410PASS.
