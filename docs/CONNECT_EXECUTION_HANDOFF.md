@@ -1,36 +1,51 @@
-# Internal-only queue activation merged — release proof pending, 2026-10-15
+# Connect execution handoff — verified 2026-10-15 18:07 UTC
 
-- Source282MERGED main4c365ceeef7a9e21de1db722328946376c99c3a9; release283MERGED productionCANDIDATE70debe5a8f2c9ba8441f799ae86d8e2f1349ed8d. Finalsource dc1423aa3fa7dd5822a07f0d18eab0cf90aded69 and release908a399fffe415cf42dab553d095ffbeee37794e passed complete exacthead Quality38782179285/38782190356 plus upstreamAuth38782179201/38782190546ALLSUCCESS. AllsourceSAVED.
-- NEXT EXACT: officialCore38782472883 for70debe... mustfinish; require actualprivacyTTLproof, direct/canonicalexactSHA+BOTHtrustedHostingproofs, exactdeployednarrowflagTRUE/generalFALSE/pushFALSE and CONNECT_INTERNAL_AUTOMATION_QUEUE_AUTHORITY_OK (jobsGET401/workerPOST401), PRODUCTION_RELEASE_OK. Auth38782472695/SSO38782473616 alsoverify. Lastactuallyservingedd080...untilsuccess. No furtherimplementationbeforethis incrementpublished/recoverable.
-- This isinternaloperatorreview only: physicalpush/testmode/templates/generalautomationflagsunchangedOFF. Domainmemberpublishers andunattendedrecovery andphysicaliPhone/actualpositivecustomerQAunfinished. Do notclaim100%orapproveddomainautomation.
+## Current published state (supersedes earlier checkpoints)
 
-# Current checkpoint — queue foundation published, internal activation saved, 2026-10-15
+- **Connect ACTUALLY SERVING70debe5a8f2c9ba8441f799ae86d8e2f1349ed8d**, branchproduction. Main4c365ceeef7a9e21de1db722328946376c99c3a9.
+- Official Core release38782472883/job116585934787SUCCESS: actual published Rules/TTL proof, exact direct/canonical Core SHA, BOTH Hosting assets matched trusted local build, CONNECT_INTERNAL_AUTOMATION_QUEUE_AUTHORITY_OK (actual jobsGET401/workerPOST401), runtime Firestore permission probe read_write_confirmed, PRODUCTION_RELEASE_OK. Auth38782472695 and SSO38782473616SUCCESS. Exact deployed flags checked before routing100%.
+- **INTERNAL ALERT QUEUE ON** through dedicated CONNECT_INTERNAL_ALERT_QUEUE_ENABLED=true. Broad CONNECT_AUTOMATION_EXECUTION_ENABLED=false; physical Web PushOFF/testmodeON; Meta templatesOFF. Product routing, agent reader/private/editor and guided Finance readsON.
+- **Hub ACTUALLY SERVINGe8aaae0f6376597078f4a42878f1a00a58c664db**, main816753796d0d139059e1ad180fdb019e86ac3127. Official38778216550/job116571284145SUCCESS: exact image/100% traffic onmillionsnest-api-r38778216550, Hosting/canonicalJourney401, production catalog smoke and paidMusicScale aggregate integrityUNCHANGED.
+- Actual Rules SHA256397b3208917fdae9a68fd768d40edd127a4cbb397e3c30fa0420baec8420c182. Published-source privacy38764226998/job116523122327 passed259assertions INCLUDINGroot connectAutomationJobs/connectAutomationBudgets. Separate read-only metadata38781762933/job116583502681SUCCESS and final release rerun both verified actual approved hash + existingACTIVE routing/jobs/budgetsTTL. No Rules/IAM/TTL configuration or customer data mutations in the storage probe. Candidate3e0Rules inHubGit remainsNOTpublished; do not repeat speculative compiler audits or weaken fingerprint.
 
-- ACTUALLYserving Connectedd080664ccffe9449b2028b2657c791bcae177d. OfficialCore38781762898/job116583503643SUCCESS: exactdirect/canonicalSHA, BOTHtrustedHostingproofs andPRODUCTION_RELEASE_OK. IndependentREADONLYstorage38781762933/job116583502681SUCCESS: actualpublishedRules397 androuting/jobs/budgetsTTLsACTIVE. Main29a5e1d01bb4d4c37f2bc40d77eb0e6293d1afe5; 280/281merged; bothQuality38781407838/38781416410PASS.
-- Internal-onlyactivationSAVED source282 dc1423aa3fa7dd5822a07f0d18eab0cf90aded69 (chatgpt/connect-internal-queue-activation-20261015); release283 908a399fffe415cf42dab553d095ffbeee37794e (chatgpt/connect-internal-queue-activation-release-20261015).6files. DedicatedCONNECT_INTERNAL_ALERT_QUEUE_ENABLED=true; broadCONNECT_AUTOMATION_EXECUTION_ENABLED=false, pushfalse/testmodetrue, templatesOFF. Existinggeneralflagtestcorrectlyprevented broadactivation; preservedit and introducednarrowflag. NewactualHTTPregressionprovesqueueusingonlynarrowflagwithbroadfalse. Localqueue/release/Hosting/lint/build/YAMLbashPASS. ExactheadCI38782179285/sourceQuality and38782190356/releaseQualityrunning; upstream38782179201PASS,38782190546pending.
-- NEXT EXACT: all282/283gates mustPASS, then mergeexpectedheads source+production. OfficialactivationCore release mustprove exactSHA/Hosting, actualprivacyTTLbeforemutation, correctdeployedflags, realjobsGET401/workerPOST401 andQUEUE_AUTHORITY_OK. Priorcodefoundationactualreleaseisproved. Do not claimliveinternalqueueuntilactivationofficialsuccess. Domainmemberpublishers, unattendedrecovery andphysicaliPhone stillpending. No100%claim. AllauthoredsourceSAVED.
+## Latest completed functional increment (#225)
 
-# Saved internal alert queue increment — 2026-10-15
+1. **Independent durable internal review**, source280/release281MERGED:
+   - Source51f8a9cad74e906473fd70856c0aaace0c0f67b2, branchchatgpt/connect-internal-alert-queue-20261015.
+   - Releasedafc5820c18d842b4f98e31d7a86aad6d22a7225, branchchatgpt/connect-internal-alert-queue-release-20261015.
+   - Complete Quality38781407838/38781416410SUCCESS. Foundation was actually publishededd080664ccffe9449b2028b2657c791bcae177d via38781762898/job116583503643 before activation; now superseded by70de...
+   - Real signed Meta post-ingest can enqueue/evaluate jobs without push. Canonical scoped message/thread verified; resolved/waiting-for-person/superseded messages suppressed. Actionable alerts without push become needs_review; no claim of device delivery. App source keys must differ from each other/worker key. No domain data read or Meta dispatch.
+2. **Narrow queue activation**, source282/release283MERGED:
+   - Sourcedc1423aa3fa7dd5822a07f0d18eab0cf90aded69, branchchatgpt/connect-internal-queue-activation-20261015.
+   - Release908a399fffe415cf42dab553d095ffbeee37794e, branchchatgpt/connect-internal-queue-activation-release-20261015.
+   - Exact Quality38782179285/38782190356 + upstream38782179201/38782190546ALLSUCCESS.
+   - Dedicated internal flag avoids enabling broad automation; the existing policy requiring general automationOFF is preserved. Legacy flag compatibility retained. Final release rechecks actual storage before serving mutation and jobs/worker authorization after publication. Runtime/Hosting rollback preserved.
+3. **Tests actually executed**:
+   - Full automation worker suite; local complete CoreHTTP inclcomposition102/102 and template108 checks; TypeScript/lint, web/Core builds; release/Hosting policy, YAML/bash syntax and diff checksPASS. Exact-head full CI and actual production releasePASS.
+   - Actual HTTP composition uses a signed SYNTHETIC Meta request -> real ingestor -> Firestore job adapter -> worker -> authorized queue read, with external Firestore/identity simulated. Duplicatewebhooks => one job/one attempt; no push createsneeds_review; foreign tenant read403; invalidsignature401; queue outage preserves alreadydurable Inbox message and200ACK. No actual customer/Meta/device test is claimed.
+   - Metadata regression tests reject changedRules, inactiveTTL ineachgroup and providerfailures; GET-only and redirectsdenied.
 
-- Source280 51f8a9cad74e906473fd70856c0aaace0c0f67b2, branchchatgpt/connect-internal-alert-queue-20261015; production281 dafc5820c18d842b4f98e31d7a86aad6d22a7225, branchchatgpt/connect-internal-alert-queue-release-20261015. Bothreal-codePRsSAVED (10files). FullCoreHTTP102composition/108template +newactualHTTPqueue tests/lint/web+CorebuildsPASS. New exact-head CIrunning. LastactuallyverifiedservingConnectd1e8f780/Hub e8aaae0f unchanged.
-- NEXT EXACT: finish280/281CI; reviewminimalruntimeexecutor diff then mergeexacttestedheads. PublishwithautomationOFF, verifyofficialbackend+bothHostingSHA, inspectnew READ-ONLY InternalAutomationStorageProof actualRules397+ACTIVEjobs/budgetsTTL. OnlyifproofPASS, makeSECONDgatedactivation ofinternalqueue preservingpushOFF/testmodeON/templatesOFF; physicaldeliveryandmemberfacingdomainpublisherstillpending. Do notblindlyactivatefrommocktests.
+## Paths/contracts and next exact implementation
 
-# Current increment — independent internal alert queue, 2026-10-15
+- Work from current main/production. Current scratch worktreeconnect-internal-alert-queue is based on an older localHEAD; ALLauthoredfiles are SAVED above. Recover fromGitHub ifpruned; do not upload old dirty/generated files blindly.
+- Entry: src/server/createConnectServer.ts (independent queue mount and signed Meta afterIngest); src/core/automations/internalAlertExecutor.ts (canonical source/push-optional execution); eventJobs.ts (existing durable leases/quota/idempotency), automationEventHttp.ts (HMAC worker/app ingress and Hub-scoped queue read).
+- Tests: src/tests/internalAlertQueue.test.ts includes actualHTTP regression; scripts/test-internal-automation-storage.mjs; existingautomation suites. Proof: scripts/verify-internal-automation-storage.mjs and production-only connect-internal-automation-storage.yml. Contract: docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md.
+- Queue audit: GET/api/core/automations/jobs?organizationId=... requires fresh Hub Inbox management; bounded50 and excludes message bodies, phones, raw recipientUID/lease/credentials. Existing Automations UI shows internal queue. complete means policy evaluated, never physicaldelivery.
+- Canonical inbound messages remain durable if enqueue/quota/storage fails. **Known gap:** failed post-ingest enqueue is ACKed after Inbox durability and logs CONNECT_AUTOMATION_POST_INGEST_FAILED; there is not yet a durable outbox/catch-up that reconstructs missed jobs. Do not claim guaranteed alert execution through storage outages. Existing worker retries only ALREADY ENQUEUED jobs (3attempts, leases/backoff, ambiguouspush ->review),100newjobs/org/UTCday.
+- **NEXT EXACT:** complete authorized recovery/catch-up for alreadydurable inbound messages and periodic worker invocation, without duplicating alerts or accepting arbitrary scopes. Existing recovery.cjs/HMAC worker invoker reuses validated mountedsecret; no deployed scheduler has been verified. Address queue recovery before broadening to domain event fan-out. Do not reread allBluePrints or re-auditRules.
+- Then implement ONE official domain eventpublisher -> permitted canonical action increment (#225). Existing signed app ingress targets authorized Inboxoperators/existingconversations, NOT musicians/members. MusicScale canonical publish entry: server.ts /api/v1/music-scales/:musicScaleId/publish -> MusicScaleCommandService.publishMusicScale. Its existing notifications must be reused, never duplicate domain rules/writes. No MusicScale source changed here. If upstream API absent, implement the safe explicit contract and document exact missing API, never simulate ready.
+- Commit/push/real codePR BEFOREnextincrement; targeted checks whileediting, full CI at final gate, then confirm ACTUAL publishedSHA.
 
-- Last verified live Connectd1e8f7802c201d46c4746ad0f1301fa30e81b5f4, Hube8aaae0f6376597078f4a42878f1a00a58c664db. Existing routing, agent editor and Finance reads preserved. PushOFF/testmodeON, templatesOFF, automationOFF until separate actual storage proof and gated activation.
-- Implemented queue mounting/real signed Meta post-ingest independently of push; no-push actionable alerts become needs_review, resolved/superseded alerts suppressed. Executor verifies canonical message/thread scopes and operator membership, refuses shared source/worker keys. No Meta/domain writes or physical delivery claims. Actual HTTP signed webhook -> real ingestor/Firestore job adapter/worker tested with synthetic external storage: duplicate -> one job/attempt; failed queue retains durable message and200ACK; unauthorized and foreign-tenant queue reads denied. All new execution/metadata tests, lint and web/Core buildsPASS. FullCoreHTTP running; exact-head CI required before merge.
-- New production-only READ-ONLY metadata proof checks actual approved Rules397 hash and existing ACTIVE TTL for connectAutomationJobs/connectAutomationBudgets, reusing routing proof. No IAM/Rules/TTL/data mutations. Test covers hash drift, each inactiveTTL and upstream denial. Published private259 proof already includes both root groups. Probe must actually succeed before queue activation; do not equate code with enabled runtime.
-- Working branch chatgpt/connect-internal-alert-queue-20261015; source/release PRs created with this functional increment. NEXT EXACT: finish CI and publish code with current automationOFF, inspect official exactSHA/Hosting and independent storage proof. If proofSUCCESS, make a second small gated release enabling only internal queue with existing secretbundle worker key; retain pushOFF/templatesOFF, no app publisher keys invented. Verify queueGET401/worker401 and internal mount on exact serving revision. Periodic recovery and official domain member publishers stillpending.
+## Still NOT complete / preserve
 
-# Connect execution handoff — verified checkpoint 2026-10-15 17:36 UTC
+- Actual domain member publishers/reminders/followups, unattended recovery/catch-up/scheduler, positive real-account manager/Meta/domain acceptance and installed/closed/locked physical iPhone push proof remainUNFINISHED. No100%claim or closing223–226.
+- Physical delivery MUST be proved before push activation perAGENTS. Queue activation is internal-only and does not waive P0. Appkeys absent remain unconfigured; no credentials/identities/grants invented.
+- No automaticcommercialsend or Meta number/WABA/PhoneID/webhook/credential/billing configuration change. #222 untouched. Preserve Hub/RBAC/tenancy/Gateway/data/subscriptions.
+- Last independently verified Financee389130538946f65fbd47bdcdbfb5e182274ce3f (38704569016). Do not reimplement guided entity/pendingcount flow or relabel Connect-boundtokens.
+- Settings-safe Connect readerrollback64979f40c0b4554d4fe73dbd3b3952af99f0062d; do not roll back to pre-reader/pre-privateRules once settings exist (pause routing if such recovery necessary). Latest release rollback also captures exact previousruntime/Hosting automatically; jobs/data are notdeleted by rollback.
+- This branchchatgpt/connect-support-release-handoff-20261014 is the newest compact checkpoint. Old long logs remain inGit history, not currentstate.
 
-## Actual serving releases
-
-- Connect production **d1e8f7802c201d46c4746ad0f1301fa30e81b5f4**, main **0d32dfa8f95f6ab98aff1b6337c6fcd1f912a336**. Official Core release38775851743/job116563160857 SUCCESS: exact direct/canonical SHA, BOTH Hosting artifacts matched trusted local build, reader rollback guard, editor authority and PRODUCTION_RELEASE_OK. Full source/release Quality38775595033/38775627429 SUCCESS.
-- Hub production **e8aaae0f6376597078f4a42878f1a00a58c664db**, main **816753796d0d139059e1ad180fdb019e86ac3127**. Official CloudRun38778216550/job116571284145 SUCCESS: exact imageSHA and100% traffic on **millionsnest-api-r38778216550**, Hosting deployed, canonical Journey401, production catalog smoke9plans, paid MusicScale aggregate integrityUNCHANGED. Production QA38778216311, NestAI38778216441 and infra38778216145 allSUCCESS.
-- Previous verified Connect agent editor release98ce9082f659a4381d53113c1f91d732ef5c21d2 (Core38765336503) is superseded. Reader64979f40c0b4554d4fe73dbd3b3952af99f0062d (Core38764473374) remains a settings-safe rollback target.
-- Finance last independently verified **e389130538946f65fbd47bdcdbfb5e182274ce3f**, official38704569016/job116320659099. Guided entity selection and bounded pending-document counts were already published; do not reimplement or relabel Connect tokens as Finance tokens.
-- Actual published Hub Rules SHA256 **397b3208917fdae9a68fd768d40edd127a4cbb397e3c30fa0420baec8420c182**. Actual-source byte proof38760546756; independent published-source private gate38764226998/job116523122327 passed259 assertions. Candidate3e0f5bf117932d06be810458d557e52b8cdd17739f2b24d38ab1393d1c72b20f exists in Git but wasNOTpublished (compiler503). No Rules edits this increment. Never remove/loosen the Connect fingerprint or repeat speculative compiler audits.
+## Prior completed integration evidence (historical)
 
 ## Completed code and saved branches
 
@@ -53,27 +68,4 @@
    - Deploy run-specific revision with no traffic, wait exactReady, explicitly route100%; require exact run-specific revision/image, capture prior servingrevision, restore prior traffic on release failure. Existing env/secrets/Hosting/IAM/billing behavior preserved.6actual guard fixture cases, Hosting policy, YAML/bash and diff checksPASS.
    - Source2gates38777679849/38777679861PASS; release fullQA38777691125/job116569491259+infra38777691243PASS. Actual deployment nowSUCCESS above.
 
-## Active flags and honest limitations
 
-- RoutingON; Finance guided readsON; agent reader/private/editorON.
-- Web PushOFF, testmodeON. Business automationOFF. No new Meta template activation or commercial sends. Existing Meta number/WABA/PhoneID/webhooks/credentials/billing unchanged; #222 untouched.
-- Physical installed/closed/locked iPhone delivery is mandatory before push activation (Connect AGENTS). Synthetic CI or a provider accept cannot prove physical delivery.
-- Positive real-account manager/Journey/Meta/domain acceptance isNOTproved. Service tests use synthetic authorized fixtures, not actual customer records.
-- Actual app event publishers, member reminders/followups, unattended recovery/scheduler and three-app event automation remainUNFINISHED. Do not close223–226 or declare100%.
-- No MusicScale source changes this increment. Its existing scale publication already creates canonical notifications; do not duplicate those writes.
-- Last earlier MusicScale proofs f43a464bf8362472a1ec8ceece38ec57dc9493c9 frontend /848d9cf1a4cc38e5f6239703cbf0b83f3d9ff177 API; these wereNOTreverified here. NestJourney earlier6c6c6e321bfe61e03b9f561d4abc888ba5a65282 likewise historical only.
-
-## Exact next action (continue implementation; no new audit)
-
-1. Start from current GitHub main/production and read only the existing #225 paths:
-   - Connect src/core/automations/eventJobs.ts, automationEventHttp.ts, automationCatalog.ts, src/server/createConnectServer.ts automation composition and docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md.
-   - Current worker is internal operator-alert-only, signed source events/HMAC, atomic100-job daily tenant quota, leases/retries/needs_review, bounded manager audit API; not member-facing app automation. Mounting currently depends on inboxPush and P0 hardware gates. Source keys/publishers and periodic recovery deployment are not verified.
-   - MusicScale canonical publish entry: server.ts /api/v1/music-scales/:musicScaleId/publish -> MusicScaleCommandService.publishMusicScale. Existing domain notifications must be reused; do not change musical/business rules or send duplicate alerts.
-2. Implement one complete official event -> permitted canonical action increment with fresh tenant/app authority, durable idempotency, audit/retry/human fallback and cost/consent gating. If domain API/publisher absent, ship the explicit safe Connect contract and state the missing endpoint precisely; never simulate an integration asready. Keep Meta sendsOFF without actual approved template/consent/tariff evidence.
-3. Commit/push/real code PR BEFORE next increment. Run targeted tests while editing; complete existing CI at final gate, then verify actual published SHA. Preserve Hub/RBAC/Tool Gateway/tenancy/data/subscriptions.
-4. Existing runtime rollback for Hub: previous captured revisionmillionsnest-api-cg38654350176, only restore if actual release failure requires it; do not use old revisions to reset branches. Connect must not roll back to pre-settings-reader or pre-private-Rules after settings exist; pause routing if such recovery is required.
-5. This handoff branch **chatgpt/connect-support-release-handoff-20261014** is the canonical newest checkpoint. This compact file supersedes the long historical logs retained in Git history.
-
-## Workspace recovery
-
-Current scratch clones: /workspace/scratch/82cd49e39f00/connect, /workspace/scratch/82cd49e39f00/hub, /workspace/scratch/82cd49e39f00/musicscale (read-only). Scratch can be pruned; recover from GitHub, not stale dirty files. All authored source/workflow code above is saved remotely. Local node_modules/dist/dist-core are generated and must not be uploaded. Attachments in project_sources were consulted; do not repeat blueprint research.
