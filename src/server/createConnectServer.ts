@@ -535,10 +535,13 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
             automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
-            if (!registry || registry.size === 0 || !whatsappIngestor) throw new Error('OUTBOX_CANONICAL_WHATSAPP_UNAVAILABLE');
-            const catchup = new FirestoreInboundAlertCatchup({
-              projectId, messages: messageStore, registry, jobs: automationJobs, fetchImpl: options.fetchImpl,
-            });
+            // Signed app-only automation ingress must keep working even when
+            // this instance has no configured WhatsApp binding.
+            const catchup = registry && registry.size > 0 && whatsappIngestor
+              ? new FirestoreInboundAlertCatchup({
+                  projectId, messages: messageStore, registry, jobs: automationJobs, fetchImpl: options.fetchImpl,
+                })
+              : undefined;
             automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret, undefined, catchup);
           } catch {
             automationJobs = null; automationWorker = null; automationEventHandler = null; automationWorkerHandler = null; automationJobsReadHandler = null;
