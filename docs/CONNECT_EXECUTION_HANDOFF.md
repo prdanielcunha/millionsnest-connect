@@ -1,3 +1,13 @@
+# VERIFIED AFTER RELEASE #285 — 2026-10-15
+
+- Source PR #284 merged: `7bf5e49410c0cb9fc04d9835f3eeab566e6ee7d7`, CI `38796894277` and main CI `38797114147` SUCCESS.
+- Production PR #285 merged: `4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107`, quality `38797289404` SUCCESS. Official production release `38797498963` SUCCESS, including exact Cloud Run readiness/revision and Firebase Hosting proof; Auth `38797498851` and SSO `38797498891` SUCCESS.
+- Deployed source now contains atomic inbound alert outbox + HMAC-only bounded recovery, idempotency, tenanted canonical checks, legacy scan cursor and human review projection. **No periodic production scheduler proof yet**; no genuine locked-iPhone push proof, no domain publisher proofs.
+- Latest work branch `chatgpt/connect-recovery-scheduler-20261015`: proposes production-only least-privilege Cloud Run Job + hourly Cloud Scheduler with an actual signed job smoke BEFORE schedule activation, existing secret mount/image, zero retries and no Meta/Hub/channel/billing mutation. If IAM or Cloud Scheduler API is unavailable, fail closed and report precise blocker. No production scheduler claimed until workflow success, job result and enabled Scheduler proof.
+- NEXT: obtain exact source CI and production scheduler workflow proof; if unavailable document missing IAM/API. Then official MusicScale event publisher/Tool Gateway vertical. Continue protecting #222, Hub/RBAC, multi-tenant, Meta settings. General automations false, physical push false, Meta templates false. Do not declare #226 complete.
+
+---
+
 # IN-PROGRESS SOURCE CHECKPOINT — 2026-10-15
 
 The preceding published-state handoff remains authoritative. A source-only follow-up on branch `chatgpt/connect-inbound-outbox-recovery-20261015` adds an atomic inbound outbox marker to the already-written provider index, bounded signed-worker recovery, CAS cursor for pre-upgrade message reconciliation and tests. Not yet merged/released: **do not count this source branch as deployed**. Web Push remains OFF; broad automations OFF; templates OFF.
