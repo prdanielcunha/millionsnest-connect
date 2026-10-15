@@ -83,6 +83,14 @@ export class WhatsAppConnectionRegistry {
     return this.byPhoneNumberId.get(phoneNumberId.trim()) ?? null;
   }
 
+  /** A church must have exactly one unambiguous enabled sender. */
+  resolveOnlyForOrganization(organizationId: string): WhatsAppConnectionBinding | null {
+    const matches = [...this.byPhoneNumberId.values()].filter(
+      binding => binding.organizationId === organizationId.trim(),
+    );
+    return matches.length === 1 ? matches[0] : null;
+  }
+
   get size(): number {
     return this.byPhoneNumberId.size;
   }
