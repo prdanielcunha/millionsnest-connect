@@ -534,7 +534,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               threads: gatedStore, messages: messageStore, directory: operatorDirectory, push: inboxPush,
             }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
-            automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
+
             // Signed app-only automation ingress must keep working even when
             // this instance has no configured WhatsApp binding.
             const catchup = registry && registry.size > 0 && whatsappIngestor
@@ -542,6 +542,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                   projectId, messages: messageStore, registry, jobs: automationJobs, fetchImpl: options.fetchImpl,
                 })
               : undefined;
+            automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider, catchup);
             automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret, undefined, catchup);
           } catch {
             automationJobs = null; automationWorker = null; automationEventHandler = null; automationWorkerHandler = null; automationJobsReadHandler = null;
