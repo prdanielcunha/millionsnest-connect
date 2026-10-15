@@ -8,6 +8,7 @@ import type { ConnectInboxOperatorDirectory } from '../inbox/hubFirestoreInboxOp
 import { localeFromText } from '../runtime/whatsappAssistOrchestrator';
 import { resolveConnectCoreIntent } from '../runtime/connectCore';
 import { CONNECT_PRODUCTS, routingId, type ConnectProduct, type ProductRouteStore } from './productRouting';
+import { publicProductSupportReply } from '../agents/productAgentProfiles';
 
 /** Runs only after durable signed-Meta ingestion; route hints cannot authorize domain data. */
 export class WhatsAppProductRouting {
@@ -21,7 +22,7 @@ export class WhatsAppProductRouting {
   async route(events: WhatsAppNormalizedEvent[]): Promise<WhatsAppNormalizedEvent[]> {
     const pass: WhatsAppNormalizedEvent[] = [];
     for (const event of events) {
-      if (event.kind !== 'message' || event.messageType !== 'text' || !event.text) continue;
+      if (event.kind !== 'message') continue;
       const connection = this.options.registry.resolve(event.phoneNumberId);
       if (!connection) continue;
       const scope = { organizationId: connection.organizationId, conversationId: createConversationIdFromChannelIdentity({
@@ -38,6 +39,12 @@ export class WhatsAppProductRouting {
       const evidenceRef = createMessageEvidenceRef('whatsapp', event.providerMessageId);
       if (thread.lastEvidenceRef !== evidenceRef) continue;
       const id = routingId(scope.organizationId, event.providerMessageId);
+      if (event.messageType !== 'text' || !event.text) {
+        if (thread.mode !== 'human' && thread.assignedTo?.type !== 'user') {
+          await this.commands.requestHumanReview({ ...scope, requestId: `wa-20-product-media-${id}`, evidenceRef, reasonCode: 'unsupported_message_human_required' });
+        }
+        continue;
+      }
       const decision = await this.options.routes.decide({ ...scope, eventId: id, occurredAt: original.occurredAt, text: original.body ?? '' }, now.getTime(), this.options.originSecret);
       if (!decision || thread.mode === 'human' || thread.assignedTo?.type === 'user') continue;
       const clean = (original.body ?? '').replace(/\[mn-origin:[^\]]*\]/g, '').trim();
@@ -46,6 +53,14 @@ export class WhatsAppProductRouting {
         continue;
       }
       const product = decision.product;
+      if (decision.kind === 'route' && product) {
+        const answer = publicProductSupportReply(product, clean, localeFromText(clean));
+        if (answer) {
+          await this.options.replies.send({ ...scope, requestId: `product-agent-${id}`, phoneNumberId: event.phoneNumberId, recipientPhone: event.from, text: answer });
+          await this.commands.waitForPerson({ ...scope, requestId: `wa-20-product-agent-${id}`, evidenceRef, reasonCode: `product_${product}_public_support_v1_answered` });
+          continue;
+        }
+      }
       if (decision.kind === 'route' && product) {
         const owner = this.options.owners?.[product];
         let verifiedOwner = false;
