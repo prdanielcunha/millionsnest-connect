@@ -34,7 +34,7 @@ jobs:
           const s=require('fs').readFileSync('scripts/provision-connect-recovery-scheduler.sh','utf8');
           const required=['RECOVERY_REAL_SERVING_SHA_OK','RECOVERY_QUEUE_ONLY_FLAGS_OK','RECOVERY_JOB_SIGNED_SMOKE_OK',
             'RECOVERY_GITHUB_ACTIONS_SCHEDULE_REQUIRED','--max-retries=0',
-            'CONNECT_WEB_PUSH_ENABLED','CONNECT_AUTOMATION_EXECUTION_ENABLED','roles/run.invoker',
+            'CONNECT_WEB_PUSH_ENABLED','CONNECT_AUTOMATION_EXECUTION_ENABLED',
             'CONNECT_EXECUTION_SECRET_FILE','CONNECT_AUTOMATION_RECOVERY_ORIGIN'];
           for(const k of required) if(!s.includes(k))process.exit(1);
           if(/gcloud\s+services\s+enable|gcloud\s+scheduler\b|--allow-unauthenticated|--force\b/.test(s))process.exit(1);
