@@ -31,12 +31,9 @@ if(env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED!=='true'||env.CONNECT_AUTOMATION_EXE
 console.log('RECOVERY_QUEUE_ONLY_FLAGS_OK');
 NODE
 
-# Do not enable services/APIs or change the project's billing arrangement.
-if ! gcloud services list --project "$PROJECT" --enabled \
-    --filter='config.name=cloudscheduler.googleapis.com' --format='value(config.name)' \
-    | grep -qx 'cloudscheduler.googleapis.com'; then
-  echo 'RECOVERY_BLOCKED_CLOUD_SCHEDULER_API_NOT_ENABLED' >&2; exit 1
-fi
+# GitHub Actions supplies the hourly schedule; Cloud Scheduler API is not
+# enabled or used. GH scheduled runs may be delayed, so this is best-effort
+# periodic recovery, not a strict-time SLA.
 
 IMAGE="us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:$EXPECTED_SHA"
 gcloud artifacts docker images describe "$IMAGE" --project "$PROJECT" --format='value(image_summary.digest)' >/dev/null
@@ -60,32 +57,4 @@ fi
 gcloud run jobs execute "$JOB" --project "$PROJECT" --region "$REGION" --wait --quiet
 echo RECOVERY_JOB_SIGNED_SMOKE_OK
 
-if ! gcloud iam service-accounts describe "$CALLER" --project "$PROJECT" >/dev/null 2>&1; then
-  gcloud iam service-accounts create mn-connect-recovery-invoker --project "$PROJECT" \
-    --display-name='Connect internal alert recovery scheduler invoker'
-fi
-gcloud run jobs add-iam-policy-binding "$JOB" --project "$PROJECT" --region "$REGION" \
-  --member="serviceAccount:$CALLER" --role='roles/run.invoker' --quiet >/dev/null
-
-# Scheduler requests only permission to start this job. Job then authenticates
-# to Connect with the existing HMAC secret; secret never enters Scheduler/GitHub.
-SCHED_ARGS=(
-  --project "$PROJECT" --location "$REGION" --schedule='17 * * * *' --time-zone=Etc/UTC
-  --uri="https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/jobs/$JOB:run"
-  --http-method=POST --headers='Content-Type=application/json' --message-body='{}'
-  --oauth-service-account-email="$CALLER"
-  --oauth-token-scope='https://www.googleapis.com/auth/cloud-platform'
-  --max-retry-attempts=0
-)
-if gcloud scheduler jobs describe "$SCHEDULE" --project "$PROJECT" --location "$REGION" >/dev/null 2>&1; then
-  gcloud scheduler jobs update http "$SCHEDULE" "${SCHED_ARGS[@]}" --quiet
-else
-  gcloud scheduler jobs create http "$SCHEDULE" "${SCHED_ARGS[@]}" --quiet
-fi
-gcloud scheduler jobs describe "$SCHEDULE" --project "$PROJECT" --location "$REGION" --format=json > /tmp/connect-recovery-scheduler.json
-node - <<'NODE'
-const fs=require('fs');
-const s=JSON.parse(fs.readFileSync('/tmp/connect-recovery-scheduler.json','utf8'));
-if(s.schedule!=='17 * * * *'||s.state!=='ENABLED'||!String(s.httpTarget?.uri||'').endsWith('/jobs/connect-inbound-alert-recovery-v1:run'))process.exit(1);
-console.log('RECOVERY_HOURLY_SCHEDULER_CONFIGURED_OK');
-NODE
+echo RECOVERY_GITHUB_ACTIONS_SCHEDULE_REQUIRED
