@@ -5,6 +5,7 @@ import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHtt
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent } from '../core/automations/eventJobs';
 import { createInternalAlertExecutor } from '../core/automations/internalAlertExecutor';
+import { FirestoreInboundAlertCatchup } from '../core/automations/inboundAlertOutbox';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
@@ -533,8 +534,16 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
               threads: gatedStore, messages: messageStore, directory: operatorDirectory, push: inboxPush,
             }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
-            automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
-            automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret);
+
+            // Signed app-only automation ingress must keep working even when
+            // this instance has no configured WhatsApp binding.
+            const catchup = registry && registry.size > 0 && whatsappIngestor
+              ? new FirestoreInboundAlertCatchup({
+                  projectId, messages: messageStore, registry, jobs: automationJobs, fetchImpl: options.fetchImpl,
+                })
+              : undefined;
+            automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider, catchup);
+            automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret, undefined, catchup);
           } catch {
             automationJobs = null; automationWorker = null; automationEventHandler = null; automationWorkerHandler = null; automationJobsReadHandler = null;
             logger.warn?.('CONNECT_AUTOMATION_CONFIGURATION_INVALID');

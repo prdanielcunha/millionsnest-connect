@@ -71,3 +71,7 @@
 ## Workspace recovery
 
 Current scratch clones: /workspace/scratch/82cd49e39f00/connect, /workspace/scratch/82cd49e39f00/hub, /workspace/scratch/82cd49e39f00/musicscale (read-only). Scratch can be pruned; recover from GitHub, not stale dirty files. All authored source/workflow code above is saved remotely. Local node_modules/dist/dist-core are generated and must not be uploaded. Attachments in project_sources were consulted; do not repeat blueprint research.
+
+## 2026-10-15 — inbound recovery candidate (#284)
+
+Source PR #284 merged into main at 7bf5e49410c0cb9fc04d9835f3eeab566e6ee7d7, exact source Quality 38796894277 SUCCESS. Production release candidate preserves its own base 70debe5a8f2c9ba8441f799ae86d8e2f1349ed8d and carries ONLY the outbox/server/worker/test changes plus this appendix. No deployed behavior may be claimed before exact release CI and live SHA checks. Recovery code adds atomic provider-index marker and HMAC-only reconciliation, bounded historical sweep, CAS, 3-attempt review, and authorized queue projection. Still missing a verified periodic scheduler; missing domain event publishers; physical iPhone push OFF; broad automation OFF; template OFF. NEXT: approve/run release gates, verify serving SHA; provision minimal-cost authenticated recurring invocation and demonstrate safe synthetic outage recovery without touching real customer data.
