@@ -3,7 +3,8 @@ import { createNestFinancePendingDocumentsHttpHandler, createNestFinanceEntities
 import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
-import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent, jobId } from '../core/automations/eventJobs';
+import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent } from '../core/automations/eventJobs';
+import { createInternalAlertExecutor } from '../core/automations/internalAlertExecutor';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
 import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
@@ -519,28 +520,18 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
           }
         }
 
-        if (inboxPush && env.CONNECT_AUTOMATION_EXECUTION_ENABLED === 'true' && env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_AUTOMATION_TTL_CONFIRMED === 'true') {
+        if (env.CONNECT_AUTOMATION_EXECUTION_ENABLED === 'true' && env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED === 'true' && env.CONNECT_AUTOMATION_TTL_CONFIRMED === 'true') {
           try {
             const workerSecret = env.CONNECT_AUTOMATION_WORKER_SECRET || '';
             if (workerSecret.length < 32) throw new Error('AUTOMATION_WORKER_SECRET_REQUIRED');
             const keys = JSON.parse(env.CONNECT_AUTOMATION_SOURCE_KEYS_JSON || '{}');
             if (!keys || typeof keys !== 'object' || Array.isArray(keys) || Object.entries(keys).some(([k, v]) => !['musicscale', 'nestfinance', 'nestjourney'].includes(k) || typeof v !== 'string' || v.length < 32)) throw new Error('AUTOMATION_SOURCE_KEYS_INVALID');
+            const sourceSecrets = Object.values(keys);
+            if (sourceSecrets.includes(workerSecret) || new Set(sourceSecrets).size !== sourceSecrets.length) throw new Error('AUTOMATION_SOURCE_KEYS_NOT_DISTINCT');
             automationJobs = new FirestoreAutomationJobStore(projectId, options.fetchImpl);
-            automationWorker = new InternalAutomationWorker(automationJobs, async event => {
-              const thread = await gatedStore.load({ organizationId: event.organizationId, conversationId: event.conversationId });
-              if (!thread) return 'needs_review';
-              let outcome;
-              if (event.sourceApp === 'whatsapp') {
-                const original = await messageStore.get({ organizationId: event.organizationId, conversationId: event.conversationId, messageId: event.messageId! });
-                if (!original || original.direction !== 'inbound' || !original.recipientRef || !original.senderRef) return 'needs_review';
-                outcome = await inboxPush!.afterIngest([{ kind: 'message', phoneNumberId: original.recipientRef, providerMessageId: original.providerMessageId, from: original.senderRef, messageType: original.messageType, timestamp: String(Math.floor(Date.parse(original.occurredAt) / 1000)), text: original.body }]);
-              } else {
-                // Internal operator alert only: no financial/pastoral data read or outbound Meta send.
-                if (!await operatorDirectory.verify({ organizationId: event.organizationId, uid: event.recipientUid! })) return 'needs_review';
-                outcome = await inboxPush!.notifyAutomation({ organizationId: event.organizationId, conversationId: event.conversationId, eventId: jobId(event), recipientUid: event.recipientUid! });
-              }
-              return outcome.failed > 0 ? 'needs_review' : 'complete';
-            });
+            automationWorker = new InternalAutomationWorker(automationJobs, createInternalAlertExecutor({
+              threads: gatedStore, messages: messageStore, directory: operatorDirectory, push: inboxPush,
+            }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
             automationJobsReadHandler = createAutomationJobsReadHandler(automationJobs, inboxContextProvider);
             automationWorkerHandler = createAutomationWorkerHandler(automationWorker, workerSecret);
@@ -564,7 +555,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 }
                 catch { logger.warn?.('CONNECT_WHATSAPP_ASSIST_POST_INGEST_FAILED'); }
               }
-              if (inboxPush) {
+              if (automationJobs && automationWorker || inboxPush) {
                 try {
                   if (automationJobs && automationWorker && registry) {
                     for (const event of events) {
@@ -575,8 +566,8 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                       await automationJobs.enqueue(validateAutomationEvent({ schemaVersion: 1, sourceApp: 'whatsapp', trigger: 'inbox.message_received', eventId: messageId, organizationId: binding.organizationId, conversationId, messageId, occurredAt: new Date(Number(event.timestamp) * 1000).toISOString() }, 'whatsapp', Date.now()), new Date());
                     }
                     await automationWorker.run(10);
-                  } else await inboxPush.afterIngest(events);
-                } catch { logger.warn?.('CONNECT_WEB_PUSH_POST_INGEST_FAILED'); }
+                  } else if (inboxPush) await inboxPush.afterIngest(events);
+                } catch { logger.warn?.(automationJobs ? 'CONNECT_AUTOMATION_POST_INGEST_FAILED' : 'CONNECT_WEB_PUSH_POST_INGEST_FAILED'); }
               }
             },
           });
