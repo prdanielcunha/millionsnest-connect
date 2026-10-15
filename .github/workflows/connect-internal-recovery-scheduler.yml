@@ -1,0 +1,59 @@
+name: Connect Internal Recovery Scheduler
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/connect-internal-recovery-scheduler.yml'
+      - 'scripts/provision-connect-recovery-scheduler.sh'
+  push:
+    branches: [production]
+    paths:
+      - '.github/workflows/connect-internal-recovery-scheduler.yml'
+      - 'scripts/provision-connect-recovery-scheduler.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-internal-recovery-scheduler
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Syntax and negative policy gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/provision-connect-recovery-scheduler.sh
+          node - <<'NODE'
+          const s=require('fs').readFileSync('scripts/provision-connect-recovery-scheduler.sh','utf8');
+          const required=['RECOVERY_REAL_SERVING_SHA_OK','RECOVERY_QUEUE_ONLY_FLAGS_OK','RECOVERY_JOB_SIGNED_SMOKE_OK',
+            'RECOVERY_HOURLY_SCHEDULER_CONFIGURED_OK','--max-retries=0','--max-retry-attempts=0',
+            'CONNECT_WEB_PUSH_ENABLED','CONNECT_AUTOMATION_EXECUTION_ENABLED','roles/run.invoker',
+            'CONNECT_EXECUTION_SECRET_FILE','CONNECT_AUTOMATION_RECOVERY_ORIGIN'];
+          for(const k of required) if(!s.includes(k))process.exit(1);
+          if(/gcloud\s+services\s+enable|--allow-unauthenticated|--force\b/.test(s))process.exit(1);
+          console.log('RECOVERY_SCHEDULER_STATIC_POLICY_OK');
+          NODE
+
+  provision:
+    if: github.ref == 'refs/heads/production' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CONNECT_RECOVERY_EXPECTED_SERVING_SHA: 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Provision scoped job, prove signed execution, then schedule hourly
+        shell: bash
+        run: bash scripts/provision-connect-recovery-scheduler.sh
