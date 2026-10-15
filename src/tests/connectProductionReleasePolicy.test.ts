@@ -49,6 +49,10 @@ assert.match(
   /api\/ecosystem\/connect\/nestjourney\/followup-context/,
   'Live activation must prove the Hub NestJourney follow-up context route exists in production',
 );
+assert.match(release, /--header 'X-Organization-Id: release-smoke'/,
+  'Unauthenticated MusicScale release probes must include the minimum organization context');
+assert.match(release, /--header 'X-Connect-Channel: inapp'/,
+  'Unauthenticated MusicScale probes must use the approved channel context');
 assert.match(
   release,
   /https:\/\/musicscale\.millionsnest\.com\/api\/v1\/connect\/next-schedule/,

@@ -63,3 +63,39 @@ export function isSafeJourneyReturnUrl(value: string): boolean {
     return false;
   }
 }
+
+
+/**
+ * Each manual copy/WhatsApp action must recheck the Hub-authorized context.
+ * Never reuse the context loaded when the page was first opened. This still
+ * cannot control what a person does after leaving for WhatsApp.
+ */
+export async function refreshAuthorizedJourneyFollowup(input:{
+  organizationId:string
+  followupId:string
+  idToken:string
+  fetchImpl?:typeof fetch
+}):Promise<NestJourneyFollowupContext>{
+  const query=new URLSearchParams({
+    organizationId:input.organizationId,followupId:input.followupId,
+  });
+  const response=await (input.fetchImpl??fetch)(
+    '/api/core/nestjourney/followup?'+query.toString(),
+    {
+      method:'GET',
+      headers:{
+        Authorization:'Bearer '+input.idToken,
+        Accept:'application/json',
+        'Cache-Control':'no-store',
+      },
+      cache:'no-store',
+    },
+  );
+  const payload=await response.json().catch(()=>null) as NestJourneyFollowupContext|null;
+  if(!response.ok||payload?.success!==true||
+    payload.organization?.id!==input.organizationId||
+    payload.followup?.id!==input.followupId||
+    !payload.person?.phone?.trim())
+    throw new Error('FOLLOWUP_NOT_AUTHORIZED');
+  return payload;
+}
