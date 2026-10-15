@@ -33,7 +33,7 @@
     "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
     "test:menu-mobile": "tsx src/tests/menuMobile.test.ts",
     "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts",
-    "test:release-policy": "tsx src/tests/firestoreRuntimeReadiness.test.ts && tsx src/tests/runtimeStorageReadinessPolicy.test.ts && tsx src/tests/connectProductionReleasePolicy.test.ts",
+    "test:release-policy": "node scripts/test-connect-hosting-proof.mjs && tsx src/tests/firestoreRuntimeReadiness.test.ts && tsx src/tests/runtimeStorageReadinessPolicy.test.ts && tsx src/tests/connectProductionReleasePolicy.test.ts",
     "test:outbound": "tsx src/tests/outboundDelivery.test.ts && tsx src/tests/outboundDeliveryHttpHandler.test.ts",
     "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts",
     "test:push": "node --import tsx src/tests/webPush.test.ts && node --import tsx src/tests/pushClient.test.ts && node --import tsx src/tests/messageContentRetry.test.ts && node --import tsx src/tests/executionSecretBundle.test.ts && node --import tsx src/tests/pushDiagnostic.test.ts",
