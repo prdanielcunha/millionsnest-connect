@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { applyProductRoute, routeProduct, routingId, verifyProductOrigin, parseProductSupportOwners, type ProductRoutingState, type ProductRouteStore } from '../core/routing/productRouting';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
+import { defaultAgentSettings, reviseAgentSettings } from '../core/agents/productAgentSettings';
 
 assert.deepEqual(parseProductSupportOwners(undefined), {});
 assert.deepEqual(parseProductSupportOwners('{"musicscale":"synthetic-owner"}'), { musicscale: 'synthetic-owner' });
@@ -58,7 +59,17 @@ const routes: ProductRouteStore = { async decide(i, at, key) {
   states.set(scope, next.state); return next.decision;
 } };
 let stored: any; const sent = new Map<string, string>(); let forged = false, authorizedOwner = false, directoryUnavailable = false;
+let settingsMode: 'default' | 'custom' | 'disabled' | 'unavailable' = 'default';
 const routing = new WhatsAppProductRouting({ registry, routes, threads, now: () => clock,
+  settingsStore: { async read(scope) {
+    assert.equal(scope.organizationId, 'channel-org');
+    if (settingsMode === 'unavailable') throw new Error('PRIVATE configuration failure');
+    if (settingsMode === 'default') return null;
+    const settings = defaultAgentSettings(scope.product, 'configured-owner');
+    settings.enabled = settingsMode !== 'disabled';
+    settings.overview['pt-BR'] = 'Conhecimento público aprovado da organização.';
+    return reviseAgentSettings(null, { ...scope, actorUid: 'synthetic-manager', requestId: 'synthetic_settings_0001', expectedVersion: 0, settings }, now).record;
+  }, async save() { throw new Error('router must never write settings'); } },
   messages: { async getByProviderMessageId() { return forged ? { ...stored, organizationId: 'org-b' } : stored; } } as unknown as ConnectMessageContentStore,
   replies: { async send(i) { sent.set(i.requestId, i.text); return { kind: 'sent', providerMessageId: 'accepted', messageId: 'id' }; } },
   directory: { async list() { return []; }, async verify() { if (directoryUnavailable) throw new Error('PRIVATE directory failure'); return authorizedOwner; } }, owners: { nestfinance: 'verified-operator' },
@@ -111,6 +122,22 @@ assert.equal((await threads.load(current.scope))?.status, 'waiting_team', 'unsup
 assert.equal(sent.size, beforeMedia, 'unsupported media does not send or echo sensitive content');
 await routing.route([{ ...current.event, messageType: 'audio' }]);
 assert.equal((await threads.readEvents(current.scope)).filter(event => event.eventType === 'HUMAN_REVIEW_REQUESTED').length, 1);
+directoryUnavailable = false; settingsMode = 'custom';
+current = await receive('O que é o NestJourney?', 13, undefined, 'synthetic-configured-profile');
+await routing.route([current.event]);
+assert([...sent.values()].at(-1)?.includes('Conhecimento público aprovado da organização.'));
+assert([...sent.values()].at(-1)?.endsWith('https://nestjourney.millionsnest.com'), 'official URL cannot be configured');
+current = await receive('NestJourney: acompanhamento privado', 14, undefined, 'synthetic-configured-owner');
+await routing.route([current.event]); assert.equal((await threads.load(current.scope))?.assignedTo?.ref, 'configured-owner');
+settingsMode = 'disabled';
+current = await receive('MusicScale: qual é minha próxima escala?', 15, undefined, 'synthetic-disabled-profile');
+assert.equal((await routing.route([current.event])).length, 0, 'disabled agent cannot forward a domain tool request');
+assert.equal((await threads.load(current.scope))?.mode, 'human');
+settingsMode = 'unavailable'; const beforeUnavailable = sent.size;
+current = await receive('O que é o NestFinance?', 16, undefined, 'synthetic-unavailable-profile');
+assert.equal((await routing.route([current.event])).length, 0);
+assert.equal((await threads.load(current.scope))?.status, 'waiting_team');
+assert.equal(sent.size, beforeUnavailable, 'storage failure must not silently restore default automatic answers');
 assert(![...sent.values()].some(text => text.includes('PRIVATE')));
 assert(!JSON.stringify([...states.values()]).includes('private-phone')); assert(!JSON.stringify([...states.values()]).includes('documento pendente'));
 console.log('Product routing: same number/3 apps, clarification, persistent switches, signed-origin verification, tenant isolation, delayed retries, Meta window, verified human owner and human control passed.');

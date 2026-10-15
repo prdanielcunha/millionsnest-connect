@@ -1,5 +1,7 @@
 import { CONNECT_PRODUCTS, type ConnectProduct } from '../routing/productRouting';
 export type AgentLocale = 'pt-BR' | 'en-US' | 'es-ES';
+type PublicAgentKnowledge = { overview: Record<AgentLocale, string>; intake: Record<AgentLocale, string>;
+  communicationStyle?: 'practical' | 'careful' | 'welcoming' };
 export const PRODUCT_AGENT_PROFILES = {
   musicscale: { style: 'practical', url: 'https://musicscale.millionsnest.com',
     overview: {
@@ -37,21 +39,26 @@ export const PRODUCT_AGENT_PROFILES = {
 } as const;
 
 /** Curated public knowledge only. It never reads records or grants domain authority. */
-export function publicProductSupportReply(product: ConnectProduct, text: string, fallbackLocale: AgentLocale): string | null {
+export function publicProductSupportReply(product: ConnectProduct, text: string, fallbackLocale: AgentLocale, knowledge?: PublicAgentKnowledge): string | null {
   if (text.length > 2048) return null;
   const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   if (/\b(atendente|humano|humana|human|persona|pastor|pastoral|meu|minha|meus|minhas|my|mis|saldo|balance|cpf|cnpj|senha|password|contrasena|comprovante|documentos?|documents?|registros?|records?|visitantes?|visitors?|dados)\b/.test(normalized)) return null;
   const locale: AgentLocale = /^(i need|what |how )/.test(normalized) ? 'en-US'
     : /^(necesito|que es|para que sirve|como (acceder|accedo|puedes))/.test(normalized) ? 'es-ES' : fallbackLocale;
   const query = normalized.replace(new RegExp(`\\b${product}\\b`, 'g'), '').trim();
-  const profile = PRODUCT_AGENT_PROFILES[product];
-  if (/^(preciso de suporte (sobre|com)( o)?|i need support with|necesito ayuda con)$/.test(query)) return profile.intake[locale];
-  if (/^(o que (e|faz)|para que serve|what is|what does|que es|para que sirve)\b/.test(query)) return `${profile.overview[locale]} ${profile.url}`;
+  const profile = { ...PRODUCT_AGENT_PROFILES[product], ...knowledge, url: PRODUCT_AGENT_PROFILES[product].url };
+  const respond = (answer: string) => {
+    if (knowledge?.communicationStyle === 'welcoming') return `${{ 'pt-BR': 'Conte conosco.', 'en-US': 'We are here to help.', 'es-ES': 'Cuenta con nosotros.' }[locale]} ${answer}`;
+    if (knowledge?.communicationStyle === 'careful') return `${answer} ${{ 'pt-BR': 'Consultas pessoais exigem validação de acesso.', 'en-US': 'Personal queries require access validation.', 'es-ES': 'Las consultas personales requieren validar el acceso.' }[locale]}`;
+    return answer;
+  };
+  if (/^(preciso de suporte (sobre|com)( o)?|i need support with|necesito ayuda con)$/.test(query)) return respond(profile.intake[locale]);
+  if (/^(o que (e|faz)|para que serve|what is|what does|que es|para que sirve)\b/.test(query)) return respond(`${profile.overview[locale]} ${profile.url}`);
   if (/^(como (acesso|acessar|entrar|entro|abrir|abro)|onde (acesso|entro)|how (do i |can i |to )?(access|open|sign in)|como (acceder|accedo|entrar|abrir)|link (do|de|del))\b/.test(query)) {
     const label = { 'pt-BR': 'Acesse o aplicativo oficial e entre com sua conta:', 'en-US': 'Open the official app and sign in with your account:', 'es-ES': 'Abre la aplicación oficial e inicia sesión con tu cuenta:' }[locale];
-    return `${label} ${profile.url}`;
+    return respond(`${label} ${profile.url}`);
   }
-  if (/^(como (voce )?pode (me )?ajudar|o que (voce )?(pode|consegue) fazer|what can you do|how can you help|como puedes ayudar|que puedes hacer)\b/.test(query)) return profile.intake[locale];
+  if (/^(como (voce )?pode (me )?ajudar|o que (voce )?(pode|consegue) fazer|what can you do|how can you help|como puedes ayudar|que puedes hacer)\b/.test(query)) return respond(profile.intake[locale]);
   return null;
 }
 
