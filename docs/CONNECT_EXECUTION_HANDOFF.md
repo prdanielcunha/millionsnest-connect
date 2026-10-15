@@ -1,3 +1,14 @@
+# Internal-only queue activation — separate verified gate, 2026-10-15
+
+- Storage38781762933/job116583502681SUCCESS: actual approved Rules397 and all3existingTTLsACTIVE (routing/jobs/budgets). No Rules/IAM/TTL/data changes. Source280/release281MERGED; codecandidateedd080664ccffe9449b2028b2657c791bcae177d awaitingactualCore38781762898 proof. Both fullQuality38781407838/38781416410SUCCESS.
+- This activation adds a dedicated CONNECT_INTERNAL_ALERT_QUEUE_ENABLED flag. Broad CONNECT_AUTOMATION_EXECUTION_ENABLED remainsFALSE; pushFALSE/testmodeTRUE and Meta templatesunchangedOFF. Existing legacy flag remainsbackwardcompatible. HTTPtest provesactualsignedMeta->durablejob->needs_review usingONLYnewinternalflag withbroadflagfalse. Signing/key/storage/tenanttestsPASS. Actualmetadata proof is rerun BEFORE every servingmutation, exactdeployedrevision flagschecked, jobsGET401/workerPOST401 smoke added. No customerdata orsend inreleaseprobe. Productionvalidatesautomationtests beforedeploy. Runtime/Hostingrollbackpreserved.
+- NEXT EXACT: full exactheadCI for activationPRs; confirmpriorcodeedd080...actuallypublished with BOTHHosting/direct/canonicalSHA beforeproductionactivationmerge. Then officialactivationrelease mustprove exactSHA/flags, storageTTLprivacy, queueauthority401s andPRODUCTION_RELEASE_OK. Internalqueueonly is ready forrealinboundalerts aftersuccess; actualcustomertraffic/physicaldevice/domainmemberpublishers/scheduler remainNOTvalidated. No100%claim. FullCoreHTTP/baseimplementationevidencebelow.
+
+# Saved internal alert queue increment — 2026-10-15
+
+- Source280 51f8a9cad74e906473fd70856c0aaace0c0f67b2, branchchatgpt/connect-internal-alert-queue-20261015; production281 dafc5820c18d842b4f98e31d7a86aad6d22a7225, branchchatgpt/connect-internal-alert-queue-release-20261015. Bothreal-codePRsSAVED (10files). FullCoreHTTP102composition/108template +newactualHTTPqueue tests/lint/web+CorebuildsPASS. New exact-head CIrunning. LastactuallyverifiedservingConnectd1e8f780/Hub e8aaae0f unchanged.
+- NEXT EXACT: finish280/281CI; reviewminimalruntimeexecutor diff then mergeexacttestedheads. PublishwithautomationOFF, verifyofficialbackend+bothHostingSHA, inspectnew READ-ONLY InternalAutomationStorageProof actualRules397+ACTIVEjobs/budgetsTTL. OnlyifproofPASS, makeSECONDgatedactivation ofinternalqueue preservingpushOFF/testmodeON/templatesOFF; physicaldeliveryandmemberfacingdomainpublisherstillpending. Do notblindlyactivatefrommocktests.
+
 # Current increment — independent internal alert queue, 2026-10-15
 
 - Last verified live Connectd1e8f7802c201d46c4746ad0f1301fa30e81b5f4, Hube8aaae0f6376597078f4a42878f1a00a58c664db. Existing routing, agent editor and Finance reads preserved. PushOFF/testmodeON, templatesOFF, automationOFF until separate actual storage proof and gated activation.
