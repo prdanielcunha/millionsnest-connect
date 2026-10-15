@@ -1,3 +1,11 @@
+# IN-PROGRESS SOURCE CHECKPOINT — 2026-10-15
+
+The preceding published-state handoff remains authoritative. A source-only follow-up on branch `chatgpt/connect-inbound-outbox-recovery-20261015` adds an atomic inbound outbox marker to the already-written provider index, bounded signed-worker recovery, CAS cursor for pre-upgrade message reconciliation and tests. Not yet merged/released: **do not count this source branch as deployed**. Web Push remains OFF; broad automations OFF; templates OFF.
+
+NEXT: run exact-head Quality, correct regressions, review/merge only after green; verify the signed recovery endpoint against the real deployed SHA and provision/test a periodic authenticated invoker. Do not enable push or commercial dispatch. Follow with official MusicScale domain events only after recovery is real.
+
+---
+
 # Internal-only queue activation — separate verified gate, 2026-10-15
 
 - Storage38781762933/job116583502681SUCCESS: actual approved Rules397 and all3existingTTLsACTIVE (routing/jobs/budgets). No Rules/IAM/TTL/data changes. Source280/release281MERGED; codecandidateedd080664ccffe9449b2028b2657c791bcae177d awaitingactualCore38781762898 proof. Both fullQuality38781407838/38781416410SUCCESS.
