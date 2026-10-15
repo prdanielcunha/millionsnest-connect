@@ -1,0 +1,36 @@
+name: Connect Free Hourly Recovery
+# GitHub Actions cron: lower cost, best effort (may delay; no strict SLA).
+# Default branch main is the only GitHub schedule source. Changes to its
+# security contract must pass standard PR gates before scheduled execution.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: connect-recovery-hourly-production
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CONNECT_RECOVERY_RUN_ONLY: 'true'
+      CONNECT_RECOVERY_EXPECTED_SERVING_SHA: 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Verify live SHA, queue-only policy and execute scoped Cloud Run Job
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/provision-connect-recovery-scheduler.sh
