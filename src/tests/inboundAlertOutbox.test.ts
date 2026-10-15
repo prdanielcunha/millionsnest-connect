@@ -120,4 +120,9 @@ queueDown = false;
 await catchup.run(10);
 assert.equal(queued.size, 2, 'exhausted record cannot auto-retry or send');
 
+const humanReviews = await catchup.listReviewsForOrganization('org-a');
+assert.equal(humanReviews.length, 2, 'unqueued messages are visible for human review');
+assert(humanReviews.every(x => x.state === 'needs_review' && x.sourceApp === 'whatsapp' && x.id.length === 64));
+assert(!JSON.stringify(humanReviews).includes('SECRET_PII_NEVER_IN_JOB'));
+assert.deepEqual(await catchup.listReviewsForOrganization('org-other'), [], 'review is organization-scoped');
 console.log('Inbound outbox: atomic marker, bounded retry, tenant binding, no PII, legacy catch-up, idempotent enqueue and review passed');
