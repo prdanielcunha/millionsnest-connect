@@ -4,7 +4,7 @@ Default off. This worker executes **internal Connect operator alerts only**, nev
 
 ## Execution
 
-- With the worker enabled, actual durable Meta Inbox ingestion enqueues an opaque message reference, then runs a bounded batch. Recovery reconstructs the event from canonical message storage; jobs do not duplicate phones, text or bearer credentials.
+- With the worker enabled, actual durable Meta Inbox ingestion enqueues an opaque message reference, then runs a bounded batch, independently of Web Push activation. Without physical push, actionable alerts become `needs_review` in the protected internal queue; they are never reported as delivered. Resolved, waiting-for-person or superseded messages are suppressed. Recovery reconstructs the event from canonical message storage; jobs do not duplicate phones, text or bearer credentials.
 - Official-app event ingress: `POST /api/core/automations/events/:sourceApp`, raw JSON <=16kb. Sources: musicscale, nestfinance, nestjourney. Fields: schemaVersion=1, sourceApp, eventId, organizationId, conversationId, occurredAt (ISO), trigger and recipientUid. No other fields accepted.
 - Triggers: MusicScale `scale.published`/`scale.presence_pending`; NestFinance `document.pending`; NestJourney `followup.due`. Each targets an existing authorized Connect conversation and canonical Inbox operator. This is NOT the app's musician/member notification contract.
 - Worker: `POST /api/core/automations/worker`, raw JSON `{ "limit": 1..10 }`.
@@ -17,7 +17,7 @@ Default off. This worker executes **internal Connect operator alerts only**, nev
 
 ## Activation gates
 
-Require existing P0 push gates plus `CONNECT_AUTOMATION_EXECUTION_ENABLED`, `CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED`, `CONNECT_AUTOMATION_TTL_CONFIRMED`; secret-managed `CONNECT_AUTOMATION_WORKER_SECRET` (>=32 chars), optional `CONNECT_AUTOMATION_SOURCE_KEYS_JSON` (app->distinct secret, >=32 chars each).
+Require `CONNECT_AUTOMATION_EXECUTION_ENABLED`, `CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED`, `CONNECT_AUTOMATION_TTL_CONFIRMED`; secret-managed `CONNECT_AUTOMATION_WORKER_SECRET` (>=32 chars), optional `CONNECT_AUTOMATION_SOURCE_KEYS_JSON` (app->distinct secret, >=32 chars each). App keys must differ from each other and the worker key. Queue collection/review does not require P0 push or VAPID; actual device delivery still requires every existing P0 gate and physical proof. The production-only Internal Automation Storage Proof checks actual published Rules fingerprint and existing ACTIVE TTL for both job/budget collections, without changing configuration or reading customer data. Flags remain OFF until that proof succeeds and a separately gated activation is deployed.
 
 Private runtime IAM/client-denial/TTL required for `connectAutomationJobs.expiresAt` (30d) and `connectAutomationBudgets.expiresAt` (3d). No scheduler is provisioned: an authenticated operator/server must invoke the worker. Periodic recovery therefore remains an external deployment/configuration gate. Staging and physical devices remain unverified. Do not enable or claim a three-app automation integration from CI alone.
 
