@@ -10,7 +10,11 @@ CALLER=mn-connect-recovery-invoker@millionsnest.iam.gserviceaccount.com
 RUNTIME=mn-connect-runtime@millionsnest.iam.gserviceaccount.com
 EXPECTED_SHA="${CONNECT_RECOVERY_EXPECTED_SERVING_SHA:?Expected real deployed SHA required}"
 [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo 'RECOVERY_EXPECTED_SHA_INVALID' >&2; exit 1; }
-[[ "${GITHUB_REF:-}" == 'refs/heads/production' ]] || { echo 'RECOVERY_PRODUCTION_ONLY' >&2; exit 1; }
+if [[ "${CONNECT_RECOVERY_RUN_ONLY:-false}" == 'true' ]]; then
+  [[ "${GITHUB_REF:-}" == 'refs/heads/main' ]] || { echo 'RECOVERY_RUN_ONLY_DEFAULT_BRANCH_REQUIRED' >&2; exit 1; }
+else
+  [[ "${GITHUB_REF:-}" == 'refs/heads/production' ]] || { echo 'RECOVERY_PRODUCTION_ONLY' >&2; exit 1; }
+fi
 
 # Only provision against a *really serving* tested release and with physical
 # push and broad commercial execution demonstrably OFF.
@@ -35,6 +39,22 @@ NODE
 # enabled or used. GH scheduled runs may be delayed, so this is best-effort
 # periodic recovery, not a strict-time SLA.
 
+# Cron runs read-only probes then execute the already pinned job; no
+# recurrent image updates, IAM changes, API activation or secret handling.
+if [[ "${CONNECT_RECOVERY_RUN_ONLY:-false}" == 'true' ]]; then
+  gcloud run jobs describe "$JOB" --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-job.json
+  EXPECTED_SHA="$EXPECTED_SHA" node - <<'NODE'
+const fs=require('fs');
+const j=JSON.parse(fs.readFileSync('/tmp/connect-recovery-job.json','utf8'));
+const t=j.spec?.template?.spec?.template?.spec || j.template?.template || {};
+const c=t.containers?.[0] || {};
+if(!String(c.image||'').endsWith('connect-api:'+process.env.EXPECTED_SHA))process.exit(1);
+console.log('RECOVERY_PINNED_JOB_IMAGE_OK');
+NODE
+  gcloud run jobs execute "$JOB" --project "$PROJECT" --region "$REGION" --wait --quiet
+  echo RECOVERY_GITHUB_HOURLY_SIGNED_JOB_OK
+  exit 0
+fi
 IMAGE="us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:$EXPECTED_SHA"
 gcloud artifacts docker images describe "$IMAGE" --project "$PROJECT" --format='value(image_summary.digest)' >/dev/null
 RUN_ARGS=(
