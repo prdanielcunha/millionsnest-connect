@@ -463,8 +463,9 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 const owners = parseProductSupportOwners(env.CONNECT_PRODUCT_SUPPORT_OWNERS_JSON);
                 if (env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED !== 'true') throw new Error('PRODUCT_AGENT_SETTINGS_PRIVATE_STORAGE_REQUIRED');
                 const settingsStore = env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED === 'true'
-                  ? new FirestoreProductAgentSettingsStore(projectId, options.fetchImpl) : undefined;
-                const agentOptions = { contextProvider: inboxContextProvider, directory: operatorDirectory, owners, settingsStore };
+                  ? new FirestoreProductAgentSettingsStore(projectId, options.fetchImpl, undefined, undefined, env.CONNECT_SUPPORT_ORIGIN_SECRET) : undefined;
+                const agentOptions = { contextProvider: inboxContextProvider, directory: operatorDirectory, owners, settingsStore,
+                  settingsEditable: env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED === 'true' };
                 productAgentProfilesHandler = createProductAgentProfilesHandler(agentOptions);
                 productAgentSettingsHandler = createProductAgentSettingsHandler(agentOptions);
                 productRouting = new WhatsAppProductRouting({

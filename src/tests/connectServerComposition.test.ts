@@ -93,6 +93,7 @@ await withServer(async origin => {
 for (const [change, expected] of [
   [{}, true],
   [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED: 'true' }, true],
+  [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED: 'true', CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED: 'true' }, true],
   [{ CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED: 'true' }, false],
   [{ CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED: 'false' }, false],
   [{ CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED: 'false' }, false],
@@ -123,7 +124,7 @@ for (const [change, expected] of [
     const profileResponse = await fetch(`${origin}/api/core/agents/product-profiles?organizationId=synthetic-org`);
     checkEqual(profileResponse.status, expected ? 401 : 404, 'profiles API mounts only with valid router configuration and requires identity');
     const updateResponse = await fetch(`${origin}/api/core/agents/product-profiles/musicscale?organizationId=synthetic-org`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    checkEqual(updateResponse.status, expected && change.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' ? 401 : 404, 'settings API is default off, private-storage gated and requires canonical identity');
+    checkEqual(updateResponse.status, expected && change.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED === 'true' && change.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED === 'true' ? 401 : 404, 'settings API is default off, privately stored, editing gated and requires canonical identity');
     for (const forbidden of ['synthetic-meta-token', 'synthetic-support-org', 'synthetic-phone', 'synthetic-origin-secret']) {
       checkEqual(JSON.stringify(result).includes(forbidden), false, 'readiness never reveals credentials or tenant/number configuration');
     }
