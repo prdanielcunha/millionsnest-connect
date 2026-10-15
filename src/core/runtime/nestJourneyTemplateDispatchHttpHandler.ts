@@ -120,17 +120,17 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       const response=await fetchImpl(url.toString(),{
         method:'GET',
         headers:{Authorization:authorization,Accept:'application/json','Cache-Control':'no-store'},
-        cache:'no-store',signal:AbortSignal.timeout(8000),
+        cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000),
       });
       if(!response.ok)return res.status(403).json({success:false,code:'FOLLOWUP_NOT_AUTHORIZED'});
       live=await response.json();
     }catch{return res.status(503).json({success:false,code:'HUB_CONTEXT_UNAVAILABLE'})}
     const value=live as {
-      success?:boolean;organization?:{id?:string};followup?:{id?:string};
+      success?:boolean;consentContract?:string;organization?:{id?:string};followup?:{id?:string};
       person?:{phone?:string};
     }|null;
     const phone=normalizeWhatsAppPhone(value?.person?.phone);
-    if(value?.success!==true||value.organization?.id!==organizationId||
+    if(value?.success!==true||value.consentContract!=='whatsapp_explicit_v1'||value.organization?.id!==organizationId||
       value.followup?.id!==followupId||!phone)
       return res.status(403).json({success:false,code:'FOLLOWUP_NOT_AUTHORIZED'});
     const templateName=env.CONNECT_NESTJOURNEY_TEMPLATE_NAME!;
@@ -166,10 +166,11 @@ export function createJourneyTemplateDispatchHandler(options:JourneyTemplateDisp
       const current=await fetchImpl(currentUrl.toString(),{
         method:'GET',
         headers:{Authorization:authorization,Accept:'application/json','Cache-Control':'no-store'},
-        cache:'no-store',signal:AbortSignal.timeout(8000),
+        cache:'no-store',redirect:'error',signal:AbortSignal.timeout(8000),
       });
       const payload=current.ok?await current.json().catch(()=>null):null;
       if(!current.ok||payload?.success!==true
+        ||payload?.consentContract!=='whatsapp_explicit_v1'
         ||payload?.organization?.id!==organizationId
         ||payload?.followup?.id!==followupId
         ||normalizeWhatsAppPhone(payload?.person?.phone)!==phone)
