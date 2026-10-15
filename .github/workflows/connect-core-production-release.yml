@@ -11,6 +11,7 @@ on:
       - "src/**"
       - "server/**"
       - "public/**"
+      - "scripts/connect-hosting-proof.mjs"
       - "package.json"
       - "package-lock.json"
       - "Dockerfile.core"
@@ -137,6 +138,7 @@ jobs:
           npm run test:firebase-hosting
           npm run test:release-policy
           npm run build
+          node scripts/connect-hosting-proof.mjs write dist "$GITHUB_SHA"
           npm run build:core
 
       - name: Build and smoke Core container locally
@@ -363,6 +365,10 @@ jobs:
           set -euo pipefail
           BASE="$CONNECT_CANONICAL_ORIGIN"
           FALLBACK="$CONNECT_HOSTING_FALLBACK_ORIGIN"
+
+          # Backend health cannot prove which frontend artifact Hosting serves.
+          node scripts/connect-hosting-proof.mjs verify "$FALLBACK" "$GITHUB_SHA"
+          node scripts/connect-hosting-proof.mjs verify "$BASE" "$GITHUB_SHA"
 
           rollback() {
             if [ -n "${PREVIOUS_TRAFFIC_REVISION:-}" ]; then
