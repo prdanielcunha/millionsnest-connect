@@ -92,6 +92,29 @@ const archived = createConnectThreadEvent({
 }
 
 {
+  // Same clock millisecond is common for an inbound webhook immediately
+  // after opening its thread. A reply with lexically earlier request ID
+  // must NOT be incorrectly projected ahead of the official opener.
+  const stamp = new Date('2026-10-15T20:00:00.000Z');
+  const opener = createConnectThreadEvent({
+    eventType: 'CONVERSATION_OPENED', requestId: 'zz-open',
+    organizationId: 'org-1', conversationId: 'same-ms',
+    channel: 'whatsapp', evidenceRef: 'provider:open', occurredAt: stamp,
+  });
+  const immediate = createConnectThreadEvent({
+    eventType: 'MESSAGE_REPLIED', requestId: 'aa-reply',
+    organizationId: 'org-1', conversationId: 'same-ms',
+    evidenceRef: 'provider:reply', occurredAt: stamp,
+  });
+  equal(projectConnectThread([opener, immediate])?.status, 'in_progress',
+    'same-millisecond opener precedes reply even when lexical id reverses');
+  equal(projectConnectThread([immediate, opener])?.sourceEventCount, 2,
+    'same-millisecond projection remains deterministic across arrival order');
+  throws(() => projectConnectThread([immediate]), 'CONVERSATION_OPEN_REQUIRED',
+    'orphan reply remains rejected, no weakening of conversation-opening gate');
+}
+
+{
   const serialized = JSON.stringify([open, reply, handoff]);
   equal(serialized.includes('message body'), false, 'canonical thread event has no raw message body');
   equal(serialized.includes('phone'), false, 'canonical thread event has no phone field');
