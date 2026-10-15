@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Copy, ExternalLink, HeartHandshake, Loader2, MessageCircle, ShieldCheck } from 'lucide-react';
 import type { LanguageCode } from '../../types';
 import type { LiveConnectSession } from '../../core/client/liveConnectSession';
-import { openWhatsAppDraft } from '../../core/client/whatsappDelivery';
+import { buildWhatsAppDraftUrl, normalizeWhatsAppPhone } from '../../core/client/whatsappDelivery';
 import {
   buildFirstContactMessage,
   isSafeJourneyReturnUrl,
   resolveJourneyFollowupId,
+  refreshAuthorizedJourneyFollowup,
   type NestJourneyFollowupContext,
 } from './journeyFollowup';
 
@@ -89,6 +90,8 @@ export function JourneyFollowupConnectPage({
   const [message, setMessage] = useState('');
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [copied, setCopied] = useState(false);
+  const [revalidating,setRevalidating]=useState(false);
+  const actionBusy=useRef(false);
 
   useEffect(() => {
     if (!followupId) {
@@ -132,14 +135,32 @@ export function JourneyFollowupConnectPage({
     return () => { mounted = false; };
   }, [currentLang, followupId, session]);
 
-  async function copyMessage() {
-    if (!message) return;
-    try {
-      await navigator.clipboard.writeText(message);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
+
+  async function authorizeManualAction(action:'copy'|'whatsapp'){
+    if(actionBusy.current||!context||!followupId||!message.trim())return;
+    actionBusy.current=true;setRevalidating(true);setCopied(false);
+    try{
+      const fresh=await refreshAuthorizedJourneyFollowup({
+        organizationId:session.expectedOrganizationId,followupId,idToken:session.idToken,
+      });
+      const from=normalizeWhatsAppPhone(context.person.phone);
+      const to=normalizeWhatsAppPhone(fresh.person.phone);
+      if(!to||from!==to||fresh.followup.careRequestId!==context.followup.careRequestId)
+        throw new Error('FOLLOWUP_RECIPIENT_CHANGED');
+      if(action==='copy'){
+        await navigator.clipboard.writeText(message);
+        setCopied(true);
+        window.setTimeout(()=>setCopied(false),1800);
+      }else{
+        const url=buildWhatsAppDraftUrl(message,fresh.person.phone);
+        if(!url)throw new Error('INVALID_WHATSAPP_DRAFT');
+        window.location.assign(url);
+      }
+    }catch{
+      // Fail closed: do not expose an actionable draft once authorization fails.
+      setMessage('');setContext(null);setState('error');
+    }finally{
+      actionBusy.current=false;setRevalidating(false);
     }
   }
 
@@ -195,7 +216,7 @@ export function JourneyFollowupConnectPage({
         <div className="rounded-3xl border border-white/10 bg-black/20 p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <label htmlFor="journey-first-contact" className="text-sm font-semibold">{t.message}</label>
-            <button type="button" onClick={() => void copyMessage()} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05]">
+            <button type="button" disabled={revalidating} onClick={() => void authorizeManualAction('copy')} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.05]">
               {copied ? <CheckCircle2 size={14}/> : <Copy size={14}/>} {copied ? t.copied : t.copy}
             </button>
           </div>
@@ -203,7 +224,7 @@ export function JourneyFollowupConnectPage({
           <p className="mt-3 text-xs leading-5 text-slate-500">{t.editHint}</p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button type="button" disabled={!message.trim()} onClick={()=>openWhatsAppDraft(message, context.person.phone)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
+            <button type="button" disabled={revalidating||!message.trim()} onClick={()=>void authorizeManualAction('whatsapp')} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">
               <MessageCircle size={17}/>{t.openWhatsApp}<ExternalLink size={14}/>
             </button>
             <button type="button" onClick={goBack} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white">
