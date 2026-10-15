@@ -72,13 +72,13 @@ const meta:any={
     return{providerMessageId:'wamid.mock1'};
   },
 };
-let allowed=true;
+let allowed=true,consentProof=true;
 const fetchImpl:typeof fetch=async(_url,init)=>{
   hubCalls++;
   equal((init?.headers as any)?.Authorization,'Bearer token','Hub receives bearer');
   if(!allowed)return new Response(JSON.stringify({success:false}),{status:403});
   return new Response(JSON.stringify({
-    success:true,organization:{id:'org-a'},
+    success:true,consentContract:consentProof?'whatsapp_explicit_v1':undefined,organization:{id:'org-a'},
     followup:{id:'followup-1'},person:{phone:'5543999991234'},
   }),{status:200});
 };
@@ -88,6 +88,14 @@ const handler=createJourneyTemplateDispatchHandler({
 });
 equal(isJourneyTemplateDispatchConfigured(env),true,'explicit opt-in config');
 equal(isJourneyTemplateDispatchConfigured({}),false,'default off');
+{
+  consentProof=false;
+  const r=res();await handler(req(body),r);
+  equal(r.statusCode,403,'legacy Hub without explicit-consent contract cannot initiate Meta dispatch');
+  equal(providerCalls,0,'no Meta send without Hub consent proof');
+  consentProof=true;
+}
+
 equal(isJourneyTemplateDispatchConfigured({...env,CONNECT_NESTJOURNEY_TEMPLATE_APPROVED_LANGUAGES:'zz'}),false,'invalid locale is not activated');
 {
   const r=res();await handler(req({...body,language:'es'}),r);
