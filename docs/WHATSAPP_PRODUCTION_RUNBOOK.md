@@ -151,3 +151,29 @@ Não ativar Assist antes do Hub. A ordem canônica é:
 4. smoke real pelo WhatsApp.
 
 Um release normal do Core não deve mais desligar as gates já ativadas do WhatsApp; a política de release preserva as configurações de provider e deixa a mudança dessas gates para o workflow específico de ativação.
+
+
+## Complemento — Primeiro contato NestJourney com template Meta (2026-10-12)
+
+**Três modalidades distintas:** (1) abrir rascunho wa.me é manual e não comprova envio; (2) resposta humana pela Inbox depende das regras Meta para mensagens de texto; (3) primeiro contato proativo exige **template aprovado pela Meta**, nunca texto arbitrário. O terceiro caminho está no PR Connect #216 e depende do Hub PR #341.
+
+O botão **Enviar primeiro contato pelo WhatsApp oficial** só aparece quando o servidor confirma prontidão real da organização. Ele não usa o texto livre do editor: envia o template aprovado, sem parâmetros. Exige confirmação dos possíveis custos Meta. A resposta **accepted_by_meta NÃO comprova entrega**; somente status real do webhook pode atualizar entregue, lido ou falhou.
+
+Requisitos antes de ativar, na ordem:
+
+1. PRs Hub #341 e Connect #216 homologados e publicados. A organização está vinculada ao número correto no registro de conexões; exatamente um número de saída habilitado por organização.
+2. O runbook padrão acima está concluído: token Meta System User, WABA, Phone Number ID, webhook válido, teste real de recebimento e resposta pela Inbox. Jamais enviar tokens ou App Secrets pelo chat.
+3. Na Meta, criar um template **sem variáveis**, com consentimento aplicável, status APPROVED e idioma pt_BR. Para EN/ES, aprovar também en_US e/ou es no mesmo nome. Conferir o conteúdo de fato.
+4. Cloud Run deve confirmar read_write_confirmed em /api/health/storage-readiness. Outbox durável reserva a tentativa antes da chamada Meta; timeout não autoriza reenvio automático.
+5. Após revisão LGPD e **autorização dos custos**, executar manualmente o workflow **NestJourney Official First Contact Activation** na branch production. Informar o nome do template e escrever exatamente NESTJOURNEY_APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED no campo activation_ack. O workflow verifica a aprovação na Meta, aplica flags de runtime e executa smoke; se falhar, recupera tráfego da revisão anterior.
+6. Prova real com pessoa que autorizou WhatsApp: vínculo, responsável atribuído, tarefa aberta, template enviado, webhook de status e repetição sem duplicata. Revogar consentimento e confirmar novo envio bloqueado. Testar outra organização, número ambíguo e tarefa encerrada.
+
+Flags de runtime habilitadas apenas após os gates:
+
+- CONNECT_NESTJOURNEY_TEMPLATE_SEND_ENABLED=true
+- CONNECT_NESTJOURNEY_TEMPLATE_POLICY_ACK=APPROVED_TEMPLATE_AND_CHARGES_ACCEPTED
+- CONNECT_NESTJOURNEY_TEMPLATE_NAME=nome_aprovado_na_meta
+
+O Hub valida pessoa, organização, opt-in vigente, canal WhatsApp, tarefa e responsável. O Connect reconfere autorização antes de reservar e novamente imediatamente antes de acionar a Meta. A mensagem oficial fica indexada pelo ID do provedor para que o webhook atualize o status.
+
+**Limites:** falha ambígua exige revisão humana e não retry automático. Não alterar o identificador para forçar outro envio. Sem status do webhook, não declarar entrega; taxas e regras de aceitação são da conta Meta.

@@ -71,4 +71,24 @@ console.log('--- Running Meta WhatsApp Provider Tests ---');
   );
 }
 
+{
+  let outgoing:any=null;
+  const provider=new MetaWhatsAppProvider({
+    accessToken:'test-only-token',graphApiVersion:'v23.0',
+    fetchImpl:async(_url,init)=>{
+      outgoing=JSON.parse(String(init?.body||'{}'));
+      return new Response(JSON.stringify({messages:[{id:'wamid.template.1'}]}),{status:200});
+    },
+  });
+  const result=await provider.sendApprovedTemplate({
+    phoneNumberId:'123456789',recipientPhone:'5543999991234',
+    templateName:'welcome_first_contact',language:'pt_BR',
+  });
+  equal(result.providerMessageId,'wamid.template.1','official Meta accepted template ID');
+  equal(outgoing.type,'template','first-contact initiates approved template, never arbitrary free text');
+  equal(outgoing.template.name,'welcome_first_contact','approved template name in body');
+  equal(outgoing.template.language.code,'pt_BR','approved language supplied');
+  equal('text' in outgoing,false,'no ad hoc free-form text in proactive template send');
+}
+
 console.log(`✅ Passed ${passed} / ${total} tests.`);
