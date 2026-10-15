@@ -140,6 +140,7 @@ jobs:
         run: |
           npm run lint
           npm run test:core-http
+          npm run test:automation-worker
           npm run test:product-routing
           npm run test:whatsapp-assist
           npm run test:radar-pilot
@@ -208,6 +209,7 @@ jobs:
           ACCESS_TOKEN="$(gcloud auth print-access-token)"
           echo "::add-mask::$ACCESS_TOKEN"
           printf '%s' "$ACCESS_TOKEN" | node scripts/verify-product-routing-storage.mjs
+          printf '%s' "$ACCESS_TOKEN" | node scripts/verify-internal-automation-storage.mjs
           unset ACCESS_TOKEN
 
       - name: Configure Docker authentication
@@ -279,7 +281,7 @@ jobs:
             --timeout 60 \
             --allow-unauthenticated \
             --update-secrets /var/run/secrets/connect-execution.json=connect-execution-v1:1 \
-            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED=true,CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=true,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
+            --update-env-vars "NODE_ENV=production,MILLIONSNEST_HUB_ORIGIN=https://www.millionsnest.com,MUSICSCALE_ORIGIN=https://musicscale.millionsnest.com,CONNECT_PUBLIC_ORIGIN=$CONNECT_CANONICAL_ORIGIN,CONNECT_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY,CONNECT_RELEASE_SHA=${{ github.sha }},CONNECT_RELEASE_RUN_ID=$GITHUB_RUN_ID,CONNECT_EXECUTION_SECRET_FILE=/var/run/secrets/connect-execution.json,CONNECT_HOMOLOGATION_READ_ONLY=false,CONNECT_WEB_PUSH_ENABLED=false,CONNECT_WEB_PUSH_TEST_MODE=true,CONNECT_WEB_PUSH_TTL_CONFIRMED=true,CONNECT_WEB_PUSH_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_SUPPORT_DRAFT_ENABLED=true,CONNECT_PRODUCT_ROUTING_ENABLED=true,CONNECT_PRODUCT_ROUTING_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_ROUTING_TTL_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED=true,CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED=true,CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED=true,CONNECT_AUTOMATION_EXECUTION_ENABLED=false,CONNECT_INTERNAL_ALERT_QUEUE_ENABLED=true,CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED=true,CONNECT_AUTOMATION_TTL_CONFIRMED=true,CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED=true,CONNECT_STORAGE_READINESS_PROBE_ENABLED=true,CONNECT_INBOX_DURABLE_ENABLED=true,CONNECT_INBOX_MESSAGE_CONTENT_ENABLED=true" \
             --quiet
 
       - name: Route traffic to exact released revision
@@ -303,6 +305,7 @@ jobs:
           if (env.CONNECT_RELEASE_SHA !== process.env.GITHUB_SHA) process.exit(1);
           if (env.CONNECT_RELEASE_RUN_ID !== process.env.GITHUB_RUN_ID) process.exit(1);
           if (env.CONNECT_PRODUCT_AGENT_SETTINGS_ENABLED !== 'true' || env.CONNECT_PRODUCT_AGENT_SETTINGS_PRIVATE_CONFIRMED !== 'true' || env.CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_ENABLED !== 'true') process.exit(1);
+          if (env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED !== 'true' || env.CONNECT_AUTOMATION_EXECUTION_ENABLED !== 'false' || env.CONNECT_AUTOMATION_STORAGE_PRIVATE_CONFIRMED !== 'true' || env.CONNECT_AUTOMATION_TTL_CONFIRMED !== 'true' || env.CONNECT_WEB_PUSH_ENABLED !== 'false') process.exit(1);
           NODE
               then
                 EXACT_READY=true
@@ -455,6 +458,12 @@ jobs:
             test "$STATUS" = 401
           done
           echo CONNECT_PRODUCT_AGENT_SETTINGS_EDITING_AUTHORITY_OK
+
+          STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-automation-auth.json -w '%{http_code}' "$BASE/api/core/automations/jobs?organizationId=release-smoke")"
+          test "$STATUS" = 401
+          STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-worker-auth.json -w '%{http_code}' -X POST "$BASE/api/core/automations/worker" -H 'Content-Type: application/json' --data '{"limit":1}')"
+          test "$STATUS" = 401
+          echo CONNECT_INTERNAL_AUTOMATION_QUEUE_AUTHORITY_OK
 
           for operation in entities pending-documents; do
             STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/connect-finance-auth.json -w '%{http_code}' \
