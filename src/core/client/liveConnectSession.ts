@@ -206,7 +206,9 @@ function mapCanonicalSessionToContext(
       appId: 'musicscale',
       access: session.appAccess?.musicscale?.accessible === true,
       capabilities: [],
-    }],
+    }, ...(['nestfinance', 'nestjourney'] as const).map(appId => ({
+      appId, access: session.appAccess?.[appId]?.appId === appId && session.appAccess[appId].organizationId === activeId && session.appAccess[appId].accessible === true && session.appAccess[appId].decisionState === 'granted', capabilities: [],
+    }))],
   };
 }
 

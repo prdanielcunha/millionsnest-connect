@@ -69,6 +69,20 @@ async function withServer(run: (origin: string) => Promise<void>, env: Record<st
 
 console.log('--- Running Connect Server Composition Tests ---');
 
+for (const [env, expected] of [[{}, 404], [{ CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED: 'true' }, 404], [{ CONNECT_NESTFINANCE_PENDING_DOCUMENTS_ENABLED: 'true', MILLIONSNEST_HUB_ORIGIN: 'https://www.millionsnest.com' }, 401]] as const) {
+  const app = createConnectServer({ env, core: createCore(), logger: { info() {}, warn() {}, error() {} } });
+  const server = app.listen(0, '127.0.0.1');
+  try {
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    for (const path of ['entities', 'pending-documents']) {
+      const response = await fetch(`${origin}/api/core/tools/nestfinance/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      // Missing Hub composition cannot be activated merely by setting a flag.
+      checkEqual(response.status, expected, 'Finance mounts only with Hub composition and always requires identity');
+    }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+}
+
 await withServer(async origin => {
   const result = await (await fetch(`${origin}/api/health`)).json() as any;
   checkEqual(result.productRouting.requested, true, 'requested routing flag is reported accurately');
