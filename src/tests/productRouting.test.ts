@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { applyProductRoute, routeProduct, routingId, verifyProductOrigin, type ProductRoutingState, type ProductRouteStore } from '../core/routing/productRouting';
+import { applyProductRoute, routeProduct, routingId, verifyProductOrigin, parseProductSupportOwners, type ProductRoutingState, type ProductRouteStore } from '../core/routing/productRouting';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
+
+assert.deepEqual(parseProductSupportOwners(undefined), {});
+assert.deepEqual(parseProductSupportOwners('{"musicscale":"synthetic-owner"}'), { musicscale: 'synthetic-owner' });
+for (const raw of ['', 'null', '[]', '{"__proto__":"owner"}', '{"unknown":"owner"}', '{"musicscale":42}', '{"nestfinance":"../tenant"}', '{"nestjourney":" user "}']) {
+  assert.throws(() => parseProductSupportOwners(raw), /PRODUCT_SUPPORT_OWNERS_INVALID/);
+}
 import { WhatsAppConnectionRegistry } from '../core/channels/whatsappConnectionRegistry';
 import { createConversationIdFromChannelIdentity, createMessageEvidenceRef, type ConnectMessageContentStore } from '../core/inbox/messageContentStore';
 import { InMemoryConnectThreadStore } from '../core/inbox/threadStore';
@@ -14,6 +20,8 @@ assert.equal(routeProduct('NestJourney', 'musicscale', +now).product, 'nestjourn
 assert.equal(routeProduct('documentos pendentes', 'nestfinance', +now).product, 'nestfinance');
 assert.equal(routeProduct('Qual é minha próxima escala?', null, +now).product, 'musicscale');
 assert.equal(routeProduct('Qual é minha próxima escala?', 'nestfinance', +now).product, 'nestfinance');
+assert.equal(routeProduct('Qual é minha próxima escala?', 'nestfinance', +now).kind, 'clarify');
+assert.equal(routeProduct('Qual é minha próxima escala?', 'musicscale', +now).kind, 'route');
 const secret = 'only-test-origin-key-at-least-32-characters';
 const payload = Buffer.from(JSON.stringify({ version: 1, product: 'nestfinance', issuedAt: +now, expiresAt: +now + 600000 })).toString('base64url');
 const token = payload + '.' + createHmac('sha256', secret).update('connect-product-origin:v1:' + payload).digest('base64url');
