@@ -1,6 +1,10 @@
 name: Connect Free Hourly Recovery
 # The default-branch cron has NO GCP identity. Production-only WIF rejects
 # main, so it dispatches an isolated workflow on the protected production ref.
+# A successful main dispatch ONLY proves the request was accepted; inspect
+# the separately protected production invoke result before asserting recovery.
+# This tracked comment change initiates a real main→production dispatch smoke
+# on merge, with no additional GCP credentials, IAM or service mutations.
 on:
   push:
     branches: [main]
