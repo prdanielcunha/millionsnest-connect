@@ -24,7 +24,7 @@ jobs:
       - name: Prove exact serving state and invoke existing signed Cloud Run Job
         shell: bash
         env:
-          EXPECTED_CORE_SHA: 4ba5e6f8fec95937ccdc5d6d581c4d4ab2d78107
+          EXPECTED_CORE_SHA: 892c5859d39a6dacb2112a35b341419a18c64a1e
         run: |
           set -euo pipefail
           PROJECT=millionsnest
