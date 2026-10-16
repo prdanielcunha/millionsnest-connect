@@ -49,13 +49,25 @@ jobs:
           NODE
           )"
           gcloud run revisions describe "$SERVING_REVISION" --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-revision.json
+          # Cloud Run resolves immutable image tags to digest in revision.spec.
+          # Independently resolve the verified release SHA tag via Artifact
+          # Registry; the serving digest MUST match that exact artifact.
+          IMAGE_TAG="us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:$EXPECTED_CORE_SHA"
+          EXPECTED_IMAGE_DIGEST="$(gcloud artifacts docker images describe "$IMAGE_TAG" --project "$PROJECT" --format='value(image_summary.digest)')"
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo RECOVERY_ARTIFACT_DIGEST_UNAVAILABLE >&2; exit 1; }
+          export EXPECTED_IMAGE_DIGEST
           node - <<'NODE'
           const fs=require('fs'); const d=JSON.parse(fs.readFileSync('/tmp/connect-recovery-revision.json','utf8'));
           const c=d.spec?.containers?.[0]||{};
           const env=Object.fromEntries((c.env||[]).map(e=>[e.name,e.value]));
           const sha=process.env.EXPECTED_CORE_SHA;
           if(!d.status?.conditions?.some(v=>v.type==='Ready'&&v.status==='True'))process.exit(1);
-          if(env.CONNECT_RELEASE_SHA!==sha||c.image!==`us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${sha}`)process.exit(1);
+          const registry='us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
+          const digest=process.env.EXPECTED_IMAGE_DIGEST||'';
+          if(env.CONNECT_RELEASE_SHA!==sha||!/^sha256:[a-f0-9]{64}$/.test(digest)||
+             ![`${registry}:${sha}`,`${registry}@${digest}`].includes(c.image)) {
+            console.error('RECOVERY_VERIFIED_SERVING_IMAGE_PROVENANCE_CHANGED'); process.exit(1);
+          }
           if(env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED!=='true'||env.CONNECT_AUTOMATION_EXECUTION_ENABLED!=='false'||env.CONNECT_WEB_PUSH_ENABLED!=='false')process.exit(1);
           console.log('RECOVERY_PRODUCTION_LIVE_SHA_OK');
           console.log('RECOVERY_QUEUE_ONLY_FLAGS_OK');
