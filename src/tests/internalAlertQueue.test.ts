@@ -36,15 +36,24 @@ for (const patch of [{ organizationId: 'org-b' }, { conversationId: 'other' }, {
 record = original;
 const appEvent: InternalAutomationEvent = { ...event, sourceApp: 'nestjourney', trigger: 'followup.due', recipientUid: 'caregiver' };
 assert.equal(await withoutPush(appEvent), 'needs_review', 'authorized operator event can await human review without push');
-const withPush = createInternalAlertExecutor({ threads, messages, directory, push: {
+const withPush = createInternalAlertExecutor({ threads, messages, directory, verifyJourneyEvent: async () => true, push: {
   async afterIngest(events) { calls++; assert.equal(events[0].kind, 'message'); return { accepted: 1, failed: 0 }; },
-  async notifyAutomation(input) { calls++; assert.equal(input.recipientUid, 'caregiver'); return { accepted: 1, failed: 0 }; },
+  async notifyAutomation(input) { calls++; assert.equal(input.recipientUid, 'caregiver'); assert.equal(await input.authorizeBeforeSend?.(), true); return { accepted: 1, failed: 0 }; },
 } });
 member = false;
 assert.equal(await withPush(appEvent), 'needs_review'); assert.equal(calls, 0, 'revoked operator never reaches push');
 member = true;
 assert.equal(await withPush(event), 'complete'); assert.equal(calls, 1);
 assert.equal(await withPush(appEvent), 'complete'); assert.equal(calls, 2);
+let blockedCalls = 0;
+for (const verifyJourneyEvent of [undefined, async () => false]) {
+  const deniedJourney = createInternalAlertExecutor({ threads, messages, directory, verifyJourneyEvent, push: {
+    async afterIngest() { blockedCalls++; return { accepted: 1, failed: 0 }; },
+    async notifyAutomation() { blockedCalls++; return { accepted: 1, failed: 0 }; },
+  } });
+  assert.equal(await deniedJourney(appEvent), 'needs_review', 'missing/revoked source proof blocks queued Journey alert');
+}
+assert.equal(blockedCalls, 0);
 const failedPush = createInternalAlertExecutor({ threads, messages, directory, push: {
   async afterIngest() { return { accepted: 0, failed: 1 }; }, async notifyAutomation() { return { accepted: 0, failed: 1 }; },
 } });
