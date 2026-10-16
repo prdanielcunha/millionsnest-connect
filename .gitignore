@@ -7,3 +7,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Generated Core bundles
+dist-core/
