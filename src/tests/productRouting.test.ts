@@ -40,7 +40,7 @@ for (const [utterance, expected] of [
   const result = routeProduct(utterance, null, +now);
   assert.equal(result.kind, 'route', utterance);
   assert.equal(result.product, expected, utterance);
-  assert.equal(result.source, 'domain_intent');
+  assert.equal(result.source, expected === 'musicscale' ? 'music_intent' : 'domain_intent');
 }
 for (const text of [
   'Tenho dúvida de comprovante e do discipulado',
