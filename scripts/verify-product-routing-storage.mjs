@@ -20,7 +20,15 @@ export async function verifyProductRoutingStorage({ token, projectId = 'millions
   if (typeof release.rulesetName !== 'string' || !/^projects\/millionsnest\/rulesets\/[a-zA-Z0-9-]+$/.test(release.rulesetName)) throw new Error('ROUTING_RULESET_REFERENCE_INVALID');
   const rules = await read(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`);
   const files = rules.source?.files;
-  if (!Array.isArray(files) || files.length !== 1 || typeof files[0].content !== 'string' || createHash('sha256').update(files[0].content).digest('hex') !== approvedHash) throw new Error('ROUTING_PUBLISHED_PRIVACY_PROOF_CHANGED');
+  // Fingerprints are non-secret: emit *only* the live SHA and file-count when the
+  // exact-byte gate rejects the published Rules, never Rules source or token.
+  // This provides a read-only, auditable diagnosis without bypassing fail-closed.
+  const liveHash = Array.isArray(files) && files.length === 1 && typeof files[0].content === 'string'
+    ? createHash('sha256').update(files[0].content).digest('hex') : null;
+  if (!liveHash || liveHash !== approvedHash) {
+    console.error('ROUTING_LIVE_RULES_FINGERPRINT=' + (liveHash ?? 'invalid-file-set') + ' fileCount=' + (Array.isArray(files) ? files.length : 'invalid'));
+    throw new Error('ROUTING_PUBLISHED_PRIVACY_PROOF_CHANGED');
+  }
   const field = await read(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/collectionGroups/connectProductRoutes/fields/expiresAt`);
   if (field.ttlConfig?.state !== 'ACTIVE') throw new Error('ROUTING_TTL_NOT_ACTIVE');
   return true;
