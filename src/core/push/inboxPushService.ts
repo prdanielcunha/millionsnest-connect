@@ -67,7 +67,11 @@ export class InboxPushService {
         if (!currentDevice || JSON.stringify(currentDevice) !== JSON.stringify(device)) continue;
         // Recheck canonical thread after potentially slow authority lookup.
         const latest = await this.threads.load(scope);
-        if (!latest || latest.lastEventId !== thread.lastEventId) continue;
+        // An unchanged event ID does not imply the recipient is still eligible:
+        // status and assignment may change during the Hub/device lookups.
+        if (!latest || latest.lastEventId !== thread.lastEventId ||
+            ['resolved', 'archived', 'waiting_person'].includes(latest.status) ||
+            (latest.assignedTo && (latest.assignedTo.type !== 'user' || latest.assignedTo.ref !== device.actorUid))) continue;
         const id = pushId(scope.organizationId, messageId, device.id);
         if (!await this.store.claim(id, new Date(this.now().getTime() + 30 * 86400000).toISOString())) {
           const status = await this.store.deliveryStatus(id);
