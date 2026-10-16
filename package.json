@@ -32,7 +32,7 @@
     "test:inbox-domain": "tsx src/tests/inboxDomain.test.ts",
     "test:tools-mobile": "tsx src/tests/toolsMobile.test.ts",
     "test:menu-mobile": "tsx src/tests/menuMobile.test.ts",
-    "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts",
+    "test:firebase-hosting": "tsx src/tests/firebaseHostingPolicy.test.ts && node scripts/test-connect-auth-bridge.mjs",
     "test:release-policy": "node scripts/test-connect-hosting-proof.mjs && tsx src/tests/firestoreRuntimeReadiness.test.ts && tsx src/tests/runtimeStorageReadinessPolicy.test.ts && tsx src/tests/connectProductionReleasePolicy.test.ts",
     "test:outbound": "tsx src/tests/outboundDelivery.test.ts && tsx src/tests/outboundDeliveryHttpHandler.test.ts",
     "test:whatsapp-assist": "tsx src/tests/whatsappAssistMagicMoment.test.ts",

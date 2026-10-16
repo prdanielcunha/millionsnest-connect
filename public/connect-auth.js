@@ -2,7 +2,6 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/12.3.
 import {
   browserLocalPersistence,
   getAuth,
-  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
@@ -40,7 +39,13 @@ async function getConnectAuth() {
       return auth;
     })();
   }
-  return authPromise;
+  try {
+    return await authPromise;
+  } catch (error) {
+    // Transient startup failures must not poison all later sign-in attempts.
+    authPromise = null;
+    throw error;
+  }
 }
 
 // Warm auth configuration before the login button is tapped. Safari may block
@@ -82,7 +87,9 @@ function waitForUser(auth) {
 
 async function restore() {
   const auth = await getConnectAuth();
-  await getRedirectResult(auth);
+  // The direct Google flow now uses popup authentication. Reading a redirect
+  // result on every page load can reintroduce Safari cross-origin storage
+  // failures even after a successful popup login.
   const user = auth.currentUser || await waitForUser(auth);
   if (!user) return null;
   return { uid: user.uid, idToken: await user.getIdToken(true) };
