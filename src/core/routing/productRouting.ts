@@ -18,7 +18,7 @@ export function parseProductSupportOwners(raw: string | undefined): Partial<Reco
 }
 export type ProductRouteDecision = {
   product: ConnectProduct | null; kind: 'route' | 'clarify';
-  source: 'explicit_product' | 'signed_origin' | 'conversation_context' | 'music_intent' | 'ambiguous';
+  source: 'explicit_product' | 'signed_origin' | 'conversation_context' | 'music_intent' | 'domain_intent' | 'ambiguous';
 };
 export function routingId(...parts: string[]) { return createHash('sha256').update(JSON.stringify(parts)).digest('hex'); }
 /** Origin proves product provenance only. It never grants identity, tenant access or tools. */
@@ -37,6 +37,29 @@ export function verifyProductOrigin(text: string, secret: string | undefined, no
     return payload.product;
   } catch { return null; }
 }
+/** Only high-confidence, public product hints. This is routing, NOT authority to
+ * read app data or execute a tool; ambiguous/cross-app hints need a person.
+ * Product names and valid signed origins always take precedence.
+ */
+function unambiguousDomainHint(clean: string): { product: ConnectProduct | null; ambiguous: boolean } {
+  const exactWord = (word: string) => new RegExp(`(?:^|[^a-z])${word}(?=$|[^a-z])`, 'u').test(clean);
+  const containsAny = (words: string[]) => words.some(exactWord);
+  const finance = containsAny(['dizimo', 'dizimos', 'comprovante', 'comprovantes',
+    'tesouraria', 'despesa', 'despesas', 'extrato', 'balancete', 'tithe',
+    'tithes', 'receipt', 'receipts', 'treasury', 'diezmo', 'diezmos',
+    'comprobante', 'comprobantes', 'tesoreria']) ||
+    /(?:contagem|fechamento) (?:dos? )?(?:dizimos?|ofertas)\b/u.test(clean);
+  const journey = containsAny(['discipulado', 'visitante', 'visitantes', 'acolhimento',
+    'discipleship', 'visitor', 'visitors', 'acogida']) ||
+    /\b(?:casa de paz|casas de paz|primeiro contato|integracao de visitantes|first contact)\b/u.test(clean);
+  const music = resolveConnectCoreIntent(clean) !== 'unknown' ||
+    /\b(?:louvor|repertorio|cifra|cifras|escala de louvor|escalas de louvor|worship|setlist|chords|repertoire|alabanza)\b/u.test(clean);
+  const matches: ConnectProduct[] = [];
+  if (music) matches.push('musicscale');
+  if (finance) matches.push('nestfinance');
+  if (journey) matches.push('nestjourney');
+  return { product: matches.length === 1 ? matches[0] : null, ambiguous: matches.length > 1 };
+}
 export function routeProduct(text: string, current: ConnectProduct | null, nowMs: number, originSecret?: string): ProductRouteDecision {
   const clean = text.replace(/\[mn-origin:[^\]]*\]/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const explicit = (Object.keys(CONNECT_PRODUCTS) as ConnectProduct[]).filter(p => new RegExp(`\\b${p}\\b`, 'i').test(clean));
@@ -46,11 +69,14 @@ export function routeProduct(text: string, current: ConnectProduct | null, nowMs
   }
   if (explicit.length === 1) return { product: explicit[0], kind: 'route', source: signed ? 'signed_origin' : 'explicit_product' };
   if (signed) return { product: signed, kind: 'route', source: 'signed_origin' };
-  if (current) {
-    if (current !== 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown') return { product: current, kind: 'clarify', source: 'ambiguous' };
-    return { product: current, kind: 'route', source: 'conversation_context' };
-  }
-  if (resolveConnectCoreIntent(clean) !== 'unknown') return { product: 'musicscale', kind: 'route', source: 'music_intent' };
+  const hint = unambiguousDomainHint(clean);
+  if (hint.ambiguous || (current && hint.product && hint.product !== current))
+    return { product: current, kind: 'clarify', source: 'ambiguous' };
+  if (current) return { product: current, kind: 'route', source: 'conversation_context' };
+  if (hint.product)
+    return { product: hint.product, kind: 'route',
+      source: hint.product === 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown'
+        ? 'music_intent' : 'domain_intent' };
   return { product: null, kind: 'clarify', source: 'ambiguous' };
 }
 export type ProductRoutingState = {
