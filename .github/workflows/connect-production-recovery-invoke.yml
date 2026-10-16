@@ -23,8 +23,6 @@ jobs:
           service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
       - name: Prove exact serving state and invoke existing signed Cloud Run Job
         shell: bash
-        env:
-          EXPECTED_CORE_SHA: 892c5859d39a6dacb2112a35b341419a18c64a1e
         run: |
           set -euo pipefail
           PROJECT=millionsnest
@@ -32,16 +30,34 @@ jobs:
           JOB=connect-inbound-alert-recovery-v1
           curl --fail --silent --show-error --max-time 20 --proto '=https' \
             -H 'Cache-Control: no-store' 'https://connect.millionsnest.com/api/health?recovery-verified=1' > /tmp/connect-recovery-live.json
-          node - <<'NODE'
+          # Obtain the SHA from the canonical live Core; do not rely on a stale
+          # hardcoded release hash. Accept it ONLY after independent protected
+          # Cloud Run 100%-traffic revision, immutable image and policy proof.
+          EXPECTED_CORE_SHA="$(node - <<'NODE'
           const fs=require('fs'); const h=JSON.parse(fs.readFileSync('/tmp/connect-recovery-live.json','utf8'));
-          if(h.success!==true||h.service!=='millionsnest-connect-core'||h.releaseSha!==process.env.EXPECTED_CORE_SHA) process.exit(1);
-          console.log('RECOVERY_PRODUCTION_LIVE_SHA_OK');
+          if(h.success!==true||h.service!=='millionsnest-connect-core'||!(/^[a-f0-9]{40}$/.test(h.releaseSha||''))) process.exit(1);
+          process.stdout.write(h.releaseSha);
           NODE
+          )"
+          export EXPECTED_CORE_SHA
           gcloud run services describe connect-api --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-service.json
-          node - <<'NODE'
+          SERVING_REVISION="$(node - <<'NODE'
           const fs=require('fs'); const d=JSON.parse(fs.readFileSync('/tmp/connect-recovery-service.json','utf8'));
-          const env=Object.fromEntries((d.spec?.template?.spec?.containers?.[0]?.env||[]).map(e=>[e.name,e.value]));
-          if(env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED!=='true'||env.CONNECT_AUTOMATION_EXECUTION_ENABLED!=='false'||env.CONNECT_WEB_PUSH_ENABLED!=='false') process.exit(1);
+          const matches=(d.status?.traffic||[]).filter(t=>Number(t.percent)===100&&typeof t.revisionName==='string');
+          if(matches.length!==1||!/^connect-api-[a-z0-9-]+$/.test(matches[0].revisionName))process.exit(1);
+          process.stdout.write(matches[0].revisionName);
+          NODE
+          )"
+          gcloud run revisions describe "$SERVING_REVISION" --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-revision.json
+          node - <<'NODE'
+          const fs=require('fs'); const d=JSON.parse(fs.readFileSync('/tmp/connect-recovery-revision.json','utf8'));
+          const c=d.spec?.containers?.[0]||{};
+          const env=Object.fromEntries((c.env||[]).map(e=>[e.name,e.value]));
+          const sha=process.env.EXPECTED_CORE_SHA;
+          if(!d.status?.conditions?.some(v=>v.type==='Ready'&&v.status==='True'))process.exit(1);
+          if(env.CONNECT_RELEASE_SHA!==sha||c.image!==`us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api:${sha}`)process.exit(1);
+          if(env.CONNECT_INTERNAL_ALERT_QUEUE_ENABLED!=='true'||env.CONNECT_AUTOMATION_EXECUTION_ENABLED!=='false'||env.CONNECT_WEB_PUSH_ENABLED!=='false')process.exit(1);
+          console.log('RECOVERY_PRODUCTION_LIVE_SHA_OK');
           console.log('RECOVERY_QUEUE_ONLY_FLAGS_OK');
           NODE
           gcloud run jobs describe "$JOB" --project "$PROJECT" --region "$REGION" --format=json > /tmp/connect-recovery-job.json
