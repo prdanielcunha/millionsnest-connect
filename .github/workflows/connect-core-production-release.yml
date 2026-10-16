@@ -12,6 +12,8 @@ on:
       - "server/**"
       - "public/**"
       - "scripts/connect-hosting-proof.mjs"
+      - "scripts/verify-product-routing-storage.mjs"
+      - "scripts/verify-internal-automation-storage.mjs"
       - "package.json"
       - "package-lock.json"
       - "Dockerfile.core"
