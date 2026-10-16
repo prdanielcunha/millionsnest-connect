@@ -4,6 +4,7 @@ import { homologationReadOnly } from './homologationReadOnly';
 import { createSupportOriginHttpHandler } from '../core/routing/supportOriginHttpHandler';
 import { createSupportDraftHttpHandler } from '../core/routing/supportDraftHttpHandler';
 import { FirestoreAutomationJobStore, InternalAutomationWorker, validateAutomationEvent } from '../core/automations/eventJobs';
+import { createJourneyEventAuthority } from '../core/automations/journeyEventAuthority';
 import { createInternalAlertExecutor } from '../core/automations/internalAlertExecutor';
 import { FirestoreInboundAlertCatchup } from '../core/automations/inboundAlertOutbox';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
@@ -532,6 +533,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
             automationJobs = new FirestoreAutomationJobStore(projectId, options.fetchImpl);
             automationWorker = new InternalAutomationWorker(automationJobs, createInternalAlertExecutor({
               threads: gatedStore, messages: messageStore, directory: operatorDirectory, push: inboxPush,
+              verifyJourneyEvent: createJourneyEventAuthority({ hubOrigin, signingSecret: keys.nestjourney, fetchImpl: options.fetchImpl }),
             }));
             automationEventHandler = createAutomationEventHandler(automationJobs, keys);
 

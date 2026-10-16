@@ -12,6 +12,7 @@ export function createInternalAlertExecutor(options: {
   threads: Pick<ConnectThreadStore, 'load'>;
   messages: Pick<ConnectMessageContentStore, 'get'>;
   directory: Pick<ConnectInboxOperatorDirectory, 'verify'>;
+  verifyJourneyEvent?: (event: InternalAutomationEvent) => Promise<boolean>;
   push?: Pick<InboxPushService, 'afterIngest' | 'notifyAutomation'> | null;
 }) {
   return async (event: InternalAutomationEvent): Promise<'complete' | 'needs_review'> => {
@@ -38,8 +39,13 @@ export function createInternalAlertExecutor(options: {
       // Existing signed app ingress targets Inbox operators, not arbitrary app
       // members. Official member-facing publishers/tools remain separate gates.
       if (!event.recipientUid || !await options.directory.verify({ organizationId: scope.organizationId, uid: event.recipientUid })) return 'needs_review';
+      const authorizeBeforeSend = event.sourceApp === 'nestjourney'
+        ? () => options.verifyJourneyEvent ? options.verifyJourneyEvent(event) : Promise.resolve(false)
+        : undefined;
+      if (authorizeBeforeSend && !await authorizeBeforeSend()) return 'needs_review';
       if (!options.push) return 'needs_review';
-      outcome = await options.push.notifyAutomation({ ...scope, eventId: jobId(event), recipientUid: event.recipientUid });
+      outcome = await options.push.notifyAutomation({ ...scope, eventId: jobId(event), recipientUid: event.recipientUid,
+        ...(authorizeBeforeSend ? { authorizeBeforeSend } : {}) });
     }
     return outcome.failed > 0 ? 'needs_review' : 'complete';
   };
