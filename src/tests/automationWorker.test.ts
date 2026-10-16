@@ -82,6 +82,42 @@ res = response(); await readHandler({ query: { organizationId: 'org-b' }, header
 res = response(); await readHandler({ query: { organizationId: 'org-a' }, headers: { authorization: 'Bearer test' } } as any, res as any); assert.equal(res.statusCode, 200);
 assert(!JSON.stringify(res.payload).includes('recipientUid')); assert(!JSON.stringify(res.payload).includes('leaseToken'));
 
+
+// Regression: a state-only Firestore query returns records by document name.
+// The first page may be entirely deferred jobs; a ready event beyond the
+// initial page must remain processable without changing Hub-owned indexes.
+{
+  const deferred = Array.from({ length: 25 }, (_, i): AutomationJob => ({
+    id: 'future-' + i, event, state: 'pending', attempts: 0,
+    availableAt: new Date(+now + 86400000).toISOString(),
+  }));
+  const ready: AutomationJob = { id: 'ready-after-first-page', event, state: 'pending',
+    attempts: 0, availableAt: new Date(+now - 1000).toISOString() };
+  const expired: AutomationJob = { id: 'expired-processing-lease', event,
+    state: 'processing', attempts: 1,
+    availableAt: new Date(+now - 2000).toISOString(),
+    leaseToken: 'expired', leaseExpiresAt: new Date(+now - 1000).toISOString() };
+  const pendingDocuments = [...deferred, ready];
+  const queriedOffsets: number[] = [];
+  const pages = new FirestoreAutomationJobStore('millionsnest', async (_url, init) => {
+    assert.equal(init?.method, 'POST');
+    const query = JSON.parse(String(init.body)).structuredQuery;
+    assert.equal(query.where.fieldFilter.field.fieldPath, 'state');
+    assert.equal(query.limit, 25);
+    const start = query.offset ?? 0;
+    queriedOffsets.push(start);
+    const candidates = query.where.fieldFilter.value.stringValue === 'pending'
+      ? pendingDocuments : [expired];
+    return Response.json(candidates.slice(start, start + query.limit)
+      .map(job => ({ document: { fields: { recordJson: { stringValue: JSON.stringify(job) } } } })));
+  }, { async getAccessToken() { return 'runtime-only'; } });
+  const available = await pages.pending(2, now);
+  assert.deepEqual(available.map(job => job.id), ['expired-processing-lease', 'ready-after-first-page']);
+  assert(queriedOffsets.includes(25), 'ready jobs after the blocked first page must be discovered');
+  const early = await pages.pending(1, new Date(+now - 2 * 86400000));
+  assert.equal(early.length, 0, 'future jobs never execute before their due time');
+}
+
 const exhaustedJob: AutomationJob = { id: jobId(event), event, state: 'processing', attempts: 3, availableAt: now.toISOString(), leaseToken: 'old', leaseExpiresAt: new Date(+now - 1000).toISOString() };
 let writtenState = '';
 const exhaustedStore = new FirestoreAutomationJobStore('millionsnest', async (_url, init) => {
