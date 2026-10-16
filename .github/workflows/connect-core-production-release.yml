@@ -1,4 +1,8 @@
 # Combined release: preserve live401 gates and validate against current main before publication.
+# P0 protected retry marker: only merge AFTER Hub canonical Firestore Rules SHA256
+# c8804c9f34197fb60d71936532782622c3f9f5aa7fbd3bd70bd7575753353311
+# is confirmed live and Finance release cannot republish repo-local Rules/indexes.
+# Exact-byte privacy/TTL/authority guard and real serving SHA proofs remain mandatory.
 name: Connect Core Production Release
 
 on:
