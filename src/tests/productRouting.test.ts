@@ -23,6 +23,37 @@ assert.equal(routeProduct('Qual é minha próxima escala?', null, +now).product,
 assert.equal(routeProduct('Qual é minha próxima escala?', 'nestfinance', +now).product, 'nestfinance');
 assert.equal(routeProduct('Qual é minha próxima escala?', 'nestfinance', +now).kind, 'clarify');
 assert.equal(routeProduct('Qual é minha próxima escala?', 'musicscale', +now).kind, 'route');
+// Unnamed high-confidence product requests route without granting private app
+// access; mixed categories and cross-app context must never silently switch.
+for (const [utterance, expected] of [
+  ['Preciso conferir um comprovante de oferta', 'nestfinance'],
+  ['Como registrar dízimos e despesas?', 'nestfinance'],
+  ['Quero acolher um visitante novo', 'nestjourney'],
+  ['Como acompanhar uma Casa de Paz?', 'nestjourney'],
+  ['Preciso de uma cifra para o louvor', 'musicscale'],
+  ['I need my donation receipt', 'nestfinance'],
+  ['How can I welcome new visitors for discipleship?', 'nestjourney'],
+  ['Need the chords for worship', 'musicscale'],
+  ['Quiero registrar diezmos', 'nestfinance'],
+  ['Necesito ayuda con discipulado', 'nestjourney'],
+] as const) {
+  const result = routeProduct(utterance, null, +now);
+  assert.equal(result.kind, 'route', utterance);
+  assert.equal(result.product, expected, utterance);
+  assert.equal(result.source, expected === 'musicscale' ? 'music_intent' : 'domain_intent');
+}
+for (const text of [
+  'Tenho dúvida de comprovante e do discipulado',
+  'Quero conferir cifras e despesas',
+  'Preciso de ajuda no aplicativo',
+]) {
+  assert.equal(routeProduct(text, null, +now).kind, 'clarify', text);
+}
+assert.equal(routeProduct('Meu comprovante não aparece', 'musicscale', +now).kind, 'clarify');
+assert.equal(routeProduct('Meu comprovante não aparece', 'musicscale', +now).product, 'musicscale');
+assert.equal(routeProduct('Quero acolher visitantes', 'nestfinance', +now).kind, 'clarify');
+assert.equal(routeProduct('Obrigado, tudo resolvido', 'nestfinance', +now).product, 'nestfinance');
+
 const secret = 'only-test-origin-key-at-least-32-characters';
 const payload = Buffer.from(JSON.stringify({ version: 1, product: 'nestfinance', issuedAt: +now, expiresAt: +now + 600000 })).toString('base64url');
 const token = payload + '.' + createHmac('sha256', secret).update('connect-product-origin:v1:' + payload).digest('base64url');
