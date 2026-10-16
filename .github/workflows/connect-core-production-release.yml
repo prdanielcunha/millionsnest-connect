@@ -591,3 +591,29 @@ jobs:
             rollback_failed=1
           fi
           test "$rollback_failed" = 0
+
+  # A Core release changes the immutable image SHA. Refresh the *existing*
+  # bounded internal-only recovery job only after the canonical Core and Hosting
+  # release fully passes. A failed refresh must not roll back a healthy Core.
+  recovery_refresh:
+    name: Refresh verified signed recovery job
+    needs: release
+    if: github.ref == 'refs/heads/production' && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CONNECT_RECOVERY_EXPECTED_SERVING_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Authenticate production-only service identity
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Repin existing bounded HMAC recovery job to live released image
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/production
+          bash scripts/provision-connect-recovery-scheduler.sh
+          echo CONNECT_CORE_RELEASE_SIGNED_RECOVERY_REFRESH_OK
