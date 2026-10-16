@@ -31,6 +31,11 @@ for (const [utterance, expected] of [
   ['Quero acolher um visitante novo', 'nestjourney'],
   ['Como acompanhar uma Casa de Paz?', 'nestjourney'],
   ['Preciso de uma cifra para o louvor', 'musicscale'],
+  ['I need my donation receipt', 'nestfinance'],
+  ['How can I welcome new visitors for discipleship?', 'nestjourney'],
+  ['Need the chords for worship', 'musicscale'],
+  ['Quiero registrar diezmos', 'nestfinance'],
+  ['Necesito ayuda con discipulado', 'nestjourney'],
 ] as const) {
   const result = routeProduct(utterance, null, +now);
   assert.equal(result.kind, 'route', utterance);
