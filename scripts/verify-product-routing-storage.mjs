@@ -26,7 +26,7 @@ export async function verifyProductRoutingStorage({ token, projectId = 'millions
   const liveHash = Array.isArray(files) && files.length === 1 && typeof files[0].content === 'string'
     ? createHash('sha256').update(files[0].content).digest('hex') : null;
   if (!liveHash || liveHash !== approvedHash) {
-    console.error('ROUTING_LIVE_RULES_FINGERPRINT=' + (liveHash ?? 'invalid-file-set'));
+    console.error('ROUTING_LIVE_RULES_FINGERPRINT=' + (liveHash ?? 'invalid-file-set') + ' fileCount=' + (Array.isArray(files) ? files.length : 'invalid'));
     throw new Error('ROUTING_PUBLISHED_PRIVACY_PROOF_CHANGED');
   }
   const field = await read(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/collectionGroups/connectProductRoutes/fields/expiresAt`);
