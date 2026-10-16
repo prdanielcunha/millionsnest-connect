@@ -121,6 +121,30 @@ const isolatedFailure = new InboxPushService(store, threads, {
 }, async () => { sends++; }, registry, () => now);
 await isolatedFailure.afterIngest(events);
 assert.equal(sends, 2, 'broken recipient lookup does not block another eligible device');
+// Regression: the canonical thread can be resolved or reassigned after the
+// first read while Hub/operator and device checks are in flight. A matching
+// lastEventId alone must never authorize delivery to the former operator.
+store.devices = [device];
+readStates.clear();
+store.claims.clear();
+const snapshot = await threads.load(scope);
+assert(snapshot);
+for (const patch of [
+  { status: 'resolved' as const },
+  { assignedTo: { type: 'user' as const, ref: 'different-operator' } },
+]) {
+  let reads = 0;
+  const changingThreads = { async load() {
+    reads++;
+    return reads > 2 ? { ...snapshot, ...patch } : snapshot;
+  } };
+  const sendCount = sends;
+  const revalidated = new InboxPushService(store, changingThreads as unknown as InMemoryConnectThreadStore,
+    directory, async () => { sends++; }, registry, () => now);
+  await revalidated.afterIngest(events);
+  assert(reads >= 3, 'test reaches the late thread authority recheck');
+  assert.equal(sends, sendCount, 'stale status or assignee must suppress Web Push before claiming delivery');
+}
 const fs = new FirestorePushStore('millionsnest', async () => new Response('{}', { status: 409 }), { async getAccessToken() { return 'runtime-token'; } });
 assert.equal(await fs.claim('duplicate', now.toISOString()), false);
 await assert.rejects(() => new FirestorePushStore('millionsnest', async () => new Response('{}', { status: 403 }), { async getAccessToken() { return 'runtime-token'; } }).claim('id', now.toISOString()));
