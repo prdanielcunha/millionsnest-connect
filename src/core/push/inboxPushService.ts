@@ -44,10 +44,11 @@ export class InboxPushService {
     }
     return aggregate;
   }
-  async notifyAutomation(input: { organizationId: string; conversationId: string; recipientUid: string; eventId: string }) {
-    return this.notifyThread(input, input.eventId, input.recipientUid);
+  async notifyAutomation(input: { organizationId: string; conversationId: string; recipientUid: string; eventId: string; authorizeBeforeSend?: () => Promise<boolean> }) {
+    return this.notifyThread({ organizationId: input.organizationId, conversationId: input.conversationId },
+      input.eventId, input.recipientUid, input.authorizeBeforeSend);
   }
-  private async notifyThread(scope: { organizationId: string; conversationId: string }, messageId: string, recipientUid?: string) {
+  private async notifyThread(scope: { organizationId: string; conversationId: string }, messageId: string, recipientUid?: string, authorizeBeforeSend?: () => Promise<boolean>) {
     const outcome = { accepted: 0, failed: 0 };
     const thread = await this.threads.load(scope);
     if (!thread || ['resolved', 'archived', 'waiting_person'].includes(thread.status)) return outcome;
@@ -79,6 +80,13 @@ export class InboxPushService {
           continue;
         }
         try {
+          // Recheck source AFTER all Hub/device/thread lookups and durable
+          // reservation, immediately before transport. Revocation fails closed.
+          if (authorizeBeforeSend && !await authorizeBeforeSend()) {
+            await this.store.result(id, 'suppressed_source_authority');
+            outcome.failed++;
+            continue;
+          }
           await this.send(device, privatePushPayload({ ...scope, messageId }));
           await this.store.result(id, 'accepted_by_push_service');
           outcome.accepted++;

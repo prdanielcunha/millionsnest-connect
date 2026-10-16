@@ -149,3 +149,25 @@ const fs = new FirestorePushStore('millionsnest', async () => new Response('{}',
 assert.equal(await fs.claim('duplicate', now.toISOString()), false);
 await assert.rejects(() => new FirestorePushStore('millionsnest', async () => new Response('{}', { status: 403 }), { async getAccessToken() { return 'runtime-token'; } }).claim('id', now.toISOString()));
 console.log('Web Push: provider SSRF guard, Hub authority, tenant/device isolation, 20 duplicates, quiet hours, revoked operators, privacy and expiry passed.');
+
+// Fresh source proof must run after even the durable push reservation. A
+// revocation during slow device/Hub lookups therefore never reaches transport.
+{
+  const activeThreads = new InMemoryConnectThreadStore();
+  const activeCommands = new ConnectThreadCommandService(activeThreads, () => now);
+  await activeCommands.open({ ...scope, requestId: 'journey-source-proof-open', evidenceRef: 'opaque', channel: 'whatsapp' });
+  let authorized = true, sent = 0;
+  const statuses: string[] = [];
+  const sourceStore: PushStore = { ...store,
+    async list() { return [device]; }, async get() { return device; },
+    async claim() { authorized = false; return true; },
+    async result(_id, status) { statuses.push(status); },
+  };
+  const guarded = new InboxPushService(sourceStore, activeThreads, directory, async () => { sent++; }, registry, () => now);
+  eligible = true;
+  const outcome = await guarded.notifyAutomation({ ...scope, recipientUid: 'operator', eventId: 'synthetic-source-event',
+    authorizeBeforeSend: async () => authorized });
+  assert.equal(sent, 0, 'source revoked after reservation cannot reach Web Push transport');
+  assert.equal(outcome.failed, 1);assert.deepEqual(statuses, ['suppressed_source_authority']);
+}
+console.log('Journey source proof after durable push claim: revocation blocks actual sender invocation. No real device delivery claimed.');
