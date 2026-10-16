@@ -28,3 +28,10 @@ Private runtime IAM/client-denial/TTL required for `connectAutomationJobs.expire
 ## Source increment #284 (awaiting release verification)
 
 Incoming WhatsApp message and provider index now commit an atomic `alertOutboxStatus=pending` field. The existing HMAC worker catches up from durable messages (including bounded legacy cursor reconciliation) with canonical tenant/channel binding, at most three failed enqueue attempts, budget and idempotency. Unqueued failures become tenant-authorized `needs_review` entries in the queue read, without phone/body/uid. Index review listing is bounded (200 org records); do not claim exhaustive audit for bigger tenants. Physical push, Meta templates, general automations OFF. Unattended scheduler/real production trial not certified until separate proof.
+
+
+## Queue fairness, deferred jobs and bounded index-only pagination (2026-10-16)
+
+The worker previously requested only `min(25, batchLimit)` Firestore documents per state, without filtering `availableAt`. If the first document IDs contained backoff jobs, ready jobs sorted later by document name could remain invisible across repeated hourly calls. The source-only remediation scans **up to eight 25-document pages per state** (bounded), keeps only due pending jobs and expired processing leases, then prioritizes by `availableAt`. Actual lease and tenant scope are still rechecked by optimistic concurrency before any external action. This uses only pre-existing state single-field indexes; it **does not** add a composite index, Firestore Rules, TTL, IAM, paid scheduler, Meta send or push activation.
+
+Remaining limitation: an enormous queue with more than 200 blocked records per state can still need pagination/cursor/monitoring beyond this capped scan; no zero-backlog or hourly SLA can be claimed. Certify the full backlog in production before enabling app alerts. Queue processing stays bounded to ten jobs per call and all external sends remain behind the existing gates.

@@ -28,7 +28,7 @@ export type AutomationJob = { id: string; event: InternalAutomationEvent; state:
 export interface AutomationJobStore {
   enqueue(event: InternalAutomationEvent, now: Date): Promise<'created' | 'duplicate'>;
   listForOrganization(organizationId: string): Promise<AutomationJob[]>;
-  pending(limit: number): Promise<AutomationJob[]>;
+  pending(limit: number, now?: Date): Promise<AutomationJob[]>;
   lease(job: AutomationJob, now: Date): Promise<AutomationJob | null>;
   finish(job: AutomationJob, state: AutomationJob['state'], code: string, now: Date): Promise<void>;
 }
@@ -87,18 +87,42 @@ export class FirestoreAutomationJobStore implements AutomationJobStore {
     const rows = await r.json() as Array<{ document?: { fields: { recordJson: { stringValue: string } } } }>;
     return rows.flatMap(row => row.document ? [JSON.parse(row.document.fields.recordJson.stringValue) as AutomationJob] : []).filter(job => job.event.organizationId === organizationId);
   }
-  async pending(limit: number): Promise<AutomationJob[]> {
+  async pending(limit: number, now = new Date()): Promise<AutomationJob[]> {
     const jobs: AutomationJob[] = [];
-    // Single-field filters avoid requiring an undisclosed composite index.
-    for (const state of ['pending', 'processing']) {
-      const r = await this.request(':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: {
-        from: [{ collectionId: 'connectAutomationJobs' }], where: { fieldFilter: { field: { fieldPath: 'state' }, op: 'EQUAL', value: { stringValue: state } } }, limit: Math.min(25, limit),
-      } }) });
-      if (!r.ok) throw new Error('AUTOMATION_STORAGE_UNAVAILABLE');
-      const rows = await r.json() as Array<{ document?: { fields: { recordJson: { stringValue: string } } } }>;
-      for (const row of rows) if (row.document) jobs.push(JSON.parse(row.document.fields.recordJson.stringValue));
+    const wanted = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 10)) : 10;
+    // Firestore's state-only query is indexed by default; state+availableAt
+    // requires a new composite index in Hub-owned shared Firestore. Paginate
+    // the existing private state index without changing shared Rules/indexes.
+    // A deferred job at the start must not indefinitely hide later ready jobs.
+    const pageSize = 25, maxPagesPerState = 8;
+    for (const state of ['pending', 'processing'] as const) {
+      let eligible = 0;
+      for (let page = 0; page < maxPagesPerState && eligible < wanted; page++) {
+        const r = await this.request(':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: {
+          from: [{ collectionId: 'connectAutomationJobs' }],
+          where: { fieldFilter: { field: { fieldPath: 'state' }, op: 'EQUAL', value: { stringValue: state } } },
+          limit: pageSize, offset: page * pageSize,
+        } }) });
+        if (!r.ok) throw new Error('AUTOMATION_STORAGE_UNAVAILABLE');
+        const rows = await r.json() as Array<{ document?: { fields: { recordJson: { stringValue: string } } } }>;
+        let returned = 0;
+        for (const row of rows) if (row.document) {
+          returned++;
+          const job = JSON.parse(row.document.fields.recordJson.stringValue) as AutomationJob;
+          if (job.state !== state || !Number.isFinite(Date.parse(job.availableAt)) ||
+              Date.parse(job.availableAt) > +now ||
+              state === 'processing' && Date.parse(job.leaseExpiresAt ?? '') > +now) continue;
+          jobs.push(job);
+          eligible++;
+          if (eligible >= wanted) break;
+        }
+        if (returned < pageSize) break;
+      }
     }
-    return jobs;
+    // Expired leases and earlier due jobs should not be hidden by lexicographic
+    // document IDs. CAS lease still rechecks live state before executing.
+    return jobs.sort((a, b) => Date.parse(a.availableAt) - Date.parse(b.availableAt))
+      .slice(0, wanted);
   }
   async lease(job: AutomationJob, now: Date) {
     const current = await this.read(job.id);
@@ -128,7 +152,7 @@ export class InternalAutomationWorker {
   async run(limit = 10) {
     let processed = 0;
     const batchLimit = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 10)) : 10;
-    for (const candidate of await this.store.pending(batchLimit)) {
+    for (const candidate of await this.store.pending(batchLimit, this.now())) {
       if (processed >= batchLimit) break;
       const job = await this.store.lease(candidate, this.now()); if (!job) continue;
       processed++;
