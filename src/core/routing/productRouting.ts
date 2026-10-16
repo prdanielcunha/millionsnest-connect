@@ -45,12 +45,15 @@ function unambiguousDomainHint(clean: string): { product: ConnectProduct | null;
   const exactWord = (word: string) => new RegExp(`(?:^|[^a-z])${word}(?=$|[^a-z])`, 'u').test(clean);
   const containsAny = (words: string[]) => words.some(exactWord);
   const finance = containsAny(['dizimo', 'dizimos', 'comprovante', 'comprovantes',
-    'tesouraria', 'despesa', 'despesas', 'extrato', 'balancete']) ||
+    'tesouraria', 'despesa', 'despesas', 'extrato', 'balancete', 'tithe',
+    'tithes', 'receipt', 'receipts', 'treasury', 'diezmo', 'diezmos',
+    'comprobante', 'comprobantes', 'tesoreria']) ||
     /(?:contagem|fechamento) (?:dos? )?(?:dizimos?|ofertas)\b/u.test(clean);
-  const journey = containsAny(['discipulado', 'visitante', 'visitantes', 'acolhimento']) ||
-    /\b(?:casa de paz|casas de paz|primeiro contato|integracao de visitantes)\b/u.test(clean);
+  const journey = containsAny(['discipulado', 'visitante', 'visitantes', 'acolhimento',
+    'discipleship', 'visitor', 'visitors', 'acogida']) ||
+    /\b(?:casa de paz|casas de paz|primeiro contato|integracao de visitantes|first contact)\b/u.test(clean);
   const music = resolveConnectCoreIntent(clean) !== 'unknown' ||
-    /\b(?:louvor|repertorio|cifra|cifras|escala de louvor|escalas de louvor)\b/u.test(clean);
+    /\b(?:louvor|repertorio|cifra|cifras|escala de louvor|escalas de louvor|worship|setlist|chords|repertoire|alabanza)\b/u.test(clean);
   const matches: ConnectProduct[] = [];
   if (music) matches.push('musicscale');
   if (finance) matches.push('nestfinance');
