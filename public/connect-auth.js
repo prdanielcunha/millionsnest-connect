@@ -43,6 +43,10 @@ async function getConnectAuth() {
   return authPromise;
 }
 
+// Warm auth configuration before the login button is tapped. Safari may block
+// a popup if the click's user activation expires while Firebase initializes.
+void getConnectAuth().catch(() => {});
+
 async function getAppCheckToken() {
   if (!appCheckPromise) {
     appCheckPromise = (async () => {
