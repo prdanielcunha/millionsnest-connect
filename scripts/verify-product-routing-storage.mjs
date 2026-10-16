@@ -4,7 +4,11 @@ import { pathToFileURL } from 'node:url';
 
 // Hub38760546756: 259 privacy checks and exact published-byte comparison.
 // Reader rollout additionally waits for the in-production post-publish proof.
-export const APPROVED_RULES_SHA256 = '397b3208917fdae9a68fd768d40edd127a4cbb397e3c30fa0420baec8420c182';
+// Reviewed Hub production rules: prdanielcunha/millionsnest@4b5416f9c08944ecfd525f3db33b96d57e11df98.
+// Hub Firestore deploy 38812686671 verified byte-identical live Rules SHA256 after publishing,
+// and completed 259 private-store emulator assertions. Keep the exact-byte pin and active TTL gate:
+// a future Rules deployment MUST require a fresh independent Hub privacy review before release.
+export const APPROVED_RULES_SHA256 = 'c8804c9f34197fb60d71936532782622c3f9f5aa7fbd3bd70bd7575753353311';
 export async function verifyProductRoutingStorage({ token, projectId = 'millionsnest', fetchImpl = fetch, approvedHash = APPROVED_RULES_SHA256 }) {
   if (typeof token !== 'string' || !token.trim() || token.length > 16384 || /[\r\n]/.test(token) || projectId !== 'millionsnest') throw new Error('ROUTING_STORAGE_PROBE_INPUT_INVALID');
   const read = async url => {
