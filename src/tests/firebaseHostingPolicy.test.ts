@@ -15,6 +15,37 @@ assert.deepEqual(firebase?.hosting?.rewrites, [
   { source: "**", destination: "/index.html" },
 ]);
 
+const authBridgeCachePolicy = firebase?.hosting?.headers?.find(
+  (rule: any) => rule.source === "/connect-auth.js"
+)?.headers?.find((header: any) => header.key === "Cache-Control")?.value;
+assert.equal(
+  authBridgeCachePolicy,
+  "no-cache,no-store,must-revalidate",
+  "the standalone Google auth bridge must not remain cached after a Safari fix",
+);
+
+const directAuthBridge = fs.readFileSync("public/connect-auth.js", "utf8");
+assert.match(
+  directAuthBridge,
+  /await signInWithPopup\(auth, provider\)/,
+  "direct Google login must use a first-party popup rather than redirect on Safari",
+);
+assert.doesNotMatch(
+  directAuthBridge,
+  /signInWithRedirect\(auth, provider\)/,
+  "the old redirect-based direct Google login must not be restored",
+);
+assert.match(
+  directAuthBridge,
+  /window\.location\.reload\(\)/,
+  "a successful popup login must restart canonical Hub session verification",
+);
+assert.match(
+  directAuthBridge,
+  /window\.location\.assign\('https:\/\/www\.millionsnest\.com\/connect\/launch'\)/,
+  "unsupported popup environments must use the official Hub SSO",
+);
+
 const rc = JSON.parse(fs.readFileSync(".firebaserc", "utf8"));
 assert.equal(
   firebase?.hosting?.rewrites?.[0]?.run?.pinTag,

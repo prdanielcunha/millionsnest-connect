@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
-  signInWithRedirect,
+  signInWithPopup,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js';
 import {
@@ -42,6 +42,10 @@ async function getConnectAuth() {
   }
   return authPromise;
 }
+
+// Warm auth configuration before the login button is tapped. Safari may block
+// a popup if the click's user activation expires while Firebase initializes.
+void getConnectAuth().catch(() => {});
 
 async function getAppCheckToken() {
   if (!appCheckPromise) {
@@ -88,7 +92,26 @@ async function signInGoogle() {
   const auth = await getConnectAuth();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-  await signInWithRedirect(auth, provider);
+
+  // Redirect-based Firebase OAuth can lose its cross-origin auth state on
+  // Safari/iOS when Connect runs on a custom Hosting domain. Keep Google sign-in
+  // on this origin, then re-bootstrap through the canonical Hub session API.
+  try {
+    await signInWithPopup(auth, provider);
+    window.location.reload();
+  } catch (error) {
+    // Popup support varies across browsers and embedded web views. In those
+    // environments, use the existing, Hub-owned SSO flow instead of returning
+    // to a Firebase redirect flow that may lose state again.
+    if (
+      error?.code === 'auth/popup-blocked' ||
+      error?.code === 'auth/operation-not-supported-in-this-environment'
+    ) {
+      window.location.assign('https://www.millionsnest.com/connect/launch');
+      return;
+    }
+    throw error;
+  }
 }
 
 async function signOutConnect() {
