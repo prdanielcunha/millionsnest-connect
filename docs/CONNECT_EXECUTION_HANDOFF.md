@@ -1,3 +1,33 @@
+# 2026-10-17 — published source image certification addendum
+
+- Rechecked the real GitHub state and supplied v3/v4 blueprints. Do not reopen completed implementations or treat later product phases as authorization to enable sends.
+- Actual scheduled Connect recovery: dispatcher38986896850 (event=schedule) SUCCESS, protected production invocation38986902977 SUCCESS, job117260374814. Logs: RECOVERY_PRODUCTION_LIVE_SHA_OK, RECOVERY_QUEUE_ONLY_FLAGS_OK, RECOVERY_PINNED_JOB_IMAGE_OK; execution `connect-inbound-alert-recovery-v1-25zng` completed; RECOVERY_GITHUB_PROD_OIDC_SIGNED_JOB_OK. This certifies the bounded internal Connect recovery path, not upstream source delivery or physical Push.
+- New source image proof PRs Hub398/399 generalize the existing read-only serving proof without removing its fourteen guards.35 additional assertions cover all three profiles, active/ambiguous flags, wrong runtime identity, isolated execution, no credential mounts, cleanup and invalid source/SHA. Lint/build PASS; every exact-head gate SUCCESS. Live production proof outcome is recorded below.
+- Protected published-image proof [39003862612](https://github.com/prdanielcunha/millionsnest/actions/runs/39003862612) SUCCESS, contract plus all3 matrix jobs. Main PR398 merged `501570971ced17a5e328ec107729f5fa76b0de02`; production operations-only PR399 merged `46c2a21e28e1b5415320833c91d67a5f058ed7ed` after every exact-head gate SUCCESS (including MillionsNest QA39003577806). No Hub application redeploy occurred; its serving SHA is stillfadb04ce…. All3 live source flags were proven OFF in both service template and Ready serving revision, runtime identity checked, exactly100% traffic and Artifact Registry tag digest==serving digest. The actual published worker bundle then ran as UID65532 in a read-only, no-capabilities, network-disabled local container with no credentials and a demo project ID: enabledfalse, tenants0, failures0 and every counter0. This is a real check of published images and live OFF state, **not a GCP source job invocation or real event delivery**.
+
+| Source | Application SHA | Serving revision | Published worker | Evidence job |
+| --- | --- | --- | --- | --- |
+| MusicScale | `807326dcba31024affdb012e2f2619d0353eafaa` | `musicscale-api-00086-546` | `dist/connect-recovery.mjs` |117312228824 SUCCESS |
+| NestFinance | `edebb7b26c91fb4dca02efb5ceb24c722ab076b8` | `nestfinance-api-cg38985027725a1` | `server-dist/connect-recovery.mjs` |117312228886 SUCCESS |
+| Hub Journey | `fadb04ce60d4835fec099968723718f35f870d22` | `millionsnest-api-r38984426956` | `dist/journey-recovery.mjs` |117312228848 SUCCESS |
+
+Finance digest `sha256:da82ffe5f9da1493ed3af25e5ce3a769d1455c3c0aa24e387fe167c74a56f650`; Hub Journey digest `sha256:714923bb146b411a89faab62d10a969054fe80698788e800b1fd4dfc8c156b6e`; MusicScale digest remains `sha256:f0f9829b9fa878b2e581123172c58de930aa339a619238eea6a7e8e0865e6688`. No full environment, token, mapping, recipient or customer data was logged.
+
+- Auth-only production checks at2026-10-17T04:43Z: MusicScale next-schedule401 UNAUTHORIZED; Finance connect-entities401 FINANCE_CONTEXT_UNAVAILABLE; Hub Journey followup-context401 AUTH_REQUIRED; Journey HMAC event-authority401 SOURCE_AUTHORITY_AUTH_REQUIRED. Connect Inbox missing scope correctly400 INBOX_SCOPE_REQUIRED; same read with synthetic release-smoke organization and no credentials401 AUTH_REQUIRED. No customer token, valid user identity, delivery, mapping or document was supplied. This is evidence of rejection, not real authenticated three-app acceptance.
+- Source schedules are now proven by actual event=schedule runs, independently of visits, with successful protected production WIF invocation and OFF/no-mutation exit:
+
+| Source | Actual scheduled dispatcher | Protected production invocation | Result |
+| --- | --- | --- | --- |
+| MusicScale |39021315199 |39021319671 | SUCCESS, MUSICSCALE_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+| NestFinance |39021566113 |39021570678 | SUCCESS, NESTFINANCE_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+| Hub Journey |39021925652 |39021930187 | SUCCESS, NESTJOURNEY_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+
+Earlier Finance first observed scheduled chain39003802609→39003807853 SUCCESS (04:46Z) and bootstrap39004227838→39004233153 SUCCESS; Hub bootstrap39004232560→39004238194 SUCCESS. Default-branch bootstrap PRs only add a push trigger when the dispatcher itself changes, preserving cron/ref/perms: Finance303 main9f27ec2b54e262642857bf1225d6974b488692fc, Hub400 main309038d00d05b4bbd76be43286c4c4f69d0bd87f, MusicScale535 main45b3402ba31f5345d10ba2b25971c26988e4c131. MusicScale exact candidate531482e00551cbf11d24784906e714921ee84d4d QA39004132447 SUCCESS including all4 full E2Es and aggregate gate. Finance changes preserve concurrent mainf039c44 UI work and do not promote it to production.
+
+These runs prove scheduling/authentication/OFF safety, **not source-enabled catch-up or delivery**. Active-source ingest/ACK/interruption/backlog with approved real HMAC/mappings/consent, Meta/WABA, and a physical installed/locked/closed iPhone remain external certification gates. All corresponding #226 boxes stay unchecked. Browser sign-in method request did not return a verifiable result (tool timeout); no authenticated visual acceptance or sign-in success is claimed. Never use a fabricated user/tenant/recipient to complete those gates.
+
+---
+
 # 2026-10-17 — independent recovery implemented; operational certification remains OPEN
 
 This checkpoint supersedes historical “next action” paragraphs below. Issue #226 must remain OPEN; #222 is unchanged. Source bridges, real Push and commercial sending remain OFF. Simulator/Emulator evidence is not live Meta/WABA or physical iPhone evidence.
