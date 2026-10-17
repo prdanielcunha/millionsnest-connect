@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import { probeExistingMetaProfile, inspectExistingMetaRuntime } from './probe-existing-meta-profile.mjs';
 const release='b587bc1652329766feb993a7660e33b205ae9a97',image='us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
 const token='EAAsynthetic_TOKEN_for_readonly_unit_test_0000',phone='123456789101112',waba='987654321012345';
@@ -42,4 +43,15 @@ for(const response of [Response.json({error:{code:190,message:'raw-error-message
 result=await probeExistingMetaProfile(base,rev,{fetchImpl:async()=>{throw Error('raw-error-message '+token);}});assert.equal(result.code,'META_READ_REQUEST_FAILED');safeOutput(result);count++;
 const commands=[];result=await inspectExistingMetaRuntime((command,args)=>{commands.push(args);assert.equal(command,'gcloud');assert(args.includes('describe'));return JSON.stringify(args[1]==='services'?base:rev);},fetchImpl);assert.equal(result.state,'VERIFIED_READ_ONLY');assert.equal(commands.length,2);safeOutput(result);count++;
 const split=structuredClone(base);split.status.traffic=[{percent:90,revisionName:'connect-api-fixture'},{percent:10,revisionName:'connect-api-old'}];calls=[];result=await probeExistingMetaProfile(split,rev,{fetchImpl});assert.equal(result.state,'BLOCKED');assert.equal(calls.length,0);count++;
+const approved={wabaId:waba,phoneIdSha256:createHash('sha256').update(phone).digest('hex')};
+x=fresh();x.spec.containers[0].env=x.spec.containers[0].env.filter(e=>!e.name.endsWith('WABA_ID'));
+calls=[];result=await probeExistingMetaProfile(base,x,{approvedAccount:approved,fetchImpl:async(url,init)=>url.includes('/phone_numbers?')?(calls.push(url),Response.json({data:[{id:phone}]})):fetchImpl(url,init)});
+assert.equal(result.state,'VERIFIED_READ_ONLY');assert.equal(result.checks.phoneAccountAssociation,true);assert.equal(calls.length,4);safeOutput(result);count++;
+for(const override of [{...approved,wabaId:'../messages'},{...approved,phoneIdSha256:'b'.repeat(64)}]){
+ calls=[];result=await probeExistingMetaProfile(base,x,{approvedAccount:override,fetchImpl});assert.equal(result.code,'OWNER_APPROVED_ACCOUNT_MISMATCH');assert.equal(calls.length,0);count++;
+}
+for(const data of [{data:[]},{data:[{id:'other'}]},{data:{}},{data:Array(26).fill({id:phone})}]){
+ result=await probeExistingMetaProfile(base,x,{approvedAccount:approved,fetchImpl:async(url,init)=>url.includes('/phone_numbers?')?Response.json(data):fetchImpl(url,init)});
+ assert.equal(result.code,'PHONE_NOT_CONFIRMED_IN_APPROVED_ACCOUNT');safeOutput(result);count++;
+}
 console.log(`Meta read-only probe: ${count} contract cases PASS; fixed GET-only origin, no sends, no redirects/paging, scoped existing secret, safe logs, missing config/access and runtime drift denied. Synthetic transport only.`);

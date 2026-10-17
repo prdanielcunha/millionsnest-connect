@@ -157,3 +157,7 @@ The internal worker queues real Inbox notification references independently of p
 ### Existing Meta profile read-only proof
 
 The production-only diagnostic described in [CONNECT_META_READONLY_PROVIDER_PROOF.md](docs/CONNECT_META_READONLY_PROVIDER_PROOF.md) inspects the existing default Meta profile with GET-only metadata calls. It never sends or enables anything; BLOCKED/PARTIAL is an external gate, not an operational success claim.
+
+### Humanized WhatsApp templates and owner-account proof
+
+The [reviewed template catalog](docs/CONNECT_WHATSAPP_TEMPLATE_CATALOG.md) contains 27 PT-BR/English/Spanish metadata variants for nine app-specific situations, with explicit consent/authority gates and all delivery disabled. A separate production workflow can submit absent exact models to Meta for review; this does not approve or send them. The [owner-account diagnostic](docs/CONNECT_META_READONLY_PROVIDER_PROOF.md) verifies the supplied account/phone association and canonical organization mapping without changing customer access or history.

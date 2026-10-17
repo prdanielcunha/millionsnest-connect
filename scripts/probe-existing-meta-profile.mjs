@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
 const keys = ['CONNECT_WHATSAPP_ACCESS_TOKEN', 'CONNECT_WHATSAPP_GRAPH_API_VERSION', 'CONNECT_WHATSAPP_PHONE_NUMBER_ID', 'CONNECT_WHATSAPP_WABA_ID'];
 const release = 'b587bc1652329766feb993a7660e33b205ae9a97';
 const image = 'us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
 const blocked = (code, extra = {}) => ({ state: 'BLOCKED', code, sendAttempted: false, ...extra });
 
 // Inspect only the existing global provider profile. Never enumerate tenant connections.
-export async function probeExistingMetaProfile(service, revision, { readSecret, fetchImpl = fetch } = {}) {
+export async function probeExistingMetaProfile(service, revision, { readSecret, fetchImpl = fetch, approvedAccount } = {}) {
   const ready = x => x?.status?.conditions?.some(c => c.type === 'Ready' && c.status === 'True');
   const name = revision?.metadata?.name, traffic = (service?.status?.traffic || []).filter(t => Number(t.percent) > 0);
   const containers = revision?.spec?.containers;
@@ -33,8 +34,15 @@ export async function probeExistingMetaProfile(service, revision, { readSecret, 
     profile[key] = value.value.trim();
   }
   const version = profile[keys[1]], phoneId = profile[keys[2]], waba = entry(keys[3]);
-  const wabaId = waba.length === 1 && !waba[0].valueFrom && /^\d{1,40}$/.test(waba[0].value?.trim() || '') ? waba[0].value.trim() : null;
+  let wabaId = waba.length === 1 && !waba[0].valueFrom && /^\d{1,40}$/.test(waba[0].value?.trim() || '') ? waba[0].value.trim() : null;
   if (!/^v\d{1,3}\.\d{1,3}$/.test(version) || !/^\d{1,40}$/.test(phoneId)) return blocked('DEFAULT_PROVIDER_PROFILE_INVALID', { providerRequests: 0 });
+  if (approvedAccount) {
+    const digest = value => createHash('sha256').update(value).digest('hex');
+    if (!/^\d{5,30}$/.test(approvedAccount.wabaId || '') || !/^[a-f0-9]{64}$/.test(approvedAccount.phoneIdSha256 || '') ||
+        digest(phoneId) !== approvedAccount.phoneIdSha256 || (wabaId && wabaId !== approvedAccount.wabaId))
+      return blocked('OWNER_APPROVED_ACCOUNT_MISMATCH', { providerRequests: 0 });
+    wabaId = approvedAccount.wabaId;
+  }
   const configuredToken = entry(keys[0])[0];
   let token;
   if (configuredToken.valueFrom) {
@@ -50,6 +58,8 @@ export async function probeExistingMetaProfile(service, revision, { readSecret, 
   const endpoints = [['phoneAccess', `/${version}/${phoneId}?fields=id`, phoneId]];
   if (wabaId) endpoints.push(['wabaAccess', `/${version}/${wabaId}?fields=id`, wabaId],
     ['templateMetadata', `/${version}/${wabaId}/message_templates?fields=status&limit=25`, null]);
+  if (approvedAccount) endpoints.splice(2, 0,
+    ['phoneAccountAssociation', `/${version}/${wabaId}/phone_numbers?fields=id&limit=25`, null]);
   const checks = {}, statuses = {}, results = [];
   for (const [check, path, expectedId] of endpoints) {
     let response, data;
@@ -67,7 +77,10 @@ export async function probeExistingMetaProfile(service, revision, { readSecret, 
     if (!response.ok) return blocked('META_READ_ACCESS_REJECTED', { checks, providerRequests: results.length, httpStatus: response.status,
       ...(Number.isInteger(data?.error?.code) && data.error.code > 0 && data.error.code < 1000000 ? { providerErrorCode: data.error.code } : {}) });
     if (expectedId && data?.id !== expectedId) return blocked('META_RESOURCE_ID_MISMATCH', { checks, providerRequests: results.length });
-    if (!expectedId) {
+    if (check === 'phoneAccountAssociation') {
+      if (!Array.isArray(data?.data) || data.data.length > 25 || !data.data.some(item => item?.id === phoneId))
+        return blocked('PHONE_NOT_CONFIRMED_IN_APPROVED_ACCOUNT', { checks, providerRequests: results.length });
+    } else if (!expectedId) {
       if (!Array.isArray(data?.data) || data.data.length > 25) return blocked('META_TEMPLATE_RESPONSE_INVALID', { checks, providerRequests: results.length });
       for (const item of data.data) {
         const status = ['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED', 'IN_APPEAL', 'PENDING_DELETION', 'DELETED', 'LIMIT_EXCEEDED'].includes(item?.status) ? item.status : 'OTHER';
@@ -83,13 +96,13 @@ export async function probeExistingMetaProfile(service, revision, { readSecret, 
     firstPageOnly: true, sendAttempted: false, webhookDeliveryTested: false, operationalCertification: false };
 }
 
-export async function inspectExistingMetaRuntime(run = execFileSync, fetchImpl = fetch) {
+export async function inspectExistingMetaRuntime(run = execFileSync, fetchImpl = fetch, approvedAccount) {
   const options = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000, maxBuffer: 2 * 1024 * 1024 };
   const service = JSON.parse(run('gcloud', ['run', 'services', 'describe', 'connect-api', '--project', 'millionsnest', '--region', 'us-central1', '--format=json'], options));
   const revisionName = service?.status?.latestReadyRevisionName;
   if (!/^connect-api-[a-z0-9-]+$/.test(revisionName || '')) return blocked('RUNTIME_REVISION_INVALID');
   const revision = JSON.parse(run('gcloud', ['run', 'revisions', 'describe', revisionName, '--project', 'millionsnest', '--region', 'us-central1', '--format=json'], options));
-  return probeExistingMetaProfile(service, revision, { fetchImpl,
+  return probeExistingMetaProfile(service, revision, { fetchImpl, approvedAccount,
     readSecret: (name, version) => run('gcloud', ['secrets', 'versions', 'access', version, '--secret', name, '--project', 'millionsnest'], options) });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
