@@ -1,3 +1,13 @@
+# 2026-10-17 — authorized same-model Utility correction (candidate)
+
+Owner explicitly delegated technical category/copy decisions and implementation. Decision: preserve Utility intent for actual requested support updates, leave pending/approved models immutable and all delivery OFF. Fresh protected GET rerun39048271775/inspect117467262184 confirmed unchanged25present/24PENDING/1REJECTED/2missing/9category mismatches/0APPROVED; Hubpt_BR reasonINCORRECT_CATEGORY. Account/phone/runtime proof still passed.
+
+Candidate branch `chatgpt/hub-utility-template-correction-20261017` corrects only Hub support copy in PT/EN/ES. Separate `review_hub_support` operation may edit only the exact original rejected pt_BR template ID (no name change), with fresh status/content/account verification and readback, then create the two absent locales. Other24 catalog entries, user/org/history/RBAC, Meta registration, customer apps and all flags are unchanged. Normal creation still blocks unrelated category changes. This explicitly reviewed exception supersedes the prior blanket no-edit decision only for our own rejected Hub submission and the exact original content. Same-name official resubmission is permitted by Meta; rejected/paused/deleted copies or unknown predecessor definitions are not automatically replaced.
+
+No production correction or new approval is claimed until exact PR gates, protected production execution and fresh GET evidence are recorded. Source/Push/commercial activation, canonical MillionsNest org authority/mapping, real provider matrix and physical closed/locked iPhone remain required. #226 stays OPEN.
+
+---
+
 # 2026-10-17 — complete provider inventory promotion and exact-head gates
 
 This checkpoint supersedes the partial reconciliation instructions below. Certification #226 remains OPEN; no source, Push or commercial delivery activation is authorized by template metadata creation.

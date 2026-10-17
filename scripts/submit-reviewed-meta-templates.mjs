@@ -2,10 +2,11 @@ import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {inspectApprovedAccount} from './inspect-approved-meta-account.mjs';
 import {loadTemplateCatalog,templateSubmissionPayloads} from './whatsapp-template-catalog.mjs';
+import {reviewHubSupportTemplate} from './review-hub-support-template.mjs';
 
 // Metadata creation only; never messages, recipients, webhooks or runtime writes.
 export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalog(),inspect=inspectApprovedAccount,fetchImpl=fetch,operation='submit'}={}){
-  if(!['submit','inspect'].includes(operation))throw Error('TEMPLATE_OPERATION_INVALID');
+  if(!['submit','inspect','review_hub_support'].includes(operation))throw Error('TEMPLATE_OPERATION_INVALID');
   let authorization,version;
   const preflight=await inspect({policy,fetchImpl:async(url,options)=>{
     if(new URL(url).origin!=='https://graph.facebook.com'||options.method!=='GET')throw Error('PREFLIGHT_TRANSPORT_INVALID');
@@ -33,7 +34,7 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
   const existing=[];let after=null;
   try{
     for(let page=0;page<3;page++){
-      const url=new URL(path,origin);url.searchParams.set('fields',operation==='inspect'?'name,language,status,category,components,rejected_reason':'name,language,status,category,components');url.searchParams.set('limit','100');if(after)url.searchParams.set('after',after);
+      const url=new URL(path,origin);url.searchParams.set('fields',operation==='review_hub_support'?'id,name,language,status,category,components,rejected_reason':operation==='inspect'?'name,language,status,category,components,rejected_reason':'name,language,status,category,components');url.searchParams.set('limit','100');if(after)url.searchParams.set('after',after);
       const data=await request(url.toString(),{method:'GET'});
       if(!Array.isArray(data?.data)||data.data.length>100)throw Error();existing.push(...data.data);
       // Never follow paging.next (which may contain an access token).
@@ -41,6 +42,10 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
       after=data.paging?.cursors?.after;if(typeof after!=='string'||!/^[A-Za-z0-9_=-]{1,2048}$/.test(after))throw Error();
     }
     if(after)return{state:'BLOCKED',code:'TEMPLATE_INVENTORY_REQUIRES_REVIEW',created,providerRequests:requests,sendAttempted:false};
+    if(operation==='review_hub_support'){
+      const result=await reviewHubSupportTemplate({payloads,existing,request,origin,version,wabaId:policy.wabaId});
+      return{...result,...lastFailure,providerRequests:requests};
+    }
     const pending=[],inventory=[];
     const buttonsFingerprint=buttons=>JSON.stringify((buttons??[]).map(b=>({type:b.type,text:b.text,url:b.url})));
     // Validate every existing same-name template BEFORE making any creation call.
@@ -85,5 +90,5 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     result=await submitReviewedTemplates({policy,operation:process.env.CONNECT_TEMPLATE_OPERATION||'submit'});
   }catch{result={state:'BLOCKED',code:'PROTECTED_TEMPLATE_SUBMISSION_FAILED',sendAttempted:false};}
   console.log('CONNECT_META_REVIEWED_TEMPLATE_CATALOG_RESULT='+JSON.stringify(result));
-  if(!['SUBMITTED_FOR_META_REVIEW','VERIFIED_CATALOG_READ_ONLY'].includes(result.state))process.exitCode=2;
+  if(!['SUBMITTED_FOR_META_REVIEW','VERIFIED_CATALOG_READ_ONLY','HUB_SUPPORT_SUBMITTED_FOR_REVIEW'].includes(result.state))process.exitCode=2;
 }
