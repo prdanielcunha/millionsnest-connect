@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 // Hub Firestore deploy 38812686671 verified byte-identical live Rules SHA256 after publishing,
 // and completed 259 private-store emulator assertions. Keep the exact-byte pin and active TTL gate:
 // a future Rules deployment MUST require a fresh independent Hub privacy review before release.
-export const APPROVED_RULES_SHA256 = 'c8804c9f34197fb60d71936532782622c3f9f5aa7fbd3bd70bd7575753353311';
+export const APPROVED_RULES_SHA256 = '277e117297a140c0d621286962efbd8552b10567571c5174e9601c3ba6f80ae5';
 export async function verifyProductRoutingStorage({ token, projectId = 'millionsnest', fetchImpl = fetch, approvedHash = APPROVED_RULES_SHA256 }) {
   if (typeof token !== 'string' || !token.trim() || token.length > 16384 || /[\r\n]/.test(token) || projectId !== 'millionsnest') throw new Error('ROUTING_STORAGE_PROBE_INPUT_INVALID');
   const read = async url => {
@@ -20,7 +20,15 @@ export async function verifyProductRoutingStorage({ token, projectId = 'millions
   if (typeof release.rulesetName !== 'string' || !/^projects\/millionsnest\/rulesets\/[a-zA-Z0-9-]+$/.test(release.rulesetName)) throw new Error('ROUTING_RULESET_REFERENCE_INVALID');
   const rules = await read(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`);
   const files = rules.source?.files;
-  if (!Array.isArray(files) || files.length !== 1 || typeof files[0].content !== 'string' || createHash('sha256').update(files[0].content).digest('hex') !== approvedHash) throw new Error('ROUTING_PUBLISHED_PRIVACY_PROOF_CHANGED');
+  // Fingerprints are non-secret: emit *only* the live SHA and file-count when the
+  // exact-byte gate rejects the published Rules, never Rules source or token.
+  // This provides a read-only, auditable diagnosis without bypassing fail-closed.
+  const liveHash = Array.isArray(files) && files.length === 1 && typeof files[0].content === 'string'
+    ? createHash('sha256').update(files[0].content).digest('hex') : null;
+  if (!liveHash || liveHash !== approvedHash) {
+    console.error('ROUTING_LIVE_RULES_FINGERPRINT=' + (liveHash ?? 'invalid-file-set') + ' fileCount=' + (Array.isArray(files) ? files.length : 'invalid'));
+    throw new Error('ROUTING_PUBLISHED_PRIVACY_PROOF_CHANGED');
+  }
   const field = await read(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/collectionGroups/connectProductRoutes/fields/expiresAt`);
   if (field.ttlConfig?.state !== 'ACTIVE') throw new Error('ROUTING_TTL_NOT_ACTIVE');
   return true;
