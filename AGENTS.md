@@ -202,3 +202,9 @@ Current conformance: MillionsNest Connect must support native direct entry in LI
 ## Read-only Meta provider diagnostic
 
 The scripts/workflow documented in `docs/CONNECT_META_READONLY_PROVIDER_PROOF.md` inspect only the current default provider metadata under existing production WIF. Do not expand them into sends, tenant enumeration, config/secret/IAM writes or activation. Preserve safe enum-only logs, fixed Graph origin, GET-only transport, existing reference scope and the explicit distinction between read verification and operational certification.
+
+## Reviewed app template catalog and owner-account diagnostic
+
+`config/whatsapp-template-catalog.v1.json` is the single humanized metadata catalog (27 locale variants). It is default-off and cannot grant recipients, consent, domain actions or permissions. Creation, approval and delivery are distinct. The separate protected metadata-submission script may only create absent exact reviewed templates after real owner-account/phone proof; never edit/delete existing templates or send messages. Errors/ambiguous POSTs stop without automatic retry. See `docs/CONNECT_WHATSAPP_TEMPLATE_CATALOG.md`.
+
+The owner-account diagnostic has an explicit reviewed scope beyond the original global-profile-only probe: approved account association and a bounded exact-name canonical organization read. No tenant enumeration, binding writes or history migration. Preserve original diagnostic semantics and safe enum/count logs. Account resource IDs are non-secret metadata supplied by the owner, not identity or authorization.
