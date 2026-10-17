@@ -235,4 +235,33 @@ checkEqual(
   checkEqual(toolCounter.calls, 0, 'tool is not invoked if pre-execution audit cannot be recorded');
 }
 
+for (const locale of ['pt-BR', 'en-US', 'es-ES']) {
+  for (const musicscaleAccess of [false, true]) {
+    const events: CoreAuditEvent[] = [];
+    const counter = { calls: 0 };
+    const service = new ConnectCoreService(
+      createResolvedContextProvider({ musicscaleAccess }),
+      createToolPort(counter),
+      createAuditPort(events),
+    );
+    const request = { ...baseRequest(), locale, text: 'NestJourney' };
+    const result = await service.handleMessage(request);
+    checkEqual(result.status, 'unsupported', 'Journey guidance does not depend on MusicScale entitlement');
+    checkEqual('code' in result ? result.code : '', 'UNSUPPORTED_INTENT', 'guidance never claims a completed source read');
+    checkEqual(result.humanSummary.includes('NestJourney'), true, 'guidance identifies the actual source app');
+    checkEqual(result.humanSummary.includes('MusicScale'), false, 'Journey does not receive a MusicScale access error');
+    checkEqual(counter.calls, 0, 'unsupported Journey request never calls a MusicScale tool');
+    checkEqual('data' in result, false, 'guidance contains no follow-up data');
+    checkEqual(events.at(-1)?.appId, undefined, 'unsupported request does not claim a MusicScale audit');
+
+    const noAuth = await service.handleMessage({ ...request, authToken: undefined });
+    checkEqual('code' in noAuth ? noAuth.code : '', 'AUTH_REQUIRED', 'guidance preserves authentication gate');
+    const mismatch = await service.handleMessage({ ...request, requestedOrganizationId: 'another-org' });
+    checkEqual('code' in mismatch ? mismatch.code : '', 'CONTEXT_MISMATCH', 'guidance preserves canonical tenant gate');
+    const music = await service.handleMessage({ ...baseRequest(), locale });
+    checkEqual(music.status, musicscaleAccess ? 'success' : 'denied', 'recognized MusicScale reads retain the entitlement gate');
+    checkEqual(counter.calls, musicscaleAccess ? 1 : 0, 'only authorized recognized reads invoke MusicScale');
+  }
+}
+
 console.log(`✅ Passed ${passed} / ${total} tests.`);
