@@ -1,6 +1,6 @@
 # WhatsApp — catálogo humanizado por aplicativo
 
-Versão 2026-10-17.1. Fonte única: `config/whatsapp-template-catalog.v1.json`.
+Versão 2026-10-17.2. Fonte única: `config/whatsapp-template-catalog.v1.json`.
 
 27 variantes, nove situações, PT-BR/en-US/espanhol. Payloads de criação de modelos, não comandos de envio. A publicação de código não significa aprovação Meta nem ativa mensagens. Os nomes e categorias precisam coincidir exatamente com o modelo aprovado; nenhuma substituição silenciosa por `hello_world`.
 
@@ -9,6 +9,16 @@ Versão 2026-10-17.1. Fonte única: `config/whatsapp-template-catalog.v1.json`.
 Inventário protegido39047983299 em2026-10-17T16:07Z:25 variantes presentes,24 PENDING,1 REJECTED (Hub pt_BR),2 ausentes (Hub en_US/es); nenhuma APPROVED. Todas as25 definições coincidiram; nove variantes pedidas como UTILITY foram classificadas MARKETING. Resultado de criação39047983291 bloqueou antes de qualquer POST (`created:0`). Isso não autoriza aceitar uma tarifa/categoria diferente nem contornar a rejeição com nomes novos. `approvalStatus:NOT_SUBMITTED` no JSON é um marcador estático de segurança do catálogo, não espelho de status ao vivo; o inventário protegido é a evidência do provider.
 
 Inspeção GET solicita o campo opcional `rejected_reason` e registra apenas códigos previamente permitidos para modelos REJECTED do próprio catálogo. Campo ausente/NONE vira UNAVAILABLE; valor desconhecido vira OTHER, sem texto bruto. O caminho de criação não muda nem solicita esse campo. Nenhuma hipótese sobre a causa da rejeição deve ser tratada como prova; correção/revisão/contestação depende do motivo real, sem edição/exclusão automática ou nova submissão para contornar um controle legítimo.
+
+## Revisão autorizada do atendimento Hub
+
+O proprietário delegou a decisão técnica e sua implementação em17/10. A escolha é manter avisos de suporte estritamente transacionais em UTILITY, preservar os modelos em análise e corrigir o conteúdo do Hub que foi rejeitado por INCORRECT_CATEGORY. O novo texto limita-se a uma resposta real no atendimento solicitado pelo destinatário, com pedido explícito de acompanhamento por WhatsApp. Não promete um módulo de chamados inexistente, não fala de senha/códigos e não inclui convite genérico, promoção ou reengajamento.
+
+O workflow separado `meta-hub-support-template-review.yml` compartilha a trava de submissão. Após a prova real de conta/telefone/runtime, valida as três variantes do único nome `mn_hub_support_update_v1`. Só pode corrigir o pt_BR se o ID vier do inventário da conta aprovada, o conteúdo anterior coincidir integralmente e o estado e motivo forem REJECTED/INCORRECT_CATEGORY. Repete GET desse ID imediatamente antes de POST e confere conteúdo/categoria/estado por GET depois. Somente então cria en_US/es ausentes. Qualquer definição estrangeira, duplicidade, estado APPROVED/PENDING com texto antigo, outro motivo de rejeição ou resposta ambígua bloqueia. Reexecução após sucesso reconhece a definição corrigida sem editar novamente. Não há retry automático, exclusão ou nome alternativo.
+
+Esta é uma exceção revisada para corrigir a própria submissão rejeitada pelo processo oficial de nova revisão da Meta, não uma alteração geral dos modelos existentes. O fluxo normal de criação mantém o bloqueio de divergências, inclusive as nove reclassificações MARKETING. Referências oficiais: [API de templates](https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-account/message-template-api) e [estado REJECTED e nova revisão](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/message_template_status_update). A Meta continua sendo a autoridade de aprovação e categoria; revisão submetida não equivale a aprovação.
+
+Antes de qualquer entrega futura deste modelo, exigir solicitação de suporte real/ativa, resposta real da equipe e pedido vigente de atualização por WhatsApp, além do consentimento e da autorização canônica. O catálogo continua sem consumidor de envio automático; esta revisão publica somente metadados. Nenhuma cobrança de Marketing ou envio é autorizada.
 
 ## Uso e privacidade
 
@@ -219,7 +229,7 @@ Botão: **Abrir aplicación** → https://nestjourney.millionsnest.com/
 
 Produto: hub; evento: `support.request_updated`; destinatário: `support_requester`; categoria solicitada: **UTILITY**.
 
-Olá! A equipe MillionsNest tem uma atualização sobre seu pedido de ajuda com acesso ou uso dos aplicativos. Responda para continuarmos o atendimento. Nunca precisamos da sua senha ou de códigos de verificação por WhatsApp.
+Olá! Esta é uma atualização do atendimento de suporte que você solicitou ao MillionsNest e pediu para acompanhar pelo WhatsApp. Sua solicitação recebeu uma resposta da equipe. Responda aqui para continuar esse atendimento.
 
 Botão: **Abrir aplicativo** → https://www.millionsnest.com/
 
@@ -227,7 +237,7 @@ Botão: **Abrir aplicativo** → https://www.millionsnest.com/
 
 Produto: hub; evento: `support.request_updated`; destinatário: `support_requester`; categoria solicitada: **UTILITY**.
 
-Hi! The MillionsNest team has an update on your request for help accessing or using the apps. Reply so we can continue. We never need your password or verification codes over WhatsApp.
+Hello! This is an update on the support request you opened with MillionsNest and asked to follow on WhatsApp. Our team has responded to your request. Reply here to continue that support conversation.
 
 Botão: **Open app** → https://www.millionsnest.com/
 
@@ -235,7 +245,7 @@ Botão: **Open app** → https://www.millionsnest.com/
 
 Produto: hub; evento: `support.request_updated`; destinatário: `support_requester`; categoria solicitada: **UTILITY**.
 
-¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda para acceder o usar las aplicaciones. Responde para continuar. Nunca necesitamos tu contraseña ni códigos de verificación por WhatsApp.
+¡Hola! Esta es una actualización de la solicitud de soporte que abriste con MillionsNest y pediste seguir por WhatsApp. Nuestro equipo ha respondido a tu solicitud. Responde aquí para continuar ese mismo caso.
 
 Botão: **Abrir aplicación** → https://www.millionsnest.com/
 
