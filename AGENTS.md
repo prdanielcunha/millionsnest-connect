@@ -197,3 +197,8 @@ Current conformance: MillionsNest Connect must support native direct entry in LI
 ## Web Push increment (#223)
 
 `src/core/push` holds default-off Web Push transport, Hub-authorized device routes and Connect-owned sensitive Firestore storage. Never persist bearer credentials or message bodies in push records/payload. Physical iPhone delivery and external storage/secret configuration remain mandatory activation gates; consult `docs/CONNECT_EXECUTION_HANDOFF.md`.
+
+
+## Read-only Meta provider diagnostic
+
+The scripts/workflow documented in `docs/CONNECT_META_READONLY_PROVIDER_PROOF.md` inspect only the current default provider metadata under existing production WIF. Do not expand them into sends, tenant enumeration, config/secret/IAM writes or activation. Preserve safe enum-only logs, fixed Graph origin, GET-only transport, existing reference scope and the explicit distinction between read verification and operational certification.
