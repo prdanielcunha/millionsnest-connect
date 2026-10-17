@@ -42,4 +42,18 @@ inventory=[];failure=true;result=await submitReviewedTemplates({policy,catalog,i
 failure=false;posts=0;inventory=payloads.slice(0,24).map(p=>({...p,category:'MARKETING',status:'PENDING'}));
 result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.inventory.length,24);assert.equal(result.missingModels.length,3);assert.equal(result.inventory.filter(e=>!e.categoryMatches).length,21);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
 result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.code,'EXISTING_TEMPLATE_REQUIRES_REVIEW');assert.equal(posts,0);count++;
+// Rejection diagnostics are inspect-only and must never log arbitrary provider text.
+inventory=payloads.map(p=>({...p,status:'APPROVED'}));inventory[0].status='REJECTED';
+for(const reason of ['INVALID_FORMAT','TAG_CONTENT_MISMATCH','SCAM','NONE',undefined,'secret-untrusted-provider-text']){
+ inventory[0].rejected_reason=reason;
+ result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});
+ assert.equal(result.inventory[0].rejectionReason,['INVALID_FORMAT','TAG_CONTENT_MISMATCH','SCAM'].includes(reason)?reason:reason==='NONE'||reason===undefined?'UNAVAILABLE':'OTHER');
+ assert.equal(result.allApproved,false);assert.equal(posts,0);assert(!JSON.stringify(result).includes('secret-untrusted-provider-text'));count++;
+}
+result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.code,'EXISTING_TEMPLATE_REQUIRES_REVIEW');assert.equal(posts,0);count++;
+for(const operation of ['inspect','submit']){
+ const fields=[];
+ await submitReviewedTemplates({policy,catalog,inspect,operation,fetchImpl:async(url,init)=>{if(new URL(url).pathname.endsWith('/message_templates')&&init.method==='GET')fields.push(new URL(url).searchParams.get('fields'));return fetchImpl(url,init);}});
+ assert.deepEqual(fields,[operation==='inspect'?'name,language,status,category,components,rejected_reason':'name,language,status,category,components']);assert.equal(posts,0);count++;
+}
 console.log(`Humanized app template catalog: ${count} synthetic cases PASS; 27 payloads / 9 scenarios / 3 locales; default-off, no parameters/recipients, idempotent creation, no edit/delete/send, ambiguity stops.`);
