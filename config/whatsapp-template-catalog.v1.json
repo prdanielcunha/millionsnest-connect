@@ -1,0 +1,841 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "2026-10-17.1",
+  "sendEnabled": false,
+  "entries": [
+    {
+      "key": "musicscale.scale_published",
+      "product": "musicscale",
+      "trigger": "scale.published",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_scale_published_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! Há uma nova escala publicada no MusicScale. Abra o aplicativo para conferir os detalhes e acompanhar sua equipe. Se precisar de ajuda, responda por aqui."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.scale_published",
+      "product": "musicscale",
+      "trigger": "scale.published",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_scale_published_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! A new schedule has been published in MusicScale. Open the app to check the details and follow up with your team. If you need help, reply here."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.scale_published",
+      "product": "musicscale",
+      "trigger": "scale.published",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_scale_published_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! Hay una nueva programación publicada en MusicScale. Abre la aplicación para revisar los detalles y acompañar a tu equipo. Si necesitas ayuda, responde por aquí."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.presence_pending",
+      "product": "musicscale",
+      "trigger": "scale.presence_pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_presence_pending_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! Há uma confirmação de presença pendente no MusicScale. Confira a escala no aplicativo antes de entrar em contato com a pessoa responsável. Estamos por aqui se precisar."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.presence_pending",
+      "product": "musicscale",
+      "trigger": "scale.presence_pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_presence_pending_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! An attendance confirmation is pending in MusicScale. Check the schedule in the app before contacting the person responsible. We are here if you need help."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.presence_pending",
+      "product": "musicscale",
+      "trigger": "scale.presence_pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_presence_pending_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! Hay una confirmación de asistencia pendiente en MusicScale. Revisa la programación en la aplicación antes de contactar a la persona responsable. Estamos aquí para ayudarte."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.document_pending",
+      "product": "nestfinance",
+      "trigger": "document.pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_document_pending_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! Há uma revisão pendente no NestFinance. Abra sua área autorizada no aplicativo para conferir com segurança. Se precisar de ajuda com o sistema, responda aqui, sem enviar valores ou comprovantes."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.document_pending",
+      "product": "nestfinance",
+      "trigger": "document.pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_document_pending_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! A review is pending in NestFinance. Open your authorized area in the app to check it securely. If you need help using the system, reply here without sending amounts or documents."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.document_pending",
+      "product": "nestfinance",
+      "trigger": "document.pending",
+      "audience": "operator",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_document_pending_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! Hay una revisión pendiente en NestFinance. Abre tu área autorizada en la aplicación para revisarla de forma segura. Si necesitas ayuda con el sistema, responde aquí sin enviar importes ni comprobantes."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.followup_due",
+      "product": "nestjourney",
+      "trigger": "followup.due",
+      "audience": "caregiver",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_followup_due_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! Um contato sob sua responsabilidade está previsto no NestJourney. Confira no aplicativo se o pedido continua ativo e autorizado antes de prosseguir. Os detalhes ficam disponíveis apenas na sua área de acesso."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.followup_due",
+      "product": "nestjourney",
+      "trigger": "followup.due",
+      "audience": "caregiver",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_followup_due_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! A contact assigned to you is due in NestJourney. Check in the app that the request is still active and authorized before proceeding. Details are available only in your authorized area."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.followup_due",
+      "product": "nestjourney",
+      "trigger": "followup.due",
+      "audience": "caregiver",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_followup_due_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! Hay un contacto a tu cargo previsto en NestJourney. Comprueba en la aplicación que la solicitud siga activa y autorizada antes de continuar. Los detalles están disponibles solo en tu área de acceso."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.requested_contact",
+      "product": "nestjourney",
+      "trigger": "requested_contact",
+      "audience": "consented_person",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_requested_contact_v1",
+        "language": "pt_BR",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! Somos da equipe de acolhimento com quem você pediu para conversar. Podemos continuar seu atendimento por aqui? Responda quando for um bom momento para você. Se preferir não receber novos contatos, responda SAIR."
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.requested_contact",
+      "product": "nestjourney",
+      "trigger": "requested_contact",
+      "audience": "consented_person",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_requested_contact_v1",
+        "language": "en_US",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! We are the welcome team you asked to speak with. May we continue your conversation here? Reply whenever it is a good time for you. If you prefer not to receive further contact, reply STOP."
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.requested_contact",
+      "product": "nestjourney",
+      "trigger": "requested_contact",
+      "audience": "consented_person",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_requested_contact_v1",
+        "language": "es",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! Somos el equipo de acogida con el que pediste conversar. ¿Podemos continuar tu atención por aquí? Responde cuando sea un buen momento para ti. Si prefieres no recibir más contactos, responde SALIR."
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.support_update",
+      "product": "musicscale",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_support_update_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! A equipe MillionsNest tem uma atualização sobre sua solicitação de ajuda com o MusicScale. Podemos continuar por aqui? Responda para retomar o atendimento."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.support_update",
+      "product": "musicscale",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_support_update_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! The MillionsNest team has an update on your MusicScale support request. May we continue here? Reply to resume your conversation."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "musicscale.support_update",
+      "product": "musicscale",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_musicscale_support_update_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda con MusicScale. ¿Podemos continuar por aquí? Responde para retomar la atención."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://musicscale.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.support_update",
+      "product": "nestfinance",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_support_update_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! A equipe MillionsNest tem uma atualização sobre sua solicitação de ajuda com o NestFinance. Responda para continuarmos. Para proteger seus dados, não envie valores, comprovantes ou informações bancárias nesta conversa."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.support_update",
+      "product": "nestfinance",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_support_update_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! The MillionsNest team has an update on your NestFinance support request. Reply so we can continue. To protect your data, do not send amounts, documents or banking information in this conversation."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestfinance.support_update",
+      "product": "nestfinance",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestfinance_support_update_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda con NestFinance. Responde para continuar. Para proteger tus datos, no envíes importes, comprobantes ni información bancaria en esta conversación."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://nestfinance.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.support_update",
+      "product": "nestjourney",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_support_update_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! A equipe MillionsNest tem uma atualização sobre sua solicitação de ajuda com o NestJourney. Responda para retomarmos. Os detalhes de pessoas e acompanhamentos devem permanecer na área protegida do aplicativo."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.support_update",
+      "product": "nestjourney",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_support_update_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! The MillionsNest team has an update on your NestJourney support request. Reply to resume. Details about people and follow-ups should remain in the protected area of the app."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.support_update",
+      "product": "nestjourney",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_support_update_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda con NestJourney. Responde para retomar la atención. Los detalles de personas y seguimientos deben permanecer en el área protegida de la aplicación."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://nestjourney.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "hub.support_update",
+      "product": "hub",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_hub_support_update_v1",
+        "language": "pt_BR",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Olá! A equipe MillionsNest tem uma atualização sobre seu pedido de ajuda com acesso ou uso dos aplicativos. Responda para continuarmos o atendimento. Nunca precisamos da sua senha ou de códigos de verificação por WhatsApp."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicativo",
+                "url": "https://www.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "hub.support_update",
+      "product": "hub",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_hub_support_update_v1",
+        "language": "en_US",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Hi! The MillionsNest team has an update on your request for help accessing or using the apps. Reply so we can continue. We never need your password or verification codes over WhatsApp."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Open app",
+                "url": "https://www.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "hub.support_update",
+      "product": "hub",
+      "trigger": "support.request_updated",
+      "audience": "support_requester",
+      "requiredConsent": "whatsapp_explicit_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": true,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_hub_support_update_v1",
+        "language": "es",
+        "category": "UTILITY",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda para acceder o usar las aplicaciones. Responde para continuar. Nunca necesitamos tu contraseña ni códigos de verificación por WhatsApp."
+          },
+          {
+            "type": "BUTTONS",
+            "buttons": [
+              {
+                "type": "URL",
+                "text": "Abrir aplicación",
+                "url": "https://www.millionsnest.com/"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
