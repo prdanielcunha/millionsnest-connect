@@ -30,4 +30,11 @@ posts=0;result=await submitReviewedTemplates({policy,catalog,inspect:async()=>({
 const pages=[];result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl:async(url,init)=>{
  if(url.includes('/111?'))return Response.json({id:'111'});pages.push(url);return Response.json({data:[],paging:{next:'https://evil.test/?access_token=secret',cursors:{after:'../messages'}}});
 }});assert.equal(result.state,'REVIEW_REQUIRED');assert.equal(pages.length,1);assert(pages.every(url=>new URL(url).origin==='https://graph.facebook.com'));count++;
+
+// Metadata property order is not a content conflict; no POST is allowed in inspect mode.
+ambiguous=false;failure=false;inventory=payloads.map(p=>({...p,status:'APPROVED',components:p.components.map(c=>c.type==='BUTTONS'?{type:'BUTTONS',buttons:c.buttons.map(b=>({url:b.url,text:b.text,type:b.type}))}:c)}));posts=0;
+result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.allApproved,true);assert.equal(result.statusCounts.APPROVED,27);assert.equal(posts,0);count++;
+inventory=payloads.slice(0,24).map(p=>({...p,status:'PENDING'}));result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.missing,3);assert.equal(result.statusCounts.PENDING,24);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
+inventory=[];failure=true;result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.failureStage,'create');assert.equal(result.httpStatus,403);assert.equal(result.templateName,payloads[0].name);assert.equal(result.language,'pt_BR');assert.equal(result.created,0);assert(!JSON.stringify(result).includes('secret-provider-error'));count++;
+
 console.log(`Humanized app template catalog: ${count} synthetic cases PASS; 27 payloads / 9 scenarios / 3 locales; default-off, no parameters/recipients, idempotent creation, no edit/delete/send, ambiguity stops.`);
