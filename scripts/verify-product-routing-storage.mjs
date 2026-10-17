@@ -2,13 +2,11 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-// Hub38760546756: 259 privacy checks and exact published-byte comparison.
-// Reader rollout additionally waits for the in-production post-publish proof.
-// Reviewed Hub production rules: prdanielcunha/millionsnest@4b5416f9c08944ecfd525f3db33b96d57e11df98.
-// Hub Firestore deploy 38812686671 verified byte-identical live Rules SHA256 after publishing,
-// and completed 259 private-store emulator assertions. Keep the exact-byte pin and active TTL gate:
-// a future Rules deployment MUST require a fresh independent Hub privacy review before release.
-export const APPROVED_RULES_SHA256 = '277e117297a140c0d621286962efbd8552b10567571c5174e9601c3ba6f80ae5';
+// Independently reviewed Hub831f0fc / Rules deploy39069954671: source/live
+// byte equality and445 private-store assertions, including the actual published
+// bytes. Connect boundaries are unchanged; see CONNECT_SHARED_RULES_REVIEW_20261017.md.
+// Preserve exact-byte and ACTIVE TTL gates. Future Rules changes require review.
+export const APPROVED_RULES_SHA256 = '03107a9367c9bb268ba39e13ad88a92092d1bd9bb6fcd59f0c7c680f1fe2f149';
 export async function verifyProductRoutingStorage({ token, projectId = 'millionsnest', fetchImpl = fetch, approvedHash = APPROVED_RULES_SHA256 }) {
   if (typeof token !== 'string' || !token.trim() || token.length > 16384 || /[\r\n]/.test(token) || projectId !== 'millionsnest') throw new Error('ROUTING_STORAGE_PROBE_INPUT_INVALID');
   const read = async url => {

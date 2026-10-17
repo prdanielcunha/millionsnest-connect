@@ -394,6 +394,41 @@ export class ConnectCoreService {
       };
     }
 
+    // Unsupported requests do not invoke a product tool. Resolve them before
+    // applying MusicScale's entitlement, while preserving identity/tenant gates.
+    if (intent === 'unknown') {
+      await this.tryAudit({
+        eventType: 'core_request_denied',
+        requestId: request.requestId,
+        correlationId: request.correlationId,
+        actorUid: context.actorUid,
+        organizationId: context.organizationId,
+        intent,
+        channel: request.channel.type,
+        result: 'denied',
+        details: 'Intent is not part of the current production read-only verticals.',
+      });
+
+      const guidance = /\bnestjourney\b/i.test(request.text)
+        ? {
+            'pt-BR': 'Ainda não consulto sua lista de acompanhamentos no Assist. Abra o acompanhamento no NestJourney. O contato pelo Connect exige uma tarefa ativa, autorização e consentimento verificados novamente.',
+            'en-US': 'I cannot check your follow-up list in Assist yet. Open the follow-up in NestJourney. Contact through Connect requires an active task and a fresh authorization and consent check.',
+            'es-ES': 'Todavía no puedo consultar tu lista de acompañamientos en Assist. Abre el acompañamiento en NestJourney. El contacto mediante Connect requiere una tarea activa y una nueva verificación de autorización y consentimiento.',
+          }
+        : {
+            'pt-BR': 'Ainda não consigo resolver esse pedido por aqui.',
+            'en-US': 'I cannot handle that request here yet.',
+            'es-ES': 'Todavía no puedo resolver esa solicitud aquí.',
+          };
+      return {
+        status: 'unsupported',
+        intent,
+        code: 'UNSUPPORTED_INTENT',
+        humanSummary: request.locale === 'en-US' ? guidance['en-US']
+          : request.locale === 'es-ES' ? guidance['es-ES'] : guidance['pt-BR'],
+      };
+    }
+
     if (!context.appAccess.musicscale) {
       await this.tryAudit({
         eventType: 'core_request_denied',
@@ -413,27 +448,6 @@ export class ConnectCoreService {
         intent,
         code: 'APP_ACCESS_DENIED',
         humanSummary: 'Sua conta não possui acesso ao MusicScale nesta organização.',
-      };
-    }
-
-    if (intent !== 'get_next_schedule' && intent !== 'get_next_schedule_repertoire' && intent !== 'get_next_schedule_presence' && intent !== 'get_next_schedule_chart') {
-      await this.tryAudit({
-        eventType: 'core_request_denied',
-        requestId: request.requestId,
-        correlationId: request.correlationId,
-        actorUid: context.actorUid,
-        organizationId: context.organizationId,
-        intent,
-        channel: request.channel.type,
-        result: 'denied',
-        details: 'Intent is not part of the current production read-only verticals.',
-      });
-
-      return {
-        status: 'unsupported',
-        intent,
-        code: 'UNSUPPORTED_INTENT',
-        humanSummary: 'Ainda não consigo resolver esse pedido por aqui.',
       };
     }
 
