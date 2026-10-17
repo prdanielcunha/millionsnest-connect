@@ -1,3 +1,4 @@
+import { useInboxDialogA11y } from './useInboxDialogA11y';
 import { InboxPushControls } from '../notifications/InboxPushControls';
 import { ConnectPushClient, type InboxUnreadMarkers, readInboxPushLink } from '../../core/client/connectPushClient';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -638,14 +639,6 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     return () => { cancelled = true; };
   }, [client, selectedId, internalNotesEnabled]);
 
-  useEffect(() => {
-    if (!showContext) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowContext(false);
-    };
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [showContext]);
 
   const canManage = canShowInboxManagement(session.context);
   useEffect(() => {
@@ -696,6 +689,20 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
     void pushClient.unread(ids).then(markers => { if (active) setUnreadMarkers(markers); }).catch(() => {});
     return () => { active = false; };
   }, [pushClient, conversations, remoteConversations, openedRemote]);
+  const { containerRef: contextDialogRef } = useInboxDialogA11y(
+    showContext && Boolean(selected), () => setShowContext(false),
+  );
+  useEffect(() => {
+    if (!showContext) return;
+    // The desktop context is already inline. Never leave an invisible modal
+    // holding focus or body scroll after rotating/resizing a device.
+    const desktop = window.matchMedia('(min-width: 1280px)');
+    const closeWhenInline = () => { if (desktop.matches) setShowContext(false); };
+    closeWhenInline();
+    desktop.addEventListener('change', closeWhenInline);
+    return () => desktop.removeEventListener('change', closeWhenInline);
+  }, [showContext]);
+
   const selectedUnread = selectedId ? unreadMarkers[selectedId] : undefined;
   useEffect(() => {
     if (!selectedUnread || timelineLoading || !selectedId) return;
@@ -1142,13 +1149,13 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       <InboxPushControls session={session} language={currentLang} />
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-[#FF9AA7]/20 bg-[#FF9AA7]/[0.06] px-4 py-3 text-xs text-[#FFD0D5]">
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-[#FF9AA7]/20 bg-[#FF9AA7]/[0.06] px-4 py-3 text-xs text-[#FFD0D5]">
           <CircleAlert size={15} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#7CDEB3]/20 bg-[#7CDEB3]/[0.06] px-4 py-3 text-xs text-[#B9F0D6]">
+        <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-[#7CDEB3]/20 bg-[#7CDEB3]/[0.06] px-4 py-3 text-xs text-[#B9F0D6]">
           <CheckCircle2 size={15} /> {notice}
         </div>
       )}
@@ -1478,8 +1485,8 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
       )}
 
       {showContext && selected && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/55 p-3 backdrop-blur-[2px] xl:hidden" role="dialog" aria-modal="true" aria-label={t.context}>
-          <button type="button" className="absolute inset-0 cursor-default" onClick={() => setShowContext(false)} aria-label={t.close} />
+        <div ref={contextDialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-end justify-end bg-black/55 p-3 backdrop-blur-[2px] xl:hidden" role="dialog" aria-modal="true" aria-label={t.context}>
+          <button type="button" tabIndex={-1} className="absolute inset-0 cursor-default" onClick={() => setShowContext(false)} aria-label={t.close} />
           <aside className="connect-surface-raised relative z-10 max-h-[88dvh] w-full overflow-hidden rounded-[16px] sm:max-w-[380px]">
             {contextPanel}
           </aside>
