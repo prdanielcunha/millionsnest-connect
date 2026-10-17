@@ -232,3 +232,7 @@ Produto: hub; evento: `support.request_updated`; destinatário: `support_request
 ¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda para acceder o usar las aplicaciones. Responde para continuar. Nunca necesitamos tu contraseña ni códigos de verificación por WhatsApp.
 
 Botão: **Abrir aplicación** → https://www.millionsnest.com/
+
+## Reconciliação de classificação Meta
+
+O inventário GET-only informa os status e categorias de todas as variantes do próprio catálogo, mesmo quando há divergência de classificação. Não imprime conteúdo de modelos externos nem dados de clientes. `allApproved` só é verdadeiro com27 modelos aprovados e definição/categoria exatamente compatíveis; a inspeção não concede aprovação operacional. A submissão continua bloqueando qualquer divergência antes de criar modelos adicionais. Nenhum ajuste de categoria pode habilitar envios ou esconder custos. A execução39040149592 observou a primeira variante de escala como PENDING/MARKETING; a inspeção integral precede qualquer decisão sobre as demais.
