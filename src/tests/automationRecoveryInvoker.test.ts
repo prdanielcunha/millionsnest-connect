@@ -32,10 +32,15 @@ for (const body of ['not-json', '{"processed":11}', '{"processed":-1}', '{}', 'n
   await assert.rejects(invokeAutomationRecovery({ ...options, fetchImpl: async () => new Response(body) }));
 }
 console.log('automation recovery invoker: signature, scope, bounded response, no retry/secret leakage passed');
-const ec = createECDH('prime256v1'); ec.generateKeys();
+// Deterministic synthetic scalar: ECDH exports leading-zero keys compactly.
+// VAPID requires the original fixed-width 32 bytes, never a weakened validator.
+const privateKey=Buffer.alloc(32);privateKey[31]=1;
+const ec=createECDH('prime256v1');ec.setPrivateKey(privateKey);
+assert.equal(ec.getPrivateKey().length,1);
+assert.equal(privateKey.length,32);
 const mounted = {
   CONNECT_WEB_PUSH_PUBLIC_KEY: ec.getPublicKey().toString('base64url'),
-  CONNECT_WEB_PUSH_PRIVATE_KEY: ec.getPrivateKey().toString('base64url'),
+  CONNECT_WEB_PUSH_PRIVATE_KEY: privateKey.toString('base64url'),
   CONNECT_WEB_PUSH_SUBJECT: 'https://connect.millionsnest.com',
   CONNECT_AUTOMATION_WORKER_SECRET: secret,
   CONNECT_SUPPORT_ORIGIN_SECRET: 'synthetic-separate-origin-secret-long-enough',
