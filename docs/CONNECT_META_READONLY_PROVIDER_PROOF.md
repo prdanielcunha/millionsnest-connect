@@ -11,3 +11,13 @@ The sole provider requests are GET to fixed HTTPS graph.facebook.com paths for t
 The workflow and scripts do not match application-release path filters; publishing them does not redeploy Core/Hosting or refresh jobs. Future application SHA changes require reviewed pin maintenance. All app/source/Push/commercial flags remain unchanged.
 
 Canonical provider references: [Meta phone-by-ID](https://www.postman.com/meta/whatsapp-business-platform/request/li0unxe/get-phone-number-by-id), [Meta template GET](https://www.postman.com/meta/whatsapp-business-platform/request/qtgr0i7/get-all-templates-default-fields). These authorize no action by themselves.
+
+## Owner-approved account and canonical channel diagnostic (2026-10-17)
+
+The separate `meta-owner-approved-account-proof.yml` accepts the account ID supplied in the owner screenshots via the reviewed `config/meta-approved-account-readonly.json`. The phone ID is pinned by SHA256; no recipient or canonical tenant mapping is inferred. A mismatch with the serving phone or an existing configured WABA blocks before token access. The existing global profile diagnostic keeps its original behavior.
+
+The new probe adds fixed-origin GET `/WABA/phone_numbers?fields=id&limit=25`, requiring the configured phone in that bounded first page; never follows paging URLs. It does not configure `CONNECT_WHATSAPP_WABA_ID`, subscribe a webhook or register a phone. It proves only association and read access. Owner screenshots and the reported successful receive/reply on 2026-10-17 are separate human evidence, not automated provider certification.
+
+After successful Meta verification, the channel diagnostic examines only the inline runtime binding for that exact phone, reads that organization's canonical Hub document, and performs one server-side read-only Firestore structured query for exact organization name `MillionsNest`, limit2, selecting name/status/disabled/archived. No whole-directory/user/member/message query, identity, membership, Rules or channel write. `POST :runQuery` is a read operation; all Meta calls remain GET. Logs contain booleans/counts/enums only. A missing/non-unique/inactive target or binding mismatch blocks organizational certification. A target name alone never grants membership, permission, entitlement or authority to migrate history.
+
+The screenshot showed received traffic inside Família OBPC; the owner explicitly selected MillionsNest as the desired support organization. Rebinding is not a cosmetic rename and must preserve old conversations and their access. This diagnostic never moves them or overwrites a binding. Follow its real result before preparing any separately reviewed mutation.
