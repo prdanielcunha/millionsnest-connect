@@ -41,7 +41,7 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
       after=data.paging?.cursors?.after;if(typeof after!=='string'||!/^[A-Za-z0-9_=-]{1,2048}$/.test(after))throw Error();
     }
     if(after)return{state:'BLOCKED',code:'TEMPLATE_INVENTORY_REQUIRES_REVIEW',created,providerRequests:requests,sendAttempted:false};
-    const pending=[];
+    const pending=[],inventory=[];
     const buttonsFingerprint=buttons=>JSON.stringify((buttons??[]).map(b=>({type:b.type,text:b.text,url:b.url})));
     // Validate every existing same-name template BEFORE making any creation call.
     for(const payload of payloads){
@@ -51,12 +51,21 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
         const e=matches[0];const body=e.components?.find(c=>c.type==='BODY');const buttons=e.components?.find(c=>c.type==='BUTTONS');
         const expectedButtons=payload.components.find(c=>c.type==='BUTTONS');
         const extra=e.components?.some(c=>!['BODY','BUTTONS'].includes(c.type));
+        if(operation==='inspect'){
+          const status=['APPROVED','PENDING','REJECTED','PAUSED','DISABLED'].includes(e.status)?e.status:'OTHER';
+          inventory.push({templateName:payload.name,language:payload.language,status,
+            category:['UTILITY','MARKETING','AUTHENTICATION'].includes(e.category)?e.category:'OTHER',
+            definitionMatches:!extra&&body?.text===payload.components[0].text&&buttonsFingerprint(buttons?.buttons)===buttonsFingerprint(expectedButtons?.buttons),
+            categoryMatches:e.category===payload.category});
+          alreadyPresent++;statusCounts[status]=(statusCounts[status]||0)+1;
+          continue;
+        }
         if(extra||e.category!==payload.category||body?.text!==payload.components[0].text||buttonsFingerprint(buttons?.buttons)!==buttonsFingerprint(expectedButtons?.buttons)||!['APPROVED','PENDING'].includes(e.status))return{state:'BLOCKED',code:'EXISTING_TEMPLATE_REQUIRES_REVIEW',templateName:payload.name,language:payload.language,observedStatus:['APPROVED','PENDING','REJECTED','PAUSED','DISABLED'].includes(e.status)?e.status:'OTHER',observedCategory:['UTILITY','MARKETING','AUTHENTICATION'].includes(e.category)?e.category:'OTHER',created,providerRequests:requests,sendAttempted:false};
         alreadyPresent++;statusCounts[e.status]++;
       }else pending.push(payload);
     }
     if(operation==='inspect')return{state:'VERIFIED_CATALOG_READ_ONLY',expected:payloads.length,alreadyPresent,missing:pending.length,
-      statusCounts,allApproved:statusCounts.APPROVED===payloads.length,providerRequests:requests,sendAttempted:false,activationPerformed:false};
+      statusCounts,inventory,missingModels:pending.map(p=>({templateName:p.name,language:p.language})),allApproved:statusCounts.APPROVED===payloads.length&&inventory.every(e=>e.definitionMatches&&e.categoryMatches),providerRequests:requests,sendAttempted:false,activationPerformed:false};
     failureStage='create';
     for(const payload of pending){
       failedTemplate={templateName:payload.name,language:payload.language};
