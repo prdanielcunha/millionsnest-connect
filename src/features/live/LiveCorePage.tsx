@@ -31,6 +31,7 @@ const copy = {
     suggestions: ['Qual é minha próxima escala?', 'Quais músicas vou tocar?', 'Eu confirmei presença?'],
     placeholder: 'Pergunte sobre sua escala, repertório, presença ou cifra…',
     sending: 'Consultando com segurança…',
+    send: 'Enviar',
     audit: 'Auditoria',
     openInMusicScale: 'Abrir no MusicScale',
     footer: 'Identidade, organização e permissões são validadas no servidor. O navegador não decide seu acesso.',
@@ -59,6 +60,7 @@ const copy = {
     suggestions: ['What is my next schedule?', 'What songs am I playing?', 'Am I confirmed for my next schedule?'],
     placeholder: 'Ask about your schedule, repertoire, attendance or chart…',
     sending: 'Checking securely…',
+    send: 'Send',
     audit: 'Audit',
     openInMusicScale: 'Open in MusicScale',
     footer: 'Identity, organization, and permissions are validated on the server. The browser never decides access.',
@@ -87,6 +89,7 @@ const copy = {
     suggestions: ['¿Cuál es mi próxima escala?', '¿Qué canciones voy a tocar?', '¿Confirmé mi asistencia?'],
     placeholder: 'Pregunta sobre tu escala, repertorio, asistencia o cifra…',
     sending: 'Consultando de forma segura…',
+    send: 'Enviar',
     audit: 'Auditoría',
     openInMusicScale: 'Abrir en MusicScale',
     footer: 'La identidad, organización y permisos se validan en el servidor. El navegador no decide el acceso.',
@@ -390,12 +393,13 @@ export const LiveCorePage: React.FC<LiveCorePageProps> = ({ session, currentLang
               rows={1}
               maxLength={2000}
               placeholder={t.placeholder}
+              aria-label={t.placeholder}
               className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-[#EEF4F8] outline-none placeholder:text-[#5C7085] md:text-sm"
             />
             <button
               type="submit"
               disabled={busy || !input.trim()}
-              aria-label="Send"
+              aria-label={t.send}
               className="connect-accent-button connect-focus grid h-11 w-11 shrink-0 place-items-center rounded-[10px] disabled:cursor-not-allowed disabled:opacity-35"
             >
               {busy ? <Loader2 size={17} className="animate-spin" /> : <ArrowUp size={17} />}
