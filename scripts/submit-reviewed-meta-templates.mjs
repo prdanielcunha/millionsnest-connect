@@ -33,7 +33,7 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
   const existing=[];let after=null;
   try{
     for(let page=0;page<3;page++){
-      const url=new URL(path,origin);url.searchParams.set('fields','name,language,status,category,components');url.searchParams.set('limit','100');if(after)url.searchParams.set('after',after);
+      const url=new URL(path,origin);url.searchParams.set('fields',operation==='inspect'?'name,language,status,category,components,rejected_reason':'name,language,status,category,components');url.searchParams.set('limit','100');if(after)url.searchParams.set('after',after);
       const data=await request(url.toString(),{method:'GET'});
       if(!Array.isArray(data?.data)||data.data.length>100)throw Error();existing.push(...data.data);
       // Never follow paging.next (which may contain an access token).
@@ -55,6 +55,7 @@ export async function submitReviewedTemplates({policy,catalog=loadTemplateCatalo
           const status=['APPROVED','PENDING','REJECTED','PAUSED','DISABLED'].includes(e.status)?e.status:'OTHER';
           inventory.push({templateName:payload.name,language:payload.language,status,
             category:['UTILITY','MARKETING','AUTHENTICATION'].includes(e.category)?e.category:'OTHER',
+            ...(status==='REJECTED'?{rejectionReason:['ABUSIVE_CONTENT','INCORRECT_CATEGORY','INVALID_FORMAT','PROMOTIONAL','SCAM','TAG_CONTENT_MISMATCH'].includes(e.rejected_reason)?e.rejected_reason:typeof e.rejected_reason==='undefined'||e.rejected_reason==='NONE'?'UNAVAILABLE':'OTHER'}:{}),
             definitionMatches:!extra&&body?.text===payload.components[0].text&&buttonsFingerprint(buttons?.buttons)===buttonsFingerprint(expectedButtons?.buttons),
             categoryMatches:e.category===payload.category});
           alreadyPresent++;statusCounts[status]=(statusCounts[status]||0)+1;

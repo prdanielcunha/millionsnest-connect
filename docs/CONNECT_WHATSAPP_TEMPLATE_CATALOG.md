@@ -4,6 +4,12 @@ Versão 2026-10-17.1. Fonte única: `config/whatsapp-template-catalog.v1.json`.
 
 27 variantes, nove situações, PT-BR/en-US/espanhol. Payloads de criação de modelos, não comandos de envio. A publicação de código não significa aprovação Meta nem ativa mensagens. Os nomes e categorias precisam coincidir exatamente com o modelo aprovado; nenhuma substituição silenciosa por `hello_world`.
 
+## Evidência real e rejeições
+
+Inventário protegido39047983299 em2026-10-17T16:07Z:25 variantes presentes,24 PENDING,1 REJECTED (Hub pt_BR),2 ausentes (Hub en_US/es); nenhuma APPROVED. Todas as25 definições coincidiram; nove variantes pedidas como UTILITY foram classificadas MARKETING. Resultado de criação39047983291 bloqueou antes de qualquer POST (`created:0`). Isso não autoriza aceitar uma tarifa/categoria diferente nem contornar a rejeição com nomes novos. `approvalStatus:NOT_SUBMITTED` no JSON é um marcador estático de segurança do catálogo, não espelho de status ao vivo; o inventário protegido é a evidência do provider.
+
+Inspeção GET solicita o campo opcional `rejected_reason` e registra apenas códigos previamente permitidos para modelos REJECTED do próprio catálogo. Campo ausente/NONE vira UNAVAILABLE; valor desconhecido vira OTHER, sem texto bruto. O caminho de criação não muda nem solicita esse campo. Nenhuma hipótese sobre a causa da rejeição deve ser tratada como prova; correção/revisão/contestação depende do motivo real, sem edição/exclusão automática ou nova submissão para contornar um controle legítimo.
+
 ## Uso e privacidade
 
 - Alertas `scale.published`, `scale.presence_pending` e `document.pending` são destinados ao operador previamente autorizado do outbox existente. Não transformam eventos de operador em disparos para membros/clientes.
