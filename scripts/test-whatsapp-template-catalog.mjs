@@ -37,4 +37,9 @@ result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation
 inventory=payloads.slice(0,24).map(p=>({...p,status:'PENDING'}));result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.missing,3);assert.equal(result.statusCounts.PENDING,24);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
 inventory=[];failure=true;result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.failureStage,'create');assert.equal(result.httpStatus,403);assert.equal(result.templateName,payloads[0].name);assert.equal(result.language,'pt_BR');assert.equal(result.created,0);assert(!JSON.stringify(result).includes('secret-provider-error'));count++;
 
+// Read-only inventory must report ALL category changes, not stop after the first;
+// the write path must still reject mismatches before any creation.
+failure=false;posts=0;inventory=payloads.slice(0,24).map(p=>({...p,category:'MARKETING',status:'PENDING'}));
+result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.inventory.length,24);assert.equal(result.missingModels.length,3);assert.equal(result.inventory.filter(e=>!e.categoryMatches).length,21);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
+result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.code,'EXISTING_TEMPLATE_REQUIRES_REVIEW');assert.equal(posts,0);count++;
 console.log(`Humanized app template catalog: ${count} synthetic cases PASS; 27 payloads / 9 scenarios / 3 locales; default-off, no parameters/recipients, idempotent creation, no edit/delete/send, ambiguity stops.`);
