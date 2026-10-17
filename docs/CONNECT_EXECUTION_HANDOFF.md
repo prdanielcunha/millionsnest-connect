@@ -14,7 +14,17 @@
 Finance digest `sha256:da82ffe5f9da1493ed3af25e5ce3a769d1455c3c0aa24e387fe167c74a56f650`; Hub Journey digest `sha256:714923bb146b411a89faab62d10a969054fe80698788e800b1fd4dfc8c156b6e`; MusicScale digest remains `sha256:f0f9829b9fa878b2e581123172c58de930aa339a619238eea6a7e8e0865e6688`. No full environment, token, mapping, recipient or customer data was logged.
 
 - Auth-only production checks at2026-10-17T04:43Z: MusicScale next-schedule401 UNAUTHORIZED; Finance connect-entities401 FINANCE_CONTEXT_UNAVAILABLE; Hub Journey followup-context401 AUTH_REQUIRED; Journey HMAC event-authority401 SOURCE_AUTHORITY_AUTH_REQUIRED. Connect Inbox missing scope correctly400 INBOX_SCOPE_REQUIRED; same read with synthetic release-smoke organization and no credentials401 AUTH_REQUIRED. No customer token, valid user identity, delivery, mapping or document was supplied. This is evidence of rejection, not real authenticated three-app acceptance.
-- No source cron execution is recorded in the observed GitHub runs yet. Do not claim source schedule/catch-up certified merely from YAML or from the existing Core recovery cron. Source activation, approved real mappings/consent, actual Meta/WABA and physical locked/closed iPhone still require external evidence. All corresponding #226 boxes remain unchecked.
+- Source schedules are now proven by actual event=schedule runs, independently of visits, with successful protected production WIF invocation and OFF/no-mutation exit:
+
+| Source | Actual scheduled dispatcher | Protected production invocation | Result |
+| --- | --- | --- | --- |
+| MusicScale |39021315199 |39021319671 | SUCCESS, MUSICSCALE_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+| NestFinance |39021566113 |39021570678 | SUCCESS, NESTFINANCE_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+| Hub Journey |39021925652 |39021930187 | SUCCESS, NESTJOURNEY_SOURCE_RECOVERY_DISABLED_NO_MUTATION |
+
+Earlier Finance first observed scheduled chain39003802609→39003807853 SUCCESS (04:46Z) and bootstrap39004227838→39004233153 SUCCESS; Hub bootstrap39004232560→39004238194 SUCCESS. Default-branch bootstrap PRs only add a push trigger when the dispatcher itself changes, preserving cron/ref/perms: Finance303 main9f27ec2b54e262642857bf1225d6974b488692fc, Hub400 main309038d00d05b4bbd76be43286c4c4f69d0bd87f, MusicScale535 main45b3402ba31f5345d10ba2b25971c26988e4c131. MusicScale exact candidate531482e00551cbf11d24784906e714921ee84d4d QA39004132447 SUCCESS including all4 full E2Es and aggregate gate. Finance changes preserve concurrent mainf039c44 UI work and do not promote it to production.
+
+These runs prove scheduling/authentication/OFF safety, **not source-enabled catch-up or delivery**. Active-source ingest/ACK/interruption/backlog with approved real HMAC/mappings/consent, Meta/WABA, and a physical installed/locked/closed iPhone remain external certification gates. All corresponding #226 boxes stay unchecked. Browser sign-in method request did not return a verifiable result (tool timeout); no authenticated visual acceptance or sign-in success is claimed. Never use a fabricated user/tenant/recipient to complete those gates.
 
 ---
 
