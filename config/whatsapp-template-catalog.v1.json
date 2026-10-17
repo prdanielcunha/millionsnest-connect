@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026-10-17.1",
+  "catalogVersion": "2026-10-17.2",
   "sendEnabled": false,
   "entries": [
     {
@@ -758,7 +758,7 @@
         "components": [
           {
             "type": "BODY",
-            "text": "Olá! A equipe MillionsNest tem uma atualização sobre seu pedido de ajuda com acesso ou uso dos aplicativos. Responda para continuarmos o atendimento. Nunca precisamos da sua senha ou de códigos de verificação por WhatsApp."
+            "text": "Olá! Esta é uma atualização do atendimento de suporte que você solicitou ao MillionsNest e pediu para acompanhar pelo WhatsApp. Sua solicitação recebeu uma resposta da equipe. Responda aqui para continuar esse atendimento."
           },
           {
             "type": "BUTTONS",
@@ -790,7 +790,7 @@
         "components": [
           {
             "type": "BODY",
-            "text": "Hi! The MillionsNest team has an update on your request for help accessing or using the apps. Reply so we can continue. We never need your password or verification codes over WhatsApp."
+            "text": "Hello! This is an update on the support request you opened with MillionsNest and asked to follow on WhatsApp. Our team has responded to your request. Reply here to continue that support conversation."
           },
           {
             "type": "BUTTONS",
@@ -822,7 +822,7 @@
         "components": [
           {
             "type": "BODY",
-            "text": "¡Hola! El equipo de MillionsNest tiene una actualización sobre tu solicitud de ayuda para acceder o usar las aplicaciones. Responde para continuar. Nunca necesitamos tu contraseña ni códigos de verificación por WhatsApp."
+            "text": "¡Hola! Esta es una actualización de la solicitud de soporte que abriste con MillionsNest y pediste seguir por WhatsApp. Nuestro equipo ha respondido a tu solicitud. Responde aquí para continuar ese mismo caso."
           },
           {
             "type": "BUTTONS",

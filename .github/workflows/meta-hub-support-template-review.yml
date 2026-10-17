@@ -1,0 +1,49 @@
+name: Hub Support Template Correction
+on:
+  pull_request:
+    paths: ['.github/workflows/meta-hub-support-template-review.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/review-hub-support-template.mjs', 'scripts/test-hub-support-template-review.mjs', 'scripts/submit-reviewed-meta-templates.mjs']
+  push:
+    branches: [production]
+    paths: ['.github/workflows/meta-hub-support-template-review.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/review-hub-support-template.mjs', 'scripts/test-hub-support-template-review.mjs']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-whatsapp-template-catalog
+  cancel-in-progress: false
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - run: node scripts/test-existing-meta-profile-probe.mjs
+      - run: node scripts/test-approved-meta-account.mjs
+      - run: node scripts/test-whatsapp-template-catalog.mjs
+      - run: node scripts/test-hub-support-template-review.mjs
+  review:
+    needs: contract
+    if: github.ref == 'refs/heads/production' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - run: node scripts/submit-reviewed-meta-templates.mjs
+        env:
+          CONNECT_TEMPLATE_OPERATION: review_hub_support
