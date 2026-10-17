@@ -152,3 +152,8 @@ The Core can dispatch private Web Push after durable WhatsApp ingestion. Device 
 Organization-specific support profiles now have a server-owned revisioned configuration API and an explicit manager editor, initially disabled until published Rules privacy proof. See `docs/PRODUCT_AGENT_SETTINGS.md` for activation, immutable domain permissions, audit/idempotency and human fallback. This does not activate domain event automations or physical push delivery.
 
 The internal worker queues real Inbox notification references independently of physical push activation, uses durable leases/idempotency and an atomic 100-job daily tenant quota, exposes a Hub-authorized audit API, and accepts signed official-app operator-alert events with distinct signing keys. Without push, actionable alerts are retained for human review; no device delivery is claimed. It does not dispatch commercial WhatsApp or claim domain/member automations are live. A production read-only proof verifies existing private storage/TTL before a separate activation. Recovery scheduling and upstream app publishers remain pending. See `docs/CONNECT_INTERNAL_AUTOMATION_CONTRACT.md`.
+
+
+### Existing Meta profile read-only proof
+
+The production-only diagnostic described in [CONNECT_META_READONLY_PROVIDER_PROOF.md](docs/CONNECT_META_READONLY_PROVIDER_PROOF.md) inspects the existing default Meta profile with GET-only metadata calls. It never sends or enables anything; BLOCKED/PARTIAL is an external gate, not an operational success claim.

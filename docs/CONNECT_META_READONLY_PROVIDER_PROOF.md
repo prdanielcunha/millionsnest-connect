@@ -1,0 +1,13 @@
+# Existing Meta profile: protected read-only diagnostic
+
+This operational workflow answers whether the **already configured global provider profile** can read its own Meta metadata. It does not activate a bridge, enumerate tenant bindings, create mappings or users, send any message, register a phone, subscribe a webhook, create/approve a template, or change WABA/IAM/secrets/flags.
+
+Production-ref-only existing WIF reads the exact Ready100% `connect-api` revision, approved application SHA b587bc1652329766feb993a7660e33b205ae9a97, runtime identity and unchanged safety flags. Only four current global env keys are examined: access token, Graph version, phone number ID and WABA ID. Missing/malformed/externally referenced identifiers are reported as blockers, never inferred from tenant arrays. Only the access token's existing Secret Manager reference in project millionsnest may be resolved, using the existing deployer permission; denial is not grounds to grant IAM or replace credentials. JSON bundles, PEM keys and unsupported token formats are refused. Only the configured Meta token reference is eligible; it is never selected from another env key.
+
+The sole provider requests are GET to fixed HTTPS graph.facebook.com paths for the configured phone ID, configured WABA ID and first25 template statuses. Authorization stays in headers, redirect is disabled, timeout5s. No response paging URL is followed. Reports contain safe enums, booleans, counts and missing key names; no token/ID/phone/name/payload/provider-error text is emitted. No other configuration secret is fetched.
+
+`VERIFIED_READ_ONLY` means those metadata reads passed. Missing/unsupported default WABA metadata can yield `PARTIAL_READ_ONLY` after successful phone access: this does not diagnose existing per-tenant bindings or human reply as broken. Neither state proves webhook delivery, message/template sending, consent, 24h policy, real3-app routing or physical iPhone Push. `BLOCKED` and `PARTIAL_READ_ONLY` report exact external dependencies and exit2; do not relax gates, fabricate config, rerun without a changed prerequisite or confuse an operational blocker with a source-code test failure.
+
+The workflow and scripts do not match application-release path filters; publishing them does not redeploy Core/Hosting or refresh jobs. Future application SHA changes require reviewed pin maintenance. All app/source/Push/commercial flags remain unchanged.
+
+Canonical provider references: [Meta phone-by-ID](https://www.postman.com/meta/whatsapp-business-platform/request/li0unxe/get-phone-number-by-id), [Meta template GET](https://www.postman.com/meta/whatsapp-business-platform/request/qtgr0i7/get-all-templates-default-fields). These authorize no action by themselves.
