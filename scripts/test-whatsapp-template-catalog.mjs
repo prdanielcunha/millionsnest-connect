@@ -43,13 +43,13 @@ const pages=[];result=await submitReviewedTemplates({policy,catalog,inspect,fetc
 // Metadata property order is not a content conflict; no POST is allowed in inspect mode.
 ambiguous=false;failure=false;inventory=payloads.map(p=>({...p,status:'APPROVED',components:p.components.map(c=>c.type==='BUTTONS'?{type:'BUTTONS',buttons:c.buttons.map(b=>({url:b.url,text:b.text,type:b.type}))}:c)}));posts=0;
 result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.allApproved,true);assert.equal(result.statusCounts.APPROVED,30);assert.equal(posts,0);count++;
-inventory=payloads.slice(0,24).map(p=>({...p,status:'PENDING'}));result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.missing,3);assert.equal(result.statusCounts.PENDING,24);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
+inventory=payloads.slice(0,24).map(p=>({...p,status:'PENDING'}));result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.missing,6);assert.equal(result.statusCounts.PENDING,24);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
 inventory=[];failure=true;result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.failureStage,'create');assert.equal(result.httpStatus,403);assert.equal(result.templateName,payloads[0].name);assert.equal(result.language,'pt_BR');assert.equal(result.created,0);assert(!JSON.stringify(result).includes('secret-provider-error'));count++;
 
 // Read-only inventory must report ALL category changes, not stop after the first;
 // the write path must still reject mismatches before any creation.
 failure=false;posts=0;inventory=payloads.slice(0,24).map(p=>({...p,category:'MARKETING',status:'PENDING'}));
-result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.inventory.length,24);assert.equal(result.missingModels.length,3);assert.equal(result.inventory.filter(e=>!e.categoryMatches).length,21);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
+result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl,operation:'inspect'});assert.equal(result.state,'VERIFIED_CATALOG_READ_ONLY');assert.equal(result.inventory.length,24);assert.equal(result.missingModels.length,6);assert.equal(result.inventory.filter(e=>!e.categoryMatches).length,21);assert.equal(result.allApproved,false);assert.equal(posts,0);count++;
 result=await submitReviewedTemplates({policy,catalog,inspect,fetchImpl});assert.equal(result.code,'EXISTING_TEMPLATE_REQUIRES_REVIEW');assert.equal(posts,0);count++;
 // Rejection diagnostics are inspect-only and must never log arbitrary provider text.
 inventory=payloads.map(p=>({...p,status:'APPROVED'}));inventory[0].status='REJECTED';
