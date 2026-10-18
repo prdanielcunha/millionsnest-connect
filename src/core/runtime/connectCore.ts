@@ -424,8 +424,8 @@ export class ConnectCoreService {
         status: 'unsupported',
         intent,
         code: 'UNSUPPORTED_INTENT',
-        humanSummary: request.locale === 'en-US' ? guidance['en-US']
-          : request.locale === 'es-ES' ? guidance['es-ES'] : guidance['pt-BR'],
+        humanSummary: request.locale === 'en' || request.locale === 'en-US' ? guidance['en-US']
+          : request.locale === 'es' || request.locale === 'es-ES' ? guidance['es-ES'] : guidance['pt-BR'],
       };
     }
 
