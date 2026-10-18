@@ -2,7 +2,7 @@ import { evaluateZeroCostPolicy } from '../policies/zeroCost/zeroCostPolicy';
 import { normalizeWhatsAppPhone } from '../client/whatsappDelivery';
 
 export type OutboundDeliveryChannel = 'whatsapp';
-export type OutboundDeliveryCategory = 'service_update' | 'maintenance_reminder';
+export type OutboundDeliveryCategory = 'service_update' | 'maintenance_reminder' | 'birthday_greeting';
 
 export interface OutboundDeliveryAuthority {
   organizationId: string;
@@ -82,7 +82,7 @@ const SAFE_REF = /^[a-zA-Z0-9._:/-]{3,260}$/;
 const SAFE_IDEMPOTENCY = /^[a-zA-Z0-9._:/-]{8,220}$/;
 const SAFE_SOURCE_APP = /^[a-z0-9_-]{2,80}$/;
 const REQUIRED_CAPABILITY = 'channels.whatsapp.send';
-const CATEGORIES = new Set<OutboundDeliveryCategory>(['service_update', 'maintenance_reminder']);
+const CATEGORIES = new Set<OutboundDeliveryCategory>(['service_update', 'maintenance_reminder', 'birthday_greeting']);
 const LANGUAGES = new Set<OutboundDeliveryRequest['language']>(['pt_BR', 'en_US', 'es']);
 
 function clean(value: unknown): string {
@@ -158,6 +158,21 @@ export function evaluateOutboundDelivery(
   const consentEvidenceRef = clean(request.consentEvidenceRef);
   if (!SAFE_REF.test(consentEvidenceRef)) {
     return { status: 'blocked', reason: 'CONSENT_EVIDENCE_REQUIRED' };
+  }
+
+  if (request.category === 'birthday_greeting') {
+    // Charged marketing templates require a DISTINCT backend-granted capability.
+    // A generic WhatsApp opt-in or phone number is never birthday consent.
+    if (sourceApp !== 'nestjourney') return { status: 'blocked', reason: 'INVALID_CATEGORY' };
+    if (!authority.capabilities.includes('nestjourney.birthdays.whatsapp.approved')) {
+      return { status: 'blocked', reason: 'CAPABILITY_REQUIRED' };
+    }
+    if (!/^birthday_whatsapp_optin_v1:[a-zA-Z0-9._:/-]{6,200}$/.test(consentEvidenceRef)) {
+      return { status: 'blocked', reason: 'CONSENT_EVIDENCE_REQUIRED' };
+    }
+    if (templateName !== 'mn_nestjourney_birthday_greeting_v1') {
+      return { status: 'blocked', reason: 'APPROVED_TEMPLATE_REQUIRED' };
+    }
   }
 
   const idempotencyKey = clean(request.idempotencyKey);
