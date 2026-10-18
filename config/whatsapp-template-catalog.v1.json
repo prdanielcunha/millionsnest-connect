@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026-10-17.2",
+  "catalogVersion": "2026-10-18.1",
   "sendEnabled": false,
   "entries": [
     {
@@ -833,6 +833,72 @@
                 "url": "https://www.millionsnest.com/"
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.birthday_greeting",
+      "product": "nestjourney",
+      "trigger": "birthday.today",
+      "audience": "consented_person",
+      "requiredConsent": "birthday_whatsapp_optin_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": false,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_birthday_greeting_v1",
+        "language": "pt_BR",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Feliz aniversário! Hoje é um dia especial, e queremos desejar um novo ciclo cheio de paz, esperança e boas lembranças. Receba nosso carinho! Se não desejar receber novas mensagens, responda SAIR."
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.birthday_greeting",
+      "product": "nestjourney",
+      "trigger": "birthday.today",
+      "audience": "consented_person",
+      "requiredConsent": "birthday_whatsapp_optin_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": false,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_birthday_greeting_v1",
+        "language": "en_US",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "Happy birthday! Today is a special day and we wish you a new year filled with peace, hope and wonderful memories. Warmest wishes! Reply STOP if you do not want more messages."
+          }
+        ]
+      }
+    },
+    {
+      "key": "nestjourney.birthday_greeting",
+      "product": "nestjourney",
+      "trigger": "birthday.today",
+      "audience": "consented_person",
+      "requiredConsent": "birthday_whatsapp_optin_v1",
+      "requiresFreshSourceAuthority": true,
+      "requiresActiveRequest": false,
+      "deliveryEnabled": false,
+      "approvalStatus": "NOT_SUBMITTED",
+      "payload": {
+        "name": "mn_nestjourney_birthday_greeting_v1",
+        "language": "es",
+        "category": "MARKETING",
+        "components": [
+          {
+            "type": "BODY",
+            "text": "¡Feliz cumpleaños! Hoy es un día especial y deseamos que tu nuevo año esté lleno de paz, esperanza y buenos recuerdos. ¡Recibe nuestro cariño! Responde SALIR si no deseas más mensajes."
           }
         ]
       }
