@@ -139,7 +139,7 @@ console.log(`✅ Passed ${passed} / ${total} tests.`);
   const request:OutboundDeliveryRequest={
     requestId:'birthday-123456',organizationId:'org_123',sourceApp:'nestjourney',
     channel:'whatsapp',category:'birthday_greeting',
-    recipient:{kind:'phone',value:'5543999999999'},templateName:'mn_nestjourney_birthday_greeting_v1',
+    recipient:{kind:'phone',value:'5543987654321'},templateName:'mn_nestjourney_birthday_greeting_v1',
     language:'pt_BR',consentEvidenceRef:'birthday_whatsapp_optin_v1:proof-12345678',
     idempotencyKey:'nestjourney:birthdays:person-123:2026',
   };
