@@ -235,7 +235,10 @@ checkEqual(
   checkEqual(toolCounter.calls, 0, 'tool is not invoked if pre-execution audit cannot be recorded');
 }
 
-for (const locale of ['pt-BR', 'en-US', 'es-ES']) {
+for (const [locale, expectedStart] of [
+  ['pt-BR', 'Ainda não'], ['en-US', 'I cannot'], ['es-ES', 'Todavía no'],
+  ['en', 'I cannot'], ['es', 'Todavía no'], ['unrecognized', 'Ainda não'],
+]) {
   for (const musicscaleAccess of [false, true]) {
     const events: CoreAuditEvent[] = [];
     const counter = { calls: 0 };
@@ -249,6 +252,7 @@ for (const locale of ['pt-BR', 'en-US', 'es-ES']) {
     checkEqual(result.status, 'unsupported', 'Journey guidance does not depend on MusicScale entitlement');
     checkEqual('code' in result ? result.code : '', 'UNSUPPORTED_INTENT', 'guidance never claims a completed source read');
     checkEqual(result.humanSummary.includes('NestJourney'), true, 'guidance identifies the actual source app');
+    checkEqual(result.humanSummary.startsWith(expectedStart), true, 'guidance honors the HTTP-normalized locale and safe fallback');
     checkEqual(result.humanSummary.includes('MusicScale'), false, 'Journey does not receive a MusicScale access error');
     checkEqual(counter.calls, 0, 'unsupported Journey request never calls a MusicScale tool');
     checkEqual('data' in result, false, 'guidance contains no follow-up data');
