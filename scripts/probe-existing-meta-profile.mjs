@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 const keys = ['CONNECT_WHATSAPP_ACCESS_TOKEN', 'CONNECT_WHATSAPP_GRAPH_API_VERSION', 'CONNECT_WHATSAPP_PHONE_NUMBER_ID', 'CONNECT_WHATSAPP_WABA_ID'];
-const release = '33033a8ec9a19e34249fcb68c5d358cf7f4257ce';
+const release = 'a09058787bc0eb585b3ef5c696a85fe87ef83e05';
 const image = 'us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
 const blocked = (code, extra = {}) => ({ state: 'BLOCKED', code, sendAttempted: false, ...extra });
 

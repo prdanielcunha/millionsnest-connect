@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import { probeExistingMetaProfile, inspectExistingMetaRuntime } from './probe-existing-meta-profile.mjs';
-const release='33033a8ec9a19e34249fcb68c5d358cf7f4257ce',image='us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
+const release='a09058787bc0eb585b3ef5c696a85fe87ef83e05',image='us-central1-docker.pkg.dev/millionsnest/millionsnest-web/connect-api';
 const token='EAAsynthetic_TOKEN_for_readonly_unit_test_0000',phone='123456789101112',waba='987654321012345';
 const base={status:{conditions:[{type:'Ready',status:'True'}],latestReadyRevisionName:'connect-api-fixture',latestCreatedRevisionName:'connect-api-fixture',traffic:[{percent:100,revisionName:'connect-api-fixture'}]},spec:{template:{spec:{containers:[{image:`${image}:${release}`}]}}}};
 const rev={metadata:{name:'connect-api-fixture'},status:{conditions:[{type:'Ready',status:'True'}],imageDigest:`${image}@sha256:${'a'.repeat(64)}`},spec:{serviceAccountName:'mn-connect-runtime@millionsnest.iam.gserviceaccount.com',containers:[{image:`${image}:${release}`,env:[
