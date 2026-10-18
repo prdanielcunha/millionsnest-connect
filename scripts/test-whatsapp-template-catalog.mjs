@@ -15,7 +15,7 @@ for(const item of catalog.entries.filter(e=>e.key==='nestjourney.birthday_greeti
   assert.equal(item.requiresFreshSourceAuthority,true);
   count++;
 }
-const policy={wabaId:'123456789'};,auth='Bearer EAAsynthetic_readonly_meta_token_0000000';
+const policy={wabaId:'123456789'},auth='Bearer EAAsynthetic_readonly_meta_token_0000000';
 let calls=[],posts=0,inventory=[],failure=false,ambiguous=false;
 const inspect=async({fetchImpl})=>{await fetchImpl('https://graph.facebook.com/v23.0/111?fields=id',{method:'GET',headers:{Authorization:auth}});return{result:{state:'VERIFIED_READ_ONLY',checks:{phoneAccountAssociation:true}}};};
 const fetchImpl=async(url,init)=>{
