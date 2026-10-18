@@ -201,6 +201,8 @@ Current conformance: MillionsNest Connect must support native direct entry in LI
 
 ## Read-only Meta provider diagnostic
 
+Shared Rules privacy proof uses `config/connect-shared-privacy-proof.json` as its single Git-reviewed pin/provenance source. Never derive approval from live bytes, environment overrides or unreviewed Hub branch names. Preserve fixed-project GET-only checks, exact published hash and ACTIVE TTL gates. Manifest-only maintenance uses the separate protected read-only proof; application releases still revalidate both privacy gates. See `docs/CONNECT_SHARED_RULES_REVIEW_20261018.md`.
+
 The scripts/workflow documented in `docs/CONNECT_META_READONLY_PROVIDER_PROOF.md` inspect only the current default provider metadata under existing production WIF. Do not expand them into sends, tenant enumeration, config/secret/IAM writes or activation. Preserve safe enum-only logs, fixed Graph origin, GET-only transport, existing reference scope and the explicit distinction between read verification and operational certification.
 
 ## Reviewed app template catalog and owner-account diagnostic
