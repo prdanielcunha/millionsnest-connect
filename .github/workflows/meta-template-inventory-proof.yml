@@ -1,10 +1,10 @@
 name: Reviewed WhatsApp Template Catalog Inventory
 on:
   pull_request:
-    paths: ['.github/workflows/meta-template-inventory-proof.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/*whatsapp-template-catalog.mjs', 'scripts/submit-reviewed-meta-templates.mjs']
+    paths: ['.github/workflows/meta-template-inventory-proof.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/*whatsapp-template-catalog.mjs', 'scripts/submit-reviewed-meta-templates.mjs', 'scripts/*existing-meta-profile*.mjs']
   push:
     branches: [production]
-    paths: ['.github/workflows/meta-template-inventory-proof.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/*whatsapp-template-catalog.mjs', 'scripts/submit-reviewed-meta-templates.mjs']
+    paths: ['.github/workflows/meta-template-inventory-proof.yml', 'config/whatsapp-template-catalog.v1.json', 'scripts/*whatsapp-template-catalog.mjs', 'scripts/submit-reviewed-meta-templates.mjs', 'scripts/*existing-meta-profile*.mjs']
   workflow_dispatch:
 permissions:
   contents: read
