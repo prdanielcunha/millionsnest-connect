@@ -130,3 +130,25 @@ console.log('--- Running Outbound Delivery Contract Tests ---');
 }
 
 console.log(`✅ Passed ${passed} / ${total} tests.`);
+
+
+{
+  const authority:OutboundDeliveryAuthority={
+    organizationId:'org_123',sourceApp:'nestjourney',capabilities:['channels.whatsapp.send'],
+  };
+  const request:OutboundDeliveryRequest={
+    requestId:'birthday-123456',organizationId:'org_123',sourceApp:'nestjourney',
+    channel:'whatsapp',category:'birthday_greeting',
+    recipient:{kind:'phone',value:'5543999999999'},templateName:'mn_nestjourney_birthday_greeting_v1',
+    language:'pt_BR',consentEvidenceRef:'birthday_whatsapp_optin_v1:proof-12345678',
+    idempotencyKey:'nestjourney:birthdays:person-123:2026',
+  };
+  checkEqual(evaluateOutboundDelivery(authority,request).reason,'CAPABILITY_REQUIRED','birthday marketing requires separate authority');
+  authority.capabilities.push('nestjourney.birthdays.whatsapp.approved');
+  request.consentEvidenceRef='whatsapp_explicit_v1:old';
+  checkEqual(evaluateOutboundDelivery(authority,request).reason,'CONSENT_EVIDENCE_REQUIRED','generic WhatsApp opt-in cannot authorize birthdays');
+  request.consentEvidenceRef='birthday_whatsapp_optin_v1:proof-12345678';
+  checkEqual(evaluateOutboundDelivery(authority,request).reason,'PROVIDER_POLICY_BLOCKED','paid birthday sending remains fail-closed');
+  request.sourceApp='nestfinance';
+  checkEqual(evaluateOutboundDelivery(authority,request).reason,'SOURCE_APP_MISMATCH','source authority remains tenant and product bound');
+}
