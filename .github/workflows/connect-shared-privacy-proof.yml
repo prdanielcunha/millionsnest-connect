@@ -1,0 +1,55 @@
+name: Reviewed Connect Shared Privacy Proof
+on:
+  pull_request:
+    paths: ['.github/workflows/connect-shared-privacy-proof.yml', 'config/connect-shared-privacy-proof.json', 'scripts/reviewed-privacy-proof.mjs', 'scripts/*product-routing-storage.mjs', 'scripts/*internal-automation-storage.mjs', 'docs/CONNECT_SHARED_RULES_REVIEW_*.md']
+  push:
+    branches: [production]
+    paths: ['.github/workflows/connect-shared-privacy-proof.yml', 'config/connect-shared-privacy-proof.json', 'scripts/reviewed-privacy-proof.mjs', 'scripts/*product-routing-storage.mjs', 'scripts/*internal-automation-storage.mjs', 'docs/CONNECT_SHARED_RULES_REVIEW_*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-connect-shared-privacy-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - run: node scripts/test-product-routing-storage.mjs && node scripts/test-internal-automation-storage.mjs
+  inspect:
+    needs: contract
+    if: github.ref == 'refs/heads/production' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: projects/555464791734/locations/global/workloadIdentityPools/mn-prod-github/providers/github
+          service_account: mn-web-deployer@millionsnest.iam.gserviceaccount.com
+      - name: Read actual shared Rules and existing ACTIVE TTL only
+        env:
+          PROJECT_ID: millionsnest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/production
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+          echo "::add-mask::$ACCESS_TOKEN"
+          printf '%s' "$ACCESS_TOKEN" | node scripts/verify-product-routing-storage.mjs
+          printf '%s' "$ACCESS_TOKEN" | node scripts/verify-internal-automation-storage.mjs
+          unset ACCESS_TOKEN

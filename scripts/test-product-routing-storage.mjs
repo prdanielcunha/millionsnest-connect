@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { verifyProductRoutingStorage } from './verify-product-routing-storage.mjs';
+import { APPROVED_RULES_SHA256 } from './verify-product-routing-storage.mjs';
+import { parseReviewedPrivacyProof, readReviewedPrivacyProof } from './reviewed-privacy-proof.mjs';
+
+const reviewed = readReviewedPrivacyProof();
+assert.equal(APPROVED_RULES_SHA256, reviewed.rulesSha256, 'release and internal automation share the same reviewed pin');
+assert(Object.isFrozen(reviewed));
+for (const change of [
+  { schemaVersion: 2 }, { projectId: 'another-project' }, { hubRepository: 'another/repo' },
+  { hubCommit: 'invalid' }, { rulesSha256: 'invalid' }, { rulesSha256: 123 },
+  { proofRunId: 0 }, { proofRunId: 1.5 }, { proofRunId: '39091831513' },
+  { privateStoreAssertions: 444 }, { privateStoreAssertions: Infinity }, { autoAcceptLiveHash: true },
+]) assert.throws(() => parseReviewedPrivacyProof({ ...reviewed, ...change }), /REVIEW_MANIFEST_INVALID/);
+for (const value of [null, [], 'invalid', {}, Object.create(reviewed), { ...reviewed, hubCommit: undefined }]) {
+  assert.throws(() => parseReviewedPrivacyProof(value), /REVIEW_MANIFEST_INVALID/);
+}
 
 const source = 'synthetic-reviewed-private-rules';
 const hash = createHash('sha256').update(source).digest('hex');

@@ -156,6 +156,8 @@ The internal worker queues real Inbox notification references independently of p
 
 ### Existing Meta profile read-only proof
 
+Shared storage privacy uses the single reviewed `config/connect-shared-privacy-proof.json` manifest. The protected `connect-shared-privacy-proof.yml` reads actual published Rules and existing ACTIVE TTL after reviewed metadata updates; it never publishes Rules or changes configuration. Exact-byte drift remains blocked. See [the current review](docs/CONNECT_SHARED_RULES_REVIEW_20261018.md).
+
 The production-only diagnostic described in [CONNECT_META_READONLY_PROVIDER_PROOF.md](docs/CONNECT_META_READONLY_PROVIDER_PROOF.md) inspects the existing default Meta profile with GET-only metadata calls. It never sends or enables anything; BLOCKED/PARTIAL is an external gate, not an operational success claim.
 
 ### Humanized WhatsApp templates and owner-account proof
