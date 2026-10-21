@@ -6,6 +6,7 @@ import type { ConnectThreadStore } from '../inbox/threadStore';
 import { ConnectThreadCommandService } from '../inbox/threadService';
 import type { ConnectInboxOperatorDirectory } from '../inbox/hubFirestoreInboxOperatorDirectory';
 import { localeFromText } from '../runtime/whatsappAssistOrchestrator';
+import { understandConnectQuestion, questionGuidance } from '../runtime/connectQuestionUnderstanding';
 import { resolveConnectCoreIntent } from '../runtime/connectCore';
 import { CONNECT_PRODUCTS, routingId, type ConnectProduct, type ProductRouteStore } from './productRouting';
 import { publicProductSupportReply } from '../agents/productAgentProfiles';
@@ -62,6 +63,13 @@ export class WhatsAppProductRouting {
           continue;
         }
       }
+      const understanding = understandConnectQuestion(clean);
+      if (settings?.enabled && decision.kind === 'route' && product === 'musicscale' && understanding.clarification) {
+        await this.options.replies.send({ ...scope, requestId: `product-guidance-${id}`, phoneNumberId: event.phoneNumberId, recipientPhone: event.from,
+          text: questionGuidance(understanding.clarification, localeFromText(clean)) });
+        await this.commands.waitForPerson({ ...scope, requestId: `wa-20-product-guidance-${id}`, evidenceRef, reasonCode: 'music_query_clarification_required' });
+        continue;
+      }
       if (settings?.enabled && decision.kind === 'route' && product === 'musicscale' && resolveConnectCoreIntent(clean) !== 'unknown') {
         pass.push({ ...event, text: clean });
         continue;
@@ -73,6 +81,13 @@ export class WhatsAppProductRouting {
           await this.commands.waitForPerson({ ...scope, requestId: `wa-20-product-agent-${id}`, evidenceRef, reasonCode: `product_${product}_public_support_v1_answered` });
           continue;
         }
+      }
+      if (settings?.enabled && decision.kind === 'route' && product === 'musicscale' &&
+          !/\b(atendente|humano|humana|human|persona|parar|pare|stop|sair|cancelar|unsubscribe)\b/i.test(clean)) {
+        await this.options.replies.send({ ...scope, requestId: `product-options-${id}`, phoneNumberId: event.phoneNumberId,
+          recipientPhone: event.from, text: questionGuidance('unknown', localeFromText(clean)) });
+        await this.commands.waitForPerson({ ...scope, requestId: `wa-20-product-options-${id}`, evidenceRef, reasonCode: 'music_query_options_offered' });
+        continue;
       }
       if (decision.kind === 'route' && product) {
         const owner = settings?.ownerUid;

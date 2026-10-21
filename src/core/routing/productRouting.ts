@@ -53,7 +53,7 @@ function unambiguousDomainHint(clean: string): { product: ConnectProduct | null;
     'discipleship', 'visitor', 'visitors', 'acogida']) ||
     /\b(?:casa de paz|casas de paz|primeiro contato|integracao de visitantes|first contact)\b/u.test(clean);
   const music = resolveConnectCoreIntent(clean) !== 'unknown' ||
-    /\b(?:louvor|repertorio|cifra|cifras|escala de louvor|escalas de louvor|worship|setlist|chords|repertoire|alabanza)\b/u.test(clean);
+    /\b(?:louvor|repertorio|cifra|cifras|escalas?|escalad[oa]s?|presenca|confirmacao|escala de louvor|escalas de louvor|worship|setlist|chords|repertoire|alabanza)\b/u.test(clean);
   const matches: ConnectProduct[] = [];
   if (music) matches.push('musicscale');
   if (finance) matches.push('nestfinance');

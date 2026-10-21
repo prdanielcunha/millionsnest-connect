@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { understandConnectQuestion, questionGuidance } from './connectQuestionUnderstanding';
 import {
   buildWhatsAppChannelLinkUrl,
   createWhatsAppChannelLinkToken,
@@ -17,8 +18,8 @@ import {
 } from '../inbox/messageContentStore';
 import type { WhatsAppAssistReplyService } from '../inbox/whatsappAssistReplyService';
 import {
-  resolveConnectCoreIntent,
   type ConnectCoreResponse,
+  type ConnectCoreIntent,
   type ConnectCoreService,
 } from './connectCore';
 import {
@@ -48,7 +49,7 @@ export function localeFromText(text: string): SupportedLocale {
     /\b(what|my|next|schedule|songs|playing|confirmed|chords|chart)\b/.test(normalized)
   ) return 'en-US';
   if (
-    /\b(cual|mi|proxima|escala|canciones|asistencia|confirmado|confirmada|acordes)\b/.test(normalized)
+    /\b(cual|mi|canciones|asistencia|estoy|proximo turno|necesito|puedes)\b/.test(normalized)
   ) return 'es-ES';
   return 'pt-BR';
 }
@@ -185,7 +186,7 @@ function formatCoreResponse(response: ConnectCoreResponse, locale: SupportedLoca
   return lines.join('\n').slice(0, 4096);
 }
 
-function supportedForWhatsApp(intent: ReturnType<typeof resolveConnectCoreIntent>): boolean {
+function supportedForWhatsApp(intent: ConnectCoreIntent): boolean {
   return intent === 'get_next_schedule' ||
     intent === 'get_next_schedule_repertoire' ||
     intent === 'get_next_schedule_presence' ||
@@ -206,6 +207,7 @@ export class WhatsAppAssistOrchestrator {
     linkRootSecret: string;
     publicOrigin: string;
     now?: () => Date;
+    responseGuard?: (event: Extract<WhatsAppNormalizedEvent, { kind: 'message' }>) => Promise<boolean>;
     resumeGuard?: (event: Extract<WhatsAppNormalizedEvent, { kind: 'message' }>) => Promise<boolean>;
     logger?: {
       info(message: string, meta?: Record<string, unknown>): void;
@@ -219,8 +221,6 @@ export class WhatsAppAssistOrchestrator {
   async afterIngest(events: WhatsAppNormalizedEvent[]): Promise<void> {
     for (const event of events) {
       if (event.kind !== 'message' || event.messageType !== 'text' || !event.text?.trim()) continue;
-      const intent = resolveConnectCoreIntent(event.text);
-      if (!supportedForWhatsApp(intent)) continue;
       await this.processMessage(event);
     }
   }
@@ -327,86 +327,86 @@ export class WhatsAppAssistOrchestrator {
       connectionRef: connection.connectionRef,
       channelUserId: event.from,
     });
+    const original = await this.options.messageStore.getByProviderMessageId({
+      channel: 'whatsapp', providerMessageId: event.providerMessageId,
+    });
+    const age = original ? this.now().getTime() - Date.parse(original.occurredAt) : NaN;
+    if (!original || original.organizationId !== connection.organizationId ||
+        original.conversationId !== conversationId || original.direction !== 'inbound' ||
+        original.senderRef !== event.from || original.recipientRef !== event.phoneNumberId ||
+        !Number.isFinite(age) || age < -30_000 || age >= 24 * 3600_000) return;
+    if (this.options.responseGuard && !await this.options.responseGuard(event)) return;
     const locale = localeFromText(event.text);
+    const understanding = understandConnectQuestion(event.text);
+    if (!supportedForWhatsApp(understanding.intent)) {
+      await this.options.replyService.send({
+        organizationId: connection.organizationId, conversationId,
+        requestId: requestId('answer', event.providerMessageId),
+        phoneNumberId: event.phoneNumberId, recipientPhone: event.from,
+        text: questionGuidance(understanding.clarification, locale),
+      });
+      return;
+    }
     const channelIdentityRef = deriveWhatsAppChannelIdentityRef({
       providerUserId: event.from,
       phoneNumberId: event.phoneNumberId,
       rootSecret: this.options.linkRootSecret,
     });
 
-    const binding = await this.options.bindingStore.get({
-      channelOrganizationId: connection.organizationId,
-      channelIdentityRef,
-    });
-
-    if (!binding || binding.expiresAtMs <= this.now().getTime()) {
-      await this.sendLinkPrompt({
-        event,
-        channelOrganizationId: connection.organizationId,
-        conversationId,
-        channelIdentityRef,
-        locale,
-      });
+    let resolution: { kind: 'link' } | { kind: 'answer'; response: ConnectCoreResponse };
+    try {
+      resolution = await this.resolveAnswer(event, connection.organizationId, conversationId, channelIdentityRef, locale);
+    } catch {
+      // No provider send happened in resolveAnswer. An upstream failure must
+      // not look like an empty schedule or leave the person without guidance.
+      this.options.logger?.warn?.('CONNECT_WHATSAPP_ASSIST_QUERY_UNAVAILABLE');
+      resolution = { kind: 'answer', response: {
+        status: 'failed', intent: understanding.intent, code: 'CORE_UNAVAILABLE', retryable: true,
+        humanSummary: locale === 'en-US' ? 'I could not check your information right now. Please try again shortly. This does not mean you have no schedule.'
+          : locale === 'es-ES' ? 'No pude consultar tu información ahora. Inténtalo de nuevo en unos momentos. Esto no significa que no tengas turno.'
+          : 'Não consegui consultar suas informações agora. Tente novamente em instantes. Isso não significa que você esteja sem escala.',
+      } };
+    }
+    if (resolution.kind === 'link') {
+      await this.sendLinkPrompt({ event, channelOrganizationId: connection.organizationId, conversationId, channelIdentityRef, locale });
       return;
     }
+    // Keep provider I/O OUTSIDE the query catch: never send a second response
+    // after ambiguous Meta acceptance or persistence failure.
+    await this.options.replyService.send({
+      organizationId: connection.organizationId, conversationId,
+      requestId: requestId('answer', event.providerMessageId),
+      phoneNumberId: event.phoneNumberId, recipientPhone: event.from,
+      text: formatCoreResponse(resolution.response, locale),
+    });
+    this.options.logger?.info('CONNECT_WHATSAPP_ASSIST_COMPLETED', {
+      intent: resolution.response.intent, result: resolution.response.status,
+      channelOrganizationId: connection.organizationId,
+    });
+  }
 
+  private async resolveAnswer(
+    event: Extract<WhatsAppNormalizedEvent, { kind: 'message' }>,
+    channelOrganizationId: string, conversationId: string, channelIdentityRef: string, locale: SupportedLocale,
+  ): Promise<{ kind: 'link' } | { kind: 'answer'; response: ConnectCoreResponse }> {
+    const binding = await this.options.bindingStore.get({ channelOrganizationId, channelIdentityRef });
+    if (!binding || binding.expiresAtMs <= this.now().getTime()) return { kind: 'link' };
     let session;
     try {
-      session = await this.options.hubClient.exchangeGrant({
-        grantRef: binding.grantRef,
-        grantSecret: binding.grantSecret,
-      });
+      session = await this.options.hubClient.exchangeGrant({ grantRef: binding.grantRef, grantSecret: binding.grantSecret });
     } catch (error) {
-      if (error instanceof HubChannelGrantError && (error.status === 401 || error.status === 403)) {
-        await this.sendLinkPrompt({
-          event,
-          channelOrganizationId: connection.organizationId,
-          conversationId,
-          channelIdentityRef,
-          locale,
-        });
-        return;
-      }
+      if (error instanceof HubChannelGrantError && (error.status === 401 || error.status === 403)) return { kind: 'link' };
       throw error;
     }
-
-    if (session.organizationId !== binding.targetOrganizationId) {
-      throw new Error('CHANNEL_SESSION_ORGANIZATION_MISMATCH');
-    }
-
-    const idToken = await this.options.tokenExchanger.exchange({
-      customToken: session.customToken,
-      expectedUid: session.userId,
-    });
+    if (session.organizationId !== binding.targetOrganizationId) throw new Error('CHANNEL_SESSION_ORGANIZATION_MISMATCH');
+    const idToken = await this.options.tokenExchanger.exchange({ customToken: session.customToken, expectedUid: session.userId });
     const coreRequestId = `wa-core-${digest(event.providerMessageId)}`;
     const response = await this.options.core.handleMessage({
-      requestId: coreRequestId,
-      correlationId: coreRequestId,
-      authToken: idToken,
+      requestId: coreRequestId, correlationId: coreRequestId, authToken: idToken,
       requestedOrganizationId: session.organizationId,
-      channel: {
-        type: 'whatsapp',
-        conversationId,
-      },
-      locale,
-      text: event.text,
+      channel: { type: 'whatsapp', conversationId }, locale, text: event.text!,
     });
-
-    await this.options.replyService.send({
-      organizationId: connection.organizationId,
-      conversationId,
-      requestId: requestId('answer', event.providerMessageId),
-      phoneNumberId: event.phoneNumberId,
-      recipientPhone: event.from,
-      text: formatCoreResponse(response, locale),
-    });
-
-    this.options.logger?.info('CONNECT_WHATSAPP_ASSIST_COMPLETED', {
-      intent: response.intent,
-      result: response.status,
-      channelOrganizationId: connection.organizationId,
-      targetOrganizationId: session.organizationId,
-    });
+    return { kind: 'answer', response };
   }
 
   private async sendLinkPrompt(input: {
