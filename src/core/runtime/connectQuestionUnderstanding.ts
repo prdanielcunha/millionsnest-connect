@@ -28,7 +28,7 @@ export function understandConnectQuestion(text: string): QuestionUnderstanding {
   // Product conflicts and explicit human requests must remain with the router.
   if (has(/\b(nestfinance|nestjourney|atendente|humano|humana|human|persona)\b/)) return { intent: 'unknown' };
   // A query of attendance is different from recording attendance or changing a scale.
-  if (has(/\b(cancelar|cancele|apagar|apague|excluir|exclua|remover|remova|trocar|troque|alterar|altere|criar|crie|confirmar|confirma|confirmo|desmarcar|delete|remove|change|create|confirm|cancel|cambiar|crear)\b/) ||
+  if (has(/\bconfirme (?:a |minha |sua )?presenca\b/) || has(/\b(cancelar|cancele|apagar|apague|excluir|exclua|remover|remova|trocar|troque|alterar|altere|criar|crie|confirmar|confirma|confirmo|desmarcar|delete|remove|change|create|confirm|cancel|cambiar|crear)\b/) ||
       has(/\b(nao|no|not|cannot|cant)\b.*\b(vou|posso|consigo|poderei|tocar|cantar|servir|play|attend|podre|puedo)\b/)) {
     return { intent: 'unknown', clarification: 'change' };
   }
