@@ -15,7 +15,7 @@ for (const text of ['Estou escalado domingo?', 'Qual minha escala de 25/10/2026?
   assert.equal(resolveConnectCoreIntent(text), 'unknown', text);
   assert.equal(understandConnectQuestion(text).clarification, 'scope', text);
 }
-for (const text of ['Confirma minha presença', 'Não vou conseguir tocar domingo', 'Quero cancelar minha próxima escala']) assert.equal(understandConnectQuestion(text).clarification, 'change', text);
+for (const text of ['Confirme minha presença', 'Confirme a presença', 'Confirma minha presença', 'Não vou conseguir tocar domingo', 'Quero cancelar minha próxima escala']) assert.equal(understandConnectQuestion(text).clarification, 'change', text);
 assert.equal(resolveConnectCoreIntent('Qual o saldo no NestFinance?'), 'unknown');
 assert.equal(resolveConnectCoreIntent('Preciso de um atendente para minha próxima escala'), 'unknown');
 for (const text of ['Próxima escala', 'Repertório', 'Presença', 'Cifra de Santo']) assert.notEqual(resolveConnectCoreIntent(text), 'unknown', text);
