@@ -8,7 +8,7 @@ import { createJourneyEventAuthority } from '../core/automations/journeyEventAut
 import { createInternalAlertExecutor } from '../core/automations/internalAlertExecutor';
 import { FirestoreInboundAlertCatchup } from '../core/automations/inboundAlertOutbox';
 import { createAutomationEventHandler, createAutomationWorkerHandler, createAutomationJobsReadHandler } from '../core/automations/automationEventHttp';
-import { createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
+import { createMessageEvidenceRef, createConversationIdFromChannelIdentity, createProviderMessageIndexId } from '../core/inbox/messageContentStore';
 import { FirestoreProductRouteStore } from '../core/routing/firestoreProductRouteStore';
 import { WhatsAppProductRouting } from '../core/routing/whatsappProductRouting';
 import { parseProductSupportOwners } from '../core/routing/productRouting';
@@ -499,6 +499,16 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
                 }),
                 core,
                 replyService: assistReplyService,
+                responseGuard: async event => {
+                  const connection = registry!.resolve(event.phoneNumberId);
+                  if (!connection) return false;
+                  const thread = await gatedStore.load({ organizationId: connection.organizationId,
+                    conversationId: createConversationIdFromChannelIdentity({ organizationId: connection.organizationId,
+                      connectionRef: connection.connectionRef, channel: 'whatsapp', channelUserId: event.from }) });
+                  return Boolean(thread && thread.mode !== 'human' && thread.assignedTo?.type !== 'user' &&
+                    !['resolved', 'archived'].includes(thread.status) &&
+                    thread.lastEvidenceRef === createMessageEvidenceRef('whatsapp', event.providerMessageId));
+                },
                 resumeGuard: productRouting ? async event => (await productRouting!.route([event])).length === 1 : undefined,
                 linkRootSecret,
                 publicOrigin,

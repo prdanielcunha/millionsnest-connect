@@ -1,3 +1,4 @@
+import { understandConnectQuestion, questionGuidance } from './connectQuestionUnderstanding';
 export type ConnectCoreIntent = 'get_next_schedule' | 'get_next_schedule_repertoire' | 'get_next_schedule_presence' | 'get_next_schedule_chart' | 'unknown';
 
 export type ConnectChannelType = 'inapp' | 'whatsapp' | 'instagram' | 'telegram' | string;
@@ -188,15 +189,6 @@ const NEXT_REPERTOIRE_CAPABILITY = 'songs.read' as const;
 const NEXT_PRESENCE_CAPABILITY = 'scales.read' as const;
 const NEXT_CHART_CAPABILITY = 'songs.read' as const;
 
-function normalizeForIntent(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
-
 export function resolveConnectChartTitleQuery(text: string): string {
   const compact = text.replace(/[\r\n\t]+/g, ' ').trim().replace(/\s+/g, ' ');
   const patterns = [
@@ -217,79 +209,7 @@ export function resolveConnectChartTitleQuery(text: string): string {
 }
 
 export function resolveConnectCoreIntent(text: string): ConnectCoreIntent {
-  const normalized = normalizeForIntent(text);
-
-  const chartTitleQuery = resolveConnectChartTitleQuery(text);
-  const chartRequested =
-    Boolean(chartTitleQuery) ||
-    normalized.includes('cifra') ||
-    normalized.includes('acordes') ||
-    normalized.includes('chords') ||
-    normalized.includes('song chart');
-
-  if (chartRequested) {
-    return 'get_next_schedule_chart';
-  }
-
-  const presencePhrases = [
-    'eu confirmei presenca',
-    'confirmei minha presenca',
-    'qual e minha confirmacao',
-    'qual minha confirmacao',
-    'estou confirmado na proxima escala',
-    'estou confirmada na proxima escala',
-    'minha presenca na proxima escala',
-    'minha resposta da proxima escala',
-    'did i confirm my next schedule',
-    'am i confirmed for my next schedule',
-    'my attendance for my next schedule',
-    'my response for my next schedule',
-    'confirme mi asistencia',
-    'estoy confirmado para mi proxima escala',
-    'estoy confirmada para mi proxima escala',
-    'mi asistencia en la proxima escala',
-    'mi respuesta para la proxima escala',
-  ];
-
-  if (presencePhrases.some((phrase) => normalized.includes(phrase))) {
-    return 'get_next_schedule_presence';
-  }
-
-  const repertoirePhrases = [
-    'qual o repertorio da minha proxima escala',
-    'repertorio da minha proxima escala',
-    'repertorio da proxima escala',
-    'musicas da minha proxima escala',
-    'musicas da minha escala',
-    'quais musicas vou tocar',
-    'quais musicas eu vou tocar',
-    'setlist for my next schedule',
-    'songs in my next schedule',
-    'what songs am i playing',
-    'what songs will i play',
-    'repertorio de mi proxima escala',
-    'canciones de mi proxima escala',
-    'que canciones voy a tocar',
-  ];
-
-  if (repertoirePhrases.some((phrase) => normalized.includes(phrase))) {
-    return 'get_next_schedule_repertoire';
-  }
-
-  const schedulePhrases = [
-    'qual e minha proxima escala',
-    'qual minha proxima escala',
-    'minha proxima escala',
-    'what is my next schedule',
-    'whats my next schedule',
-    'my next schedule',
-    'cual es mi proxima escala',
-    'mi proxima escala',
-  ];
-
-  return schedulePhrases.some((phrase) => normalized.includes(phrase))
-    ? 'get_next_schedule'
-    : 'unknown';
+  return understandConnectQuestion(text).intent;
 }
 
 function safeReason(value: string): string {
@@ -409,6 +329,7 @@ export class ConnectCoreService {
         details: 'Intent is not part of the current production read-only verticals.',
       });
 
+      const clarification = understandConnectQuestion(request.text).clarification;
       const guidance = /\bnestjourney\b/i.test(request.text)
         ? {
             'pt-BR': 'Ainda não consulto sua lista de acompanhamentos no Assist. Abra o acompanhamento no NestJourney. O contato pelo Connect exige uma tarefa ativa, autorização e consentimento verificados novamente.',
@@ -424,7 +345,7 @@ export class ConnectCoreService {
         status: 'unsupported',
         intent,
         code: 'UNSUPPORTED_INTENT',
-        humanSummary: request.locale === 'en' || request.locale === 'en-US' ? guidance['en-US']
+        humanSummary: clarification ? questionGuidance(clarification, request.locale) : request.locale === 'en' || request.locale === 'en-US' ? guidance['en-US']
           : request.locale === 'es' || request.locale === 'es-ES' ? guidance['es-ES'] : guidance['pt-BR'],
       };
     }
