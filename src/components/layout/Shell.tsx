@@ -358,6 +358,7 @@ export const Shell: React.FC<ShellProps> = ({
                   <BookOpen className="h-3.5 w-3.5" />
                   <span>{liveFooterLabels[currentLang]}</span>
                 </button>
+                <a href="https://www.millionsnest.com" aria-label="MillionsNest" className="connect-focus mt-3 inline-flex rounded px-1 py-2"><img src="/brand/millionsnest/v1/logo-on-dark.png" alt="MillionsNest" width={1400} height={282} style={{height:22,width:"auto",maxWidth:150,objectFit:"contain"}} /></a>
                 <div className="mt-1 truncate px-1 text-[9px] text-[#4F6073]">{context.activeOrganization.name}</div>
               </div>
             )}
