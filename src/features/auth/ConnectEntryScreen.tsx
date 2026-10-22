@@ -144,7 +144,7 @@ export function ConnectEntryScreen(props: Props) {
                   <GoogleMark /> {c.retry}
                 </button>
                 <button type="button" onClick={props.onHub} className="min-h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.065]">
-                  {c.hub}
+                  <img src="/brand/millionsnest/v1/mark-192.png" alt="" aria-hidden="true" width={20} height={20} style={{display:"inline-block",width:20,height:20,objectFit:"contain",verticalAlign:"middle",marginRight:8,flexShrink:0}} />{c.hub}
                 </button>
               </div>
             </div>
@@ -159,7 +159,7 @@ export function ConnectEntryScreen(props: Props) {
                   <GoogleMark /> {c.google}
                 </button>
                 <button type="button" onClick={props.onHub} className="min-h-13 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.06]">
-                  {c.hub}
+                  <img src="/brand/millionsnest/v1/mark-192.png" alt="" aria-hidden="true" width={20} height={20} style={{display:"inline-block",width:20,height:20,objectFit:"contain",verticalAlign:"middle",marginRight:8,flexShrink:0}} />{c.hub}
                 </button>
               </div>
               <div className="mt-6 flex items-start gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3.5 py-3">
