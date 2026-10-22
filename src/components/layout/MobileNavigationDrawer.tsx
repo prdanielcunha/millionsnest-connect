@@ -280,7 +280,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
               ))}
             </div>
             <div className="text-[10px] text-center text-gray-500">
-              {isLive ? 'MillionsNest Connect' : `MillionsNest Connect • ${t.drawer.demoVersion}`}
+              <a href="https://www.millionsnest.com" aria-label="MillionsNest" className="connect-focus mt-3 inline-flex rounded px-1 py-2"><img src="/brand/millionsnest/v1/logo-on-dark.png" alt="MillionsNest" width={1400} height={282} style={{height:22,width:"auto",maxWidth:150,objectFit:"contain"}} /></a>{!isLive ? <span className="block mt-1">{t.drawer.demoVersion}</span> : null}
             </div>
           </div>
         </div>
