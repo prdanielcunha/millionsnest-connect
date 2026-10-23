@@ -1,3 +1,4 @@
+import type { SupportContext } from '../routing/supportIntake';
 import type { LiveConnectSession } from './liveConnectSession';
 
 export type LiveInboxReadiness = {
@@ -21,6 +22,7 @@ export type LiveInboxReadiness = {
 };
 
 export type LiveInboxConversation = {
+  supportContext?: SupportContext;
   schemaVersion: 1;
   organizationId: string;
   conversationId: string;

@@ -1,3 +1,4 @@
+import { supportDescription } from '../../core/routing/supportIntake';
 import { useInboxDialogA11y } from './useInboxDialogA11y';
 import { InboxPushControls } from '../notifications/InboxPushControls';
 import { ConnectPushClient, type InboxUnreadMarkers, readInboxPushLink } from '../../core/client/connectPushClient';
@@ -737,6 +738,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
         conversation.status,
         conversation.mode,
         conversation.assignedTo?.ref || '',
+        conversation.supportContext ? supportDescription(conversation.supportContext, currentLang) : '',
       ].some((value) => value.toLocaleLowerCase(currentLang).includes(normalized));
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -969,6 +971,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
           </div>
         </div>
 
+        {selected.supportContext && <p className="mt-4 rounded-xl border border-[#66D9EF]/20 bg-[#163442] p-3 text-xs leading-relaxed text-[#A8DEEA]">{supportDescription(selected.supportContext, currentLang)}</p>}
         <dl className="mt-5 divide-y divide-[#27394B] border-y border-[#27394B] text-[11px]">
           <div className="flex items-center justify-between gap-3 py-2.5">
             <dt className="text-[#687C91]">{t.organization}</dt>
@@ -1266,6 +1269,7 @@ export const LiveInboxPage: React.FC<Props> = ({ session, currentLang, onNavigat
                               <span className="shrink-0 text-[11px] text-[#93A5B8]">{new Date(conversation.updatedAt).toLocaleTimeString(currentLang, { hour: '2-digit', minute: '2-digit' })}</span>
                             </span>
                             <span className="mt-1 block truncate text-[12px] text-[#8295AA]">
+                              {conversation.supportContext && <span className="mb-1 block truncate text-[#A8DEEA]">{supportDescription(conversation.supportContext, currentLang)}</span>}
                               {t.status[conversation.status]} · {conversation.assignedTo?.ref === session.context.user.uid ? t.mine : conversation.assignedTo ? t.responsible : t.unassigned}
                             </span>
                             <span className="mt-1 block truncate text-[10px] text-[#64788D]">
