@@ -27,7 +27,7 @@ export function createPublicSupportContactHttpHandler(options: {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://wa.me https://api.whatsapp.com https://web.whatsapp.com https://www.whatsapp.com whatsapp:; base-uri 'none'; frame-ancestors 'none'");
     const q = req.query;
     const locale: SupportLocale = typeof q.locale === 'string' && Object.hasOwn(SUPPORT_COPY, q.locale) ? q.locale as SupportLocale : 'pt-BR';
     const copy = SUPPORT_COPY[locale];
