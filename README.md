@@ -165,3 +165,7 @@ The production-only diagnostic described in [CONNECT_META_READONLY_PROVIDER_PROO
 The [reviewed template catalog](docs/CONNECT_WHATSAPP_TEMPLATE_CATALOG.md) contains 27 PT-BR/English/Spanish metadata variants for nine app-specific situations, with explicit consent/authority gates and all delivery disabled. A separate production workflow can submit absent exact models to Meta for review; this does not approve or send them. The [owner-account diagnostic](docs/CONNECT_META_READONLY_PROVIDER_PROOF.md) verifies the supplied account/phone association and canonical organization mapping without changing customer access or history.
 
 The separately reviewed `meta-hub-support-template-review.yml` correction is limited to our exact rejected Hub pt_BR model and its two absent locales. It submits clearer requested-support copy under the same existing name for Meta review, preserving Utility intent and all delivery/cost gates. Approved, pending or unknown definitions are never modified. Its workflow shares the submission lock and stops on ambiguous provider acceptance; see the catalog document for evidence and scope.
+
+### Official public support intake
+
+`GET /api/core/support/contact` prepares a manual official WhatsApp draft with product/source/subject labels, without login or automatic sends. Signed inbound messages are classified in the existing private human Inbox queue. See [the contract and release order](docs/OFFICIAL_SUPPORT_INTAKE_20261023.md).

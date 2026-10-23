@@ -1,3 +1,4 @@
+import { parseSupportContext } from '../routing/supportIntake';
 import { createHash } from 'node:crypto';
 import type {
   WhatsAppNormalizedEvent,
@@ -136,6 +137,19 @@ export class WhatsAppInboxIngestor implements WhatsAppWebhookIngestor {
         channel: 'whatsapp',
         occurredAt: new Date(occurredAt),
       });
+    }
+
+    const supportContext = event.messageType === 'text' ? parseSupportContext(event.text ?? '') : null;
+    const supportRequested = !!supportContext || /\[mn-support:|\b(?:preciso de (?:suporte|atendimento)|falar com (?:um |uma )?(?:atendente|pessoa)|need (?:support|human support)|necesito (?:soporte|ayuda humana))\b/i.test(event.text ?? '');
+    if (supportRequested && current?.status === 'resolved') {
+      await this.threadService.reopen({ ...scope, requestId: requestKey('wa-01-reopen', event.providerMessageId), evidenceRef, occurredAt: new Date(occurredAt) });
+    }
+    if (supportContext) {
+      await this.threadService.recordSupportContext({ ...scope, requestId: requestKey('wa-05-support', event.providerMessageId), evidenceRef, occurredAt: new Date(occurredAt), supportContext });
+    }
+    if (supportRequested && current?.mode !== 'human') {
+      // Use the existing human queue. Never grant tools or interrupt an assigned operator.
+      await this.threadService.requestHumanReview({ ...scope, requestId: requestKey('wa-15-support', event.providerMessageId), evidenceRef, occurredAt: new Date(occurredAt), reasonCode: supportContext ? `support_${supportContext.product}_${supportContext.topic}` : 'support_context_needs_clarification' });
     }
 
     await this.threadService.recordPersonReply({
