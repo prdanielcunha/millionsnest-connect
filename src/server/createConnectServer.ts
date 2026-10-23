@@ -1,3 +1,4 @@
+import { createPublicSupportContactHttpHandler } from '../core/routing/publicSupportContactHttpHandler';
 import { resolveExecutionSecretBundle } from './executionSecretBundle';
 import { createNestFinancePendingDocumentsHttpHandler, createNestFinanceEntitiesHttpHandler } from '../core/runtime/nestFinancePendingDocumentsHttpHandler';
 import { homologationReadOnly } from './homologationReadOnly';
@@ -156,6 +157,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   let productAgentProfilesHandler: ReturnType<typeof createProductAgentProfilesHandler> | null = null;
   let productAgentSettingsHandler: ReturnType<typeof createProductAgentSettingsHandler> | null = null;
   let supportOriginHandler: ReturnType<typeof createSupportOriginHttpHandler> | null = null;
+  let publicSupportContactHandler: ReturnType<typeof createPublicSupportContactHttpHandler> | null = null;
   let supportDraftHandler: ReturnType<typeof createSupportDraftHttpHandler> | null = null;
   let automationJobs: FirestoreAutomationJobStore | null = null;
   let automationWorker: InternalAutomationWorker | null = null;
@@ -410,6 +412,7 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
 
         let humanReplyService: HumanReplyService | undefined;
         if (officialWhatsAppProvider && env.CONNECT_SUPPORT_DRAFT_ENABLED === 'true' && env.CONNECT_SUPPORT_ORIGIN_SECRET && env.CONNECT_SUPPORT_ORIGIN_SECRET.length >= 32) {
+          publicSupportContactHandler = createPublicSupportContactHttpHandler({ bindings: parseWhatsAppConnectionBindings(env), provider: officialWhatsAppProvider });
           supportDraftHandler = createSupportDraftHttpHandler({ contextProvider: inboxContextProvider, secret: env.CONNECT_SUPPORT_ORIGIN_SECRET,
             bindings: parseWhatsAppConnectionBindings(env), provider: officialWhatsAppProvider });
         }
@@ -660,6 +663,11 @@ export function createConnectServer(options: CreateConnectServerOptions = {}) {
   app.post('/api/core/tools/nestfinance/pending-documents', (req, res) => {
     if (!financePendingDocuments) { res.status(404).json({ code: 'FINANCE_TOOL_DISABLED' }); return; }
     return financePendingDocuments(req, res);
+  });
+  app.get('/api/core/support/contact', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!publicSupportContactHandler) return res.status(503).type('text/plain').send('WhatsApp indisponível / unavailable / no disponible.');
+    return publicSupportContactHandler(req, res);
   });
   app.post('/api/core/support/draft', (req, res) => {
     if (!supportDraftHandler) { res.status(404).json({ code: 'SUPPORT_DRAFT_DISABLED' }); return; }
