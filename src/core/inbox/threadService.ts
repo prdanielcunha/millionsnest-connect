@@ -1,3 +1,4 @@
+import type { SupportContext } from '../routing/supportIntake';
 import {
   ConnectThreadEventType,
   ConnectThreadProjection,
@@ -63,6 +64,10 @@ export class ConnectThreadCommandService {
     return this.execute('CONVERSATION_OPENED', command, {
       channel: command.channel,
     });
+  }
+
+  async recordSupportContext(command: ConnectThreadCommandBase & { supportContext: SupportContext }): Promise<ConnectThreadCommandResult> {
+    return this.execute('SUPPORT_CONTEXT_RECORDED', command, { supportContext: command.supportContext });
   }
 
   async recordPersonReply(
@@ -148,6 +153,7 @@ export class ConnectThreadCommandService {
       conversationId: command.conversationId,
       evidenceRef: command.evidenceRef,
       occurredAt: command.occurredAt ?? this.now(),
+      supportContext: extra.supportContext,
       channel: extra.channel,
       assigneeType: extra.assigneeType,
       assigneeRef: extra.assigneeRef,

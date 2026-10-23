@@ -1,3 +1,4 @@
+import { validSupportContext, type SupportContext } from '../routing/supportIntake';
 export type ConnectThreadStatus =
   | 'new'
   | 'in_progress'
@@ -9,6 +10,7 @@ export type ConnectThreadStatus =
 export type ConnectThreadMode = 'automatic' | 'approval' | 'human';
 
 export type ConnectThreadEventType =
+  | 'SUPPORT_CONTEXT_RECORDED'
   | 'CONVERSATION_OPENED'
   | 'MESSAGE_REPLIED'
   | 'HUMAN_REPLY_SENT'
@@ -32,6 +34,7 @@ export interface ConnectThreadEvent {
   sensitivity: 'internal';
   version: 1;
   payload: {
+    supportContext?: SupportContext;
     channel?: string;
     assigneeType?: 'user' | 'team';
     assigneeRef?: string;
@@ -41,6 +44,7 @@ export interface ConnectThreadEvent {
 }
 
 export interface ConnectThreadProjection {
+  supportContext?: SupportContext;
   schemaVersion: 1;
   organizationId: string;
   conversationId: string;
@@ -59,6 +63,7 @@ export interface ConnectThreadProjection {
 }
 
 export interface CreateConnectThreadEventInput {
+  supportContext?: SupportContext;
   eventType: ConnectThreadEventType;
   requestId: string;
   organizationId: string;
@@ -86,6 +91,7 @@ function safeEvidenceRef(value: string): string {
 
 function resultingStatus(eventType: ConnectThreadEventType): ConnectThreadStatus {
   switch (eventType) {
+    case 'SUPPORT_CONTEXT_RECORDED':
     case 'CONVERSATION_OPENED':
       return 'new';
     case 'MESSAGE_REPLIED':
@@ -115,6 +121,7 @@ function resultingStatus(eventType: ConnectThreadEventType): ConnectThreadStatus
 export function createConnectThreadEvent(
   input: CreateConnectThreadEventInput,
 ): ConnectThreadEvent {
+  if (input.eventType === 'SUPPORT_CONTEXT_RECORDED' && !validSupportContext(input.supportContext)) throw new Error('INVALID_SUPPORT_CONTEXT');
   const occurredAt = (input.occurredAt ?? new Date()).toISOString();
   const requestId = safeSegment(input.requestId, 'unknown-request');
   const organizationId = safeSegment(input.organizationId, 'unknown-organization');
@@ -145,6 +152,7 @@ export function createConnectThreadEvent(
     sensitivity: 'internal',
     version: 1,
     payload: {
+      ...(input.eventType === 'SUPPORT_CONTEXT_RECORDED' ? { supportContext: input.supportContext } : {}),
       channel: input.channel ? safeSegment(input.channel, 'unknown') : undefined,
       assigneeType: input.assigneeType,
       assigneeRef,
@@ -225,7 +233,7 @@ export function projectConnectThread(
     }
 
     assertTransition(state, event);
-    const status = event.payload.resultingStatus ?? resultingStatus(event.eventType);
+    const status = event.eventType === 'SUPPORT_CONTEXT_RECORDED' && state ? state.status : event.payload.resultingStatus ?? resultingStatus(event.eventType);
 
     if (!state) {
       state = {
@@ -254,6 +262,10 @@ export function projectConnectThread(
     };
 
     switch (event.eventType) {
+      case 'SUPPORT_CONTEXT_RECORDED':
+        if (!validSupportContext(event.payload.supportContext)) throw new Error('INVALID_SUPPORT_CONTEXT');
+        next.supportContext = { ...event.payload.supportContext };
+        break;
       case 'THREAD_ASSIGNED':
         next.assignedTo = {
           type: event.payload.assigneeType!,
@@ -314,6 +326,9 @@ export function sameConnectThreadEventIntent(a: ConnectThreadEvent, b: ConnectTh
     && a.evidenceRef === b.evidenceRef
     && a.sensitivity === b.sensitivity
     && a.version === b.version
+    && a.payload.supportContext?.product === b.payload.supportContext?.product
+    && a.payload.supportContext?.source === b.payload.supportContext?.source
+    && a.payload.supportContext?.topic === b.payload.supportContext?.topic
     && a.payload.channel === b.payload.channel
     && a.payload.assigneeType === b.payload.assigneeType
     && a.payload.assigneeRef === b.payload.assigneeRef
