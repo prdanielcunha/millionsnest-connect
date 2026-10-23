@@ -617,3 +617,5 @@ jobs:
           test "$GITHUB_REF" = refs/heads/production
           bash scripts/provision-connect-recovery-scheduler.sh
           echo CONNECT_CORE_RELEASE_SIGNED_RECOVERY_REFRESH_OK
+
+# Reviewed immutable Hub privacy proof for public support release, 2026-10-23.
