@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "projectId": "millionsnest",
   "hubRepository": "prdanielcunha/millionsnest",
-  "hubCommit": "5fb11db71f57550e9c32617a5da13ecf2bcfd45a",
-  "rulesSha256": "5372febb59a285e40a567d6caaf5b35ac9ed97f23646e0ffe93959a6bf55f8cd",
-  "proofRunId": 39324830021,
+  "hubCommit": "8983f0024815bbeb0312dde9cd04ad42d787b341",
+  "rulesSha256": "f4751402d5cf9daf37c8685b2dcd4b5367ed62f91276242c5c784938634d480c",
+  "proofRunId": 39852181752,
   "privateStoreAssertions": 445
 }
